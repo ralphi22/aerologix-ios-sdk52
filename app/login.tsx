@@ -44,21 +44,15 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
-      // Try to use authService if available
-      const authService = await import('@/services/authService').catch(() => null);
-      
-      if (authService?.default) {
-        await authService.default.login({ email, password });
-        // Navigate to main app on success
+      // OFFLINE MODE: Skip backend auth, navigate directly to app
+      // In production, this would call authService.login()
+      setTimeout(() => {
+        setIsLoading(false);
         router.replace('/(tabs)');
-      } else {
-        // Stub: service not available
-        Alert.alert(t('coming_soon'), 'Authentication service is being configured.');
-      }
+      }, 500);
     } catch (error: any) {
       const message = error?.response?.data?.detail || error?.message || t('error_generic');
       Alert.alert('Error', message);
-    } finally {
       setIsLoading(false);
     }
   };
