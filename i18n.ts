@@ -23,7 +23,59 @@ type TranslationKey =
   | 'error_generic'
   | 'coming_soon'
   | 'name'
-  | 'full_name';
+  | 'full_name'
+  // Aircraft
+  | 'aircraft'
+  | 'aircraft_title'
+  | 'no_aircraft'
+  | 'add_aircraft'
+  | 'save_aircraft'
+  | 'delete_aircraft'
+  | 'delete_confirm'
+  | 'cancel'
+  | 'airframe'
+  | 'engine'
+  | 'propeller'
+  | 'hours'
+  // Aircraft form
+  | 'registration'
+  | 'registration_hint'
+  | 'common_name'
+  | 'model_name'
+  | 'serial_number'
+  | 'category'
+  | 'engine_type'
+  | 'max_weight'
+  | 'base_operations'
+  | 'manufacturer'
+  | 'country_manufacture'
+  | 'year_manufacture'
+  | 'registration_type'
+  | 'owner_since'
+  | 'owner_address'
+  | 'address_line1'
+  | 'address_line2'
+  | 'city'
+  | 'country'
+  | 'airframe_hours'
+  | 'engine_hours'
+  | 'propeller_hours'
+  | 'auto_fill_hint'
+  | 'tc_safe_disclaimer'
+  // Sections
+  | 'section_identity'
+  | 'section_category'
+  | 'section_weight'
+  | 'section_construction'
+  | 'section_registration'
+  | 'section_owner'
+  | 'section_hours'
+  // Tab bar
+  | 'tab_aircraft'
+  | 'tab_assistant'
+  | 'tab_profile'
+  // Profile
+  | 'profile';
 
 type Translations = Record<TranslationKey, string>;
 
@@ -54,6 +106,58 @@ const translations: Record<'en' | 'fr', Translations> = {
     coming_soon: 'Coming soon',
     name: 'Name',
     full_name: 'Full Name',
+    // Aircraft
+    aircraft: 'Aircraft',
+    aircraft_title: 'Aircraft',
+    no_aircraft: 'No aircraft added yet',
+    add_aircraft: 'Add Aircraft',
+    save_aircraft: 'Save Aircraft',
+    delete_aircraft: 'Delete',
+    delete_confirm: 'Delete this aircraft?',
+    cancel: 'Cancel',
+    airframe: 'Airframe',
+    engine: 'Engine',
+    propeller: 'Propeller',
+    hours: 'h',
+    // Aircraft form
+    registration: 'Registration',
+    registration_hint: 'e.g. C-FABC (Canada), N123AB (USA)',
+    common_name: 'Common Name',
+    model_name: 'Model',
+    serial_number: 'Serial Number',
+    category: 'Category',
+    engine_type: 'Engine Type',
+    max_weight: 'Maximum Weight',
+    base_operations: 'Base of Operations',
+    manufacturer: 'Manufacturer',
+    country_manufacture: 'Country of Manufacture',
+    year_manufacture: 'Year of Manufacture',
+    registration_type: 'Registration Type',
+    owner_since: 'Owner Since',
+    owner_address: 'Owner Address',
+    address_line1: 'Address Line 1',
+    address_line2: 'Address Line 2',
+    city: 'City',
+    country: 'Country',
+    airframe_hours: 'Airframe Hours',
+    engine_hours: 'Engine Hours',
+    propeller_hours: 'Propeller Hours',
+    auto_fill_hint: 'Will be auto-filled from registry when available',
+    tc_safe_disclaimer: 'Information only. You remain responsible for aircraft records and maintenance.',
+    // Sections
+    section_identity: 'Aircraft Identity',
+    section_category: 'Category',
+    section_weight: 'Weight & Base',
+    section_construction: 'Construction',
+    section_registration: 'Registration',
+    section_owner: 'Owner Address',
+    section_hours: 'Hours',
+    // Tab bar
+    tab_aircraft: 'Aircraft',
+    tab_assistant: 'AI Assistant',
+    tab_profile: 'Profile',
+    // Profile
+    profile: 'Profile',
   },
   fr: {
     app_name: 'AeroLogix AI',
@@ -81,6 +185,58 @@ const translations: Record<'en' | 'fr', Translations> = {
     coming_soon: 'Bientôt disponible',
     name: 'Nom',
     full_name: 'Nom complet',
+    // Aircraft
+    aircraft: 'Avions',
+    aircraft_title: 'Avions',
+    no_aircraft: 'Aucun avion enregistré',
+    add_aircraft: 'Ajouter un avion',
+    save_aircraft: 'Enregistrer l\'avion',
+    delete_aircraft: 'Supprimer',
+    delete_confirm: 'Supprimer cet avion ?',
+    cancel: 'Annuler',
+    airframe: 'Cellule',
+    engine: 'Moteur',
+    propeller: 'Hélice',
+    hours: 'h',
+    // Aircraft form
+    registration: 'Immatriculation',
+    registration_hint: 'ex: C-FABC (Canada), N123AB (USA)',
+    common_name: 'Nom commun',
+    model_name: 'Modèle',
+    serial_number: 'Numéro de série',
+    category: 'Catégorie',
+    engine_type: 'Type de moteur',
+    max_weight: 'Masse maximale',
+    base_operations: 'Base d\'opérations',
+    manufacturer: 'Constructeur',
+    country_manufacture: 'Pays de construction',
+    year_manufacture: 'Année de construction',
+    registration_type: 'Type d\'immatriculation',
+    owner_since: 'Propriétaire depuis',
+    owner_address: 'Adresse du propriétaire',
+    address_line1: 'Adresse ligne 1',
+    address_line2: 'Adresse ligne 2',
+    city: 'Ville',
+    country: 'Pays',
+    airframe_hours: 'Heures cellule',
+    engine_hours: 'Heures moteur',
+    propeller_hours: 'Heures hélice',
+    auto_fill_hint: 'Sera rempli automatiquement depuis le registre lorsque disponible',
+    tc_safe_disclaimer: 'Informatif seulement. Le propriétaire demeure responsable des registres et de la maintenance.',
+    // Sections
+    section_identity: 'Identité de l\'avion',
+    section_category: 'Catégorie',
+    section_weight: 'Masses & Base',
+    section_construction: 'Construction',
+    section_registration: 'Immatriculation',
+    section_owner: 'Adresse du propriétaire',
+    section_hours: 'Heures',
+    // Tab bar
+    tab_aircraft: 'Avions',
+    tab_assistant: 'Assistant IA',
+    tab_profile: 'Profil',
+    // Profile
+    profile: 'Profil',
   },
 };
 
