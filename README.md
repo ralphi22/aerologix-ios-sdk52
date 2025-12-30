@@ -119,4 +119,92 @@ L’API est configurée via :
 ```json
 extra.apiUrl
 
+Aucune logique backend n’est contenue dans ce dépôt.
+
+💰 Plans d’abonnement (indicatif)
+
+🆓 Basic
+
+✈️ Pilote
+
+🔧 Maintenance Pro
+
+🚁 Fleet AI
+
+Les détails sont gérés côté backend et App Store.
+
+📦 Build & déploiement
+Build iOS (TestFlight)
+npx eas build -p ios --profile production
+
+Soumission App Store
+npx eas submit -p ios
+
+🔐 Politique de confidentialité
+
+AeroLogix AI respecte la vie privée des utilisateurs.
+
+Données collectées
+
+Adresse e-mail (authentification)
+
+Données fournies par l’utilisateur :
+
+aéronefs
+
+documents
+
+images
+
+dossiers de maintenance
+
+Utilisation
+
+Les données sont utilisées uniquement pour :
+
+fournir l’accès à l’application
+
+stocker et afficher les dossiers de l’utilisateur
+
+activer les fonctionnalités internes
+
+Partage
+
+AeroLogix AI :
+
+❌ ne vend pas les données
+
+❌ ne fait aucun suivi publicitaire
+
+❌ ne partage pas les données à des tiers
+
+Sécurité
+
+Les données sont stockées de manière sécurisée et accessibles uniquement
+aux systèmes autorisés.
+
+Contact
+
+📧 support@aerologix.ai
+
+📄 Licence
+
+© 2025 AeroLogix AI
+Tous droits réservés.
+
+🙏 Remerciements
+
+Expo
+
+FastAPI
+
+OpenAI (via Emergent)
+
+Stripe
+
+Conçu avec rigueur ✈️
+
+```json
+extra.apiUrl
+
 
