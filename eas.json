@@ -1,0 +1,18 @@
+{
+  "cli": {
+    "version": ">= 16.28.0"
+  },
+  "build": {
+    "ios": {
+      "production": {
+        "autoIncrement": true,
+        "distribution": "store"
+      }
+    }
+  },
+  "submit": {
+    "ios": {
+      "production": {}
+    }
+  }
+}
