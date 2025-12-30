@@ -1,50 +1,122 @@
-# Welcome to your Expo app 👋
+# AeroLogix AI ✈️  
+Application mobile de gestion de maintenance aéronautique intelligente
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+---
 
-## Get started
+## 🎯 Vue d’ensemble
 
-1. Install dependencies
+**AeroLogix AI** est une application mobile conçue pour les pilotes et propriétaires
+d’avions légers privés, destinée à **organiser**, **centraliser** et **visualiser**
+les informations de maintenance aéronautique.
 
-   ```bash
-   npm install
-   ```
+L’application agit comme un **outil d’aide à l’organisation** et **ne remplace jamais**
+un carnet de bord officiel, un TEA / AME, ni Transport Canada.
 
-2. Start the app
+---
 
-   ```bash
-   npx expo start
-   ```
+## 📱 Plateformes
 
-In the output, you'll find options to open the app in a
+- ✅ iOS (TestFlight → App Store)
+- ⏳ Android (prévu)
+- ⏳ Web (prévu)
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+> Ce dépôt contient **exclusivement le frontend iOS**.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+---
 
-## Get a fresh project
+## 🏗️ Architecture technique
 
-When you're ready, run:
+### Frontend
+- Expo (React Native) — **Managed Workflow uniquement**
+- TypeScript
+- Expo Router
+- Stockage sécurisé (SecureStore)
 
-```bash
-npm run reset-project
-```
+### Backend (externe)
+- FastAPI (Python)
+- MongoDB
+- Hébergement : Render
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### IA
+- Analyse assistée (OCR, suggestions, résumés)
+- **Jamais décisionnelle**
+- Toujours validable par l’utilisateur
 
-## Learn more
+---
 
-To learn more about developing your project with Expo, look at the following resources:
+## ⚙️ Configuration technique (VERROUILLÉE)
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+⚠️ **Ces versions ne doivent jamais être modifiées sans décision explicite.**
 
-## Join the community
+- Expo SDK : **52.x**
+- React : **18.3.1**
+- React Native : **0.76.9**
+- Plateforme cible : **iOS**
+- Tests : **iPhone réel via TestFlight**
 
-Join our community of developers creating universal apps.
+❌ Aucune migration SDK  
+❌ Aucun plugin natif non validé  
+❌ Aucun contournement EAS / Apple  
+❌ Expo Go non utilisé  
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Ce dépôt est la **source de vérité iOS**.
+
+---
+
+## 🧭 Fonctionnalités principales
+
+- 📸 **OCR intelligent**
+  - Scan de rapports de maintenance
+  - Données toujours validables par l’utilisateur
+
+- 📊 **Carnet numérique**
+  - Heures de vol
+  - Suivi des entretiens
+
+- 🔔 **Alertes informatives**
+  - TBO
+  - ELT
+  - Inspections périodiques
+
+- ✈️ **Gestion multi-avions**
+  - Selon le forfait actif
+
+- 🤖 **IA assistante**
+  - Résumés
+  - Suggestions
+  - Aide à la lecture
+  - **Jamais une décision de navigabilité**
+
+---
+
+## 🔐 Sécurité & conformité
+
+- Authentification sécurisée (JWT)
+- Stockage chiffré des données sensibles
+- HTTPS obligatoire
+- Aucune revente ou exploitation publicitaire des données
+
+---
+
+## ⚠️ Avis important (TC-Safe)
+
+AeroLogix AI est un **outil d’organisation et d’information uniquement**.
+
+L’application :
+- ❌ ne certifie pas la navigabilité
+- ❌ ne remplace pas un carnet de bord officiel
+- ❌ ne remplace pas un TEA / AME
+- ❌ ne prend aucune décision réglementaire
+
+La responsabilité finale demeure toujours celle du propriétaire et des professionnels certifiés.
+
+---
+
+## 🌐 Backend
+
+L’API est configurée via :
+
+```json
+extra.apiUrl
+
+
