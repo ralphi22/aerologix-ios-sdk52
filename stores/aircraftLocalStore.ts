@@ -1,9 +1,10 @@
 /**
  * aircraftLocalStore.ts - Local state management for aircraft (OFFLINE MODE)
- * No backend, no persistence - just React state sharing
+ * No backend, no persistence - using React Context
+ * No external dependencies required
  */
 
-import { create } from 'zustand';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 export interface Aircraft {
   id: string;
@@ -30,7 +31,7 @@ export interface Aircraft {
   createdAt: string;
 }
 
-interface AircraftLocalState {
+interface AircraftContextType {
   aircraft: Aircraft[];
   addAircraft: (aircraft: Omit<Aircraft, 'id' | 'createdAt'>) => void;
   deleteAircraft: (id: string) => void;
@@ -42,27 +43,39 @@ const generateId = () => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 };
 
-export const useAircraftLocalStore = create<AircraftLocalState>((set, get) => ({
-  aircraft: [],
+const AircraftContext = createContext<AircraftContextType | undefined>(undefined);
 
-  addAircraft: (aircraftData) => {
+export function AircraftProvider({ children }: { children: ReactNode }) {
+  const [aircraft, setAircraft] = useState<Aircraft[]>([]);
+
+  const addAircraft = (aircraftData: Omit<Aircraft, 'id' | 'createdAt'>) => {
     const newAircraft: Aircraft = {
       ...aircraftData,
       id: generateId(),
       createdAt: new Date().toISOString(),
     };
-    set((state) => ({
-      aircraft: [newAircraft, ...state.aircraft],
-    }));
-  },
+    setAircraft((prev) => [newAircraft, ...prev]);
+  };
 
-  deleteAircraft: (id) => {
-    set((state) => ({
-      aircraft: state.aircraft.filter((a) => a.id !== id),
-    }));
-  },
+  const deleteAircraft = (id: string) => {
+    setAircraft((prev) => prev.filter((a) => a.id !== id));
+  };
 
-  getAircraftById: (id) => {
-    return get().aircraft.find((a) => a.id === id);
-  },
-}));
+  const getAircraftById = (id: string) => {
+    return aircraft.find((a) => a.id === id);
+  };
+
+  return React.createElement(
+    AircraftContext.Provider,
+    { value: { aircraft, addAircraft, deleteAircraft, getAircraftById } },
+    children
+  );
+}
+
+export function useAircraftLocalStore(): AircraftContextType {
+  const context = useContext(AircraftContext);
+  if (!context) {
+    throw new Error('useAircraftLocalStore must be used within AircraftProvider');
+  }
+  return context;
+}
