@@ -1,9 +1,10 @@
 /**
  * ELT Screen - Emergency Locator Transmitter tracking
  * TC-SAFE: Visual information only, no regulatory validation
+ * OCR data must be validated by user
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,7 +17,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
-import { useElt, EltStatus } from '@/stores/eltStore';
+import { useElt, EltStatus, EltType } from '@/stores/eltStore';
 
 const COLORS = {
   primary: '#0033A0',
@@ -35,9 +36,17 @@ const COLORS = {
   orangeLight: '#FFF3E0',
   red: '#E53935',
   redLight: '#FFEBEE',
+  purple: '#7C4DFF',
+  purpleLight: '#EDE7F6',
 };
 
 const BEACON_REGISTRY_URL = 'https://www.canada.ca/en/air-force/services/search-rescue/beacon-registry.html';
+
+const ELT_TYPES: { value: EltType; label: string }[] = [
+  { value: '121.5 MHz', label: '121.5 MHz' },
+  { value: '406 MHz', label: '406 MHz' },
+  { value: '406 MHz + GPS', label: '406 MHz + GPS' },
+];
 
 function StatusIndicator({ status }: { status: EltStatus }) {
   const lang = getLanguage();
@@ -127,6 +136,13 @@ export default function EltScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({ ...eltData });
 
+  // Sync editData when eltData changes (e.g., after OCR)
+  useEffect(() => {
+    if (!isEditing) {
+      setEditData({ ...eltData });
+    }
+  }, [eltData, isEditing]);
+
   const eltStatus = getEltStatus();
   const testProgress = getTestProgress();
   const batteryProgress = getBatteryProgress();
@@ -143,6 +159,13 @@ export default function EltScreen() {
   const handleCancel = () => {
     setEditData({ ...eltData });
     setIsEditing(false);
+  };
+
+  const navigateToOcr = () => {
+    router.push({
+      pathname: '/(tabs)/aircraft/elt-ocr',
+      params: { aircraftId, registration },
+    });
   };
 
   const openBeaconRegistry = async () => {
@@ -198,6 +221,32 @@ export default function EltScreen() {
         {/* Status Section */}
         <View style={styles.statusSection}>
           <StatusIndicator status={eltStatus} />
+        </View>
+
+        {/* OCR Scan Button */}
+        <View style={styles.ocrSection}>
+          <TouchableOpacity style={styles.ocrButton} onPress={navigateToOcr}>
+            <View style={styles.ocrIconContainer}>
+              <Text style={styles.ocrIcon}>📷</Text>
+            </View>
+            <View style={styles.ocrContent}>
+              <Text style={styles.ocrTitle}>
+                {lang === 'fr' ? 'Scanner un document ELT' : 'Scan ELT Document'}
+              </Text>
+              <Text style={styles.ocrSubtitle}>
+                {lang === 'fr'
+                  ? 'Extraire les données via OCR'
+                  : 'Extract data via OCR'}
+              </Text>
+            </View>
+            <Text style={styles.ocrArrow}>›</Text>
+          </TouchableOpacity>
+          
+          {eltData.lastOcrScanDate && (
+            <Text style={styles.lastScanText}>
+              {lang === 'fr' ? 'Dernier scan:' : 'Last scan:'} {eltData.lastOcrScanDate}
+            </Text>
+          )}
         </View>
 
         {/* Progress Cards */}
@@ -287,12 +336,12 @@ export default function EltScreen() {
           </View>
         </View>
 
-        {/* Dates Section */}
-        <View style={styles.datesSection}>
+        {/* ELT Identification */}
+        <View style={styles.identSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionIcon}>📅</Text>
+            <Text style={styles.sectionIcon}>📡</Text>
             <Text style={styles.sectionTitle}>
-              {lang === 'fr' ? 'Dates clés' : 'Key Dates'}
+              {lang === 'fr' ? 'Identification ELT' : 'ELT Identification'}
             </Text>
             {isEditing && (
               <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
@@ -301,54 +350,37 @@ export default function EltScreen() {
             )}
           </View>
           
-          <View style={styles.datesCard}>
-            <DateField
-              label={lang === 'fr' ? 'Date d\'activation ELT' : 'ELT Activation Date'}
-              value={isEditing ? editData.activationDate : eltData.activationDate}
-              onChange={(v) => setEditData({ ...editData, activationDate: v })}
-              isEditing={isEditing}
-            />
-            <View style={styles.dateDivider} />
-            <DateField
-              label={lang === 'fr' ? 'Mise en service' : 'Service Date'}
-              value={isEditing ? editData.serviceDate : eltData.serviceDate}
-              onChange={(v) => setEditData({ ...editData, serviceDate: v })}
-              isEditing={isEditing}
-            />
-            <View style={styles.dateDivider} />
-            <DateField
-              label={lang === 'fr' ? 'Dernier test ELT' : 'Last ELT Test'}
-              value={isEditing ? editData.lastTestDate : eltData.lastTestDate}
-              onChange={(v) => setEditData({ ...editData, lastTestDate: v })}
-              isEditing={isEditing}
-            />
-            <View style={styles.dateDivider} />
-            <DateField
-              label={lang === 'fr' ? 'Dernier changement batterie' : 'Last Battery Change'}
-              value={isEditing ? editData.lastBatteryDate : eltData.lastBatteryDate}
-              onChange={(v) => setEditData({ ...editData, lastBatteryDate: v })}
-              isEditing={isEditing}
-            />
-            <View style={styles.dateDivider} />
-            <DateField
-              label={lang === 'fr' ? 'Expiration batterie' : 'Battery Expiry'}
-              value={isEditing ? editData.batteryExpiryDate : eltData.batteryExpiryDate}
-              onChange={(v) => setEditData({ ...editData, batteryExpiryDate: v })}
-              isEditing={isEditing}
-            />
-          </View>
-        </View>
-
-        {/* ELT Identification (Optional) */}
-        <View style={styles.identSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionIcon}>📡</Text>
-            <Text style={styles.sectionTitle}>
-              {lang === 'fr' ? 'Identification ELT' : 'ELT Identification'}
-            </Text>
-          </View>
-          
           <View style={styles.identCard}>
+            {/* ELT Type */}
+            <View style={styles.identRow}>
+              <Text style={styles.identLabel}>{lang === 'fr' ? 'Type' : 'Type'}</Text>
+              {isEditing ? (
+                <View style={styles.eltTypeSelector}>
+                  {ELT_TYPES.map((type) => (
+                    <TouchableOpacity
+                      key={type.value}
+                      style={[
+                        styles.eltTypeOption,
+                        editData.eltType === type.value && styles.eltTypeOptionSelected,
+                      ]}
+                      onPress={() => setEditData({ ...editData, eltType: type.value })}
+                    >
+                      <Text style={[
+                        styles.eltTypeText,
+                        editData.eltType === type.value && styles.eltTypeTextSelected,
+                      ]}>
+                        {type.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.eltTypeBadge}>
+                  <Text style={styles.eltTypeBadgeText}>{eltData.eltType || '—'}</Text>
+                </View>
+              )}
+            </View>
+            
             <View style={styles.identRow}>
               <Text style={styles.identLabel}>{lang === 'fr' ? 'Fabricant' : 'Manufacturer'}</Text>
               {isEditing ? (
@@ -394,7 +426,7 @@ export default function EltScreen() {
                 <TextInput
                   style={styles.identInput}
                   value={editData.hexCode}
-                  onChangeText={(v) => setEditData({ ...editData, hexCode: v })}
+                  onChangeText={(v) => setEditData({ ...editData, hexCode: v.toUpperCase() })}
                   placeholder="—"
                   autoCapitalize="characters"
                 />
@@ -404,6 +436,62 @@ export default function EltScreen() {
             </View>
           </View>
         </View>
+
+        {/* Dates Section */}
+        <View style={styles.datesSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionIcon}>📅</Text>
+            <Text style={styles.sectionTitle}>
+              {lang === 'fr' ? 'Dates clés' : 'Key Dates'}
+            </Text>
+          </View>
+          
+          <View style={styles.datesCard}>
+            <DateField
+              label={lang === 'fr' ? 'Date d\'activation ELT' : 'ELT Activation Date'}
+              value={isEditing ? editData.activationDate : eltData.activationDate}
+              onChange={(v) => setEditData({ ...editData, activationDate: v })}
+              isEditing={isEditing}
+            />
+            <View style={styles.dateDivider} />
+            <DateField
+              label={lang === 'fr' ? 'Mise en service' : 'Service Date'}
+              value={isEditing ? editData.serviceDate : eltData.serviceDate}
+              onChange={(v) => setEditData({ ...editData, serviceDate: v })}
+              isEditing={isEditing}
+            />
+            <View style={styles.dateDivider} />
+            <DateField
+              label={lang === 'fr' ? 'Dernier test ELT' : 'Last ELT Test'}
+              value={isEditing ? editData.lastTestDate : eltData.lastTestDate}
+              onChange={(v) => setEditData({ ...editData, lastTestDate: v })}
+              isEditing={isEditing}
+            />
+            <View style={styles.dateDivider} />
+            <DateField
+              label={lang === 'fr' ? 'Dernier changement batterie' : 'Last Battery Change'}
+              value={isEditing ? editData.lastBatteryDate : eltData.lastBatteryDate}
+              onChange={(v) => setEditData({ ...editData, lastBatteryDate: v })}
+              isEditing={isEditing}
+            />
+            <View style={styles.dateDivider} />
+            <DateField
+              label={lang === 'fr' ? 'Expiration batterie' : 'Battery Expiry'}
+              value={isEditing ? editData.batteryExpiryDate : eltData.batteryExpiryDate}
+              onChange={(v) => setEditData({ ...editData, batteryExpiryDate: v })}
+              isEditing={isEditing}
+            />
+          </View>
+        </View>
+
+        {/* Save Button (when editing) */}
+        {isEditing && (
+          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+            <Text style={styles.saveButtonText}>
+              {lang === 'fr' ? 'Enregistrer les modifications' : 'Save Changes'}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Beacon Registry Link */}
         <View style={styles.registrySection}>
@@ -428,15 +516,6 @@ export default function EltScreen() {
             </Text>
           </View>
         </View>
-
-        {/* Save Button (when editing) */}
-        {isEditing && (
-          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveButtonText}>
-              {lang === 'fr' ? 'Enregistrer les modifications' : 'Save Changes'}
-            </Text>
-          </TouchableOpacity>
-        )}
 
         {/* Disclaimer */}
         <View style={styles.disclaimer}>
@@ -480,6 +559,22 @@ const styles = StyleSheet.create({
   statusTextContainer: {},
   statusValue: { fontSize: 22, fontWeight: '700' },
   statusLabel: { fontSize: 14, color: COLORS.textMuted, marginTop: 4 },
+  // OCR Section
+  ocrSection: { paddingHorizontal: 16, marginBottom: 8 },
+  ocrButton: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.purpleLight,
+    borderRadius: 12, padding: 14, borderWidth: 2, borderColor: COLORS.purple,
+  },
+  ocrIconContainer: {
+    width: 44, height: 44, borderRadius: 12, backgroundColor: COLORS.purple,
+    justifyContent: 'center', alignItems: 'center', marginRight: 12,
+  },
+  ocrIcon: { fontSize: 22 },
+  ocrContent: { flex: 1 },
+  ocrTitle: { fontSize: 15, fontWeight: '600', color: COLORS.purple },
+  ocrSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  ocrArrow: { fontSize: 24, color: COLORS.purple },
+  lastScanText: { fontSize: 11, color: COLORS.textMuted, marginTop: 6, textAlign: 'right' },
   // Progress Section
   progressSection: { paddingHorizontal: 16 },
   progressCard: {
@@ -496,24 +591,13 @@ const styles = StyleSheet.create({
   progressFooter: { flexDirection: 'row', justifyContent: 'space-between' },
   progressLabel: { fontSize: 12, color: COLORS.textMuted },
   progressRemaining: { fontSize: 12, fontWeight: '600', color: COLORS.textDark },
-  // Dates Section
-  datesSection: { padding: 16 },
+  // Identification Section
+  identSection: { padding: 16 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   sectionIcon: { fontSize: 18, marginRight: 8 },
   sectionTitle: { flex: 1, fontSize: 16, fontWeight: '600', color: COLORS.textDark },
   cancelButton: { paddingHorizontal: 12, paddingVertical: 6 },
   cancelButtonText: { fontSize: 14, color: COLORS.red },
-  datesCard: { backgroundColor: COLORS.white, borderRadius: 12, padding: 16 },
-  dateField: { paddingVertical: 12 },
-  dateLabel: { fontSize: 13, color: COLORS.textMuted, marginBottom: 4 },
-  dateValue: { fontSize: 16, fontWeight: '600', color: COLORS.textDark },
-  dateInput: {
-    backgroundColor: COLORS.background, borderRadius: 8, padding: 10,
-    fontSize: 16, fontWeight: '600', color: COLORS.textDark,
-  },
-  dateDivider: { height: 1, backgroundColor: COLORS.background },
-  // Identification Section
-  identSection: { paddingHorizontal: 16 },
   identCard: { backgroundColor: COLORS.white, borderRadius: 12, padding: 16 },
   identRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10,
@@ -526,6 +610,34 @@ const styles = StyleSheet.create({
     fontSize: 14, fontWeight: '600', color: COLORS.textDark, minWidth: 120, textAlign: 'right',
   },
   hexCode: { fontFamily: 'monospace', letterSpacing: 1 },
+  // ELT Type Selector
+  eltTypeSelector: { flexDirection: 'row', gap: 6 },
+  eltTypeOption: {
+    paddingVertical: 6, paddingHorizontal: 8, borderRadius: 6,
+    backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border,
+  },
+  eltTypeOptionSelected: { backgroundColor: COLORS.greenLight, borderColor: COLORS.green },
+  eltTypeText: { fontSize: 10, color: COLORS.textMuted },
+  eltTypeTextSelected: { color: COLORS.green, fontWeight: '600' },
+  eltTypeBadge: { backgroundColor: COLORS.blue, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  eltTypeBadgeText: { fontSize: 12, fontWeight: '600', color: COLORS.primary },
+  // Dates Section
+  datesSection: { paddingHorizontal: 16 },
+  datesCard: { backgroundColor: COLORS.white, borderRadius: 12, padding: 16 },
+  dateField: { paddingVertical: 12 },
+  dateLabel: { fontSize: 13, color: COLORS.textMuted, marginBottom: 4 },
+  dateValue: { fontSize: 16, fontWeight: '600', color: COLORS.textDark },
+  dateInput: {
+    backgroundColor: COLORS.background, borderRadius: 8, padding: 10,
+    fontSize: 16, fontWeight: '600', color: COLORS.textDark,
+  },
+  dateDivider: { height: 1, backgroundColor: COLORS.background },
+  // Save Button
+  saveButton: {
+    marginHorizontal: 16, marginTop: 16, backgroundColor: COLORS.green, paddingVertical: 16,
+    borderRadius: 12, alignItems: 'center',
+  },
+  saveButtonText: { color: COLORS.white, fontSize: 16, fontWeight: '600' },
   // Registry Section
   registrySection: { padding: 16 },
   registryButton: {
@@ -541,12 +653,6 @@ const styles = StyleSheet.create({
   },
   registryNoticeIcon: { fontSize: 14, marginRight: 8 },
   registryNoticeText: { flex: 1, fontSize: 12, color: COLORS.primary, lineHeight: 18 },
-  // Save Button
-  saveButton: {
-    marginHorizontal: 16, backgroundColor: COLORS.green, paddingVertical: 16,
-    borderRadius: 12, alignItems: 'center',
-  },
-  saveButtonText: { color: COLORS.white, fontSize: 16, fontWeight: '600' },
   // Disclaimer
   disclaimer: {
     flexDirection: 'row', margin: 16, padding: 16, backgroundColor: COLORS.yellow,
