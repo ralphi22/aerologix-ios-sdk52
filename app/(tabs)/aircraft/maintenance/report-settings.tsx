@@ -195,6 +195,16 @@ export default function ReportSettingsScreen() {
           </Text>
         </View>
 
+        {/* Limits Disclaimer */}
+        <View style={styles.limitsDisclaimer}>
+          <Text style={styles.disclaimerIcon}>ℹ️</Text>
+          <Text style={styles.disclaimerText}>
+            {lang === 'fr'
+              ? "Les limites affichées sont des références visuelles uniquement. Elles ne constituent pas une validation réglementaire."
+              : 'Displayed limits are visual references only. They do not constitute regulatory validation.'}
+          </Text>
+        </View>
+
         {/* Save Button */}
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
           <Text style={styles.saveButtonText}>
