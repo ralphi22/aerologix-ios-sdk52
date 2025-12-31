@@ -98,6 +98,15 @@ export default function AircraftDetailScreen() {
       return;
     }
     
+    // Special handling for ELT module
+    if (moduleName === 'elt') {
+      router.push({
+        pathname: '/(tabs)/aircraft/elt',
+        params: { aircraftId, registration: aircraft?.registration },
+      });
+      return;
+    }
+    
     router.push({
       pathname: '/(tabs)/aircraft/module',
       params: { moduleName, aircraftId },
