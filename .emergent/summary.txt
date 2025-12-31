@@ -1,0 +1,158 @@
+<analysis>**original_problem_statement**:
+The user, acting as a strict supervisor, has provided a series of detailed, phased instructions to build an iOS application named AeroLogix AI using Expo (SDK 52). The application is intended for aviation maintenance tracking.
+
+The core requirements have evolved through several messages:
+1.  **Initial Setup:** Verify project configuration (app icon) without making changes.
+2.  **Audit:** Analyze the existing codebase and report on its structure and completeness.
+3.  **Branding:** Implement the official app logo.
+4.  **Auth & Legal:** Implement a bilingual (EN/FR) authentication flow (Login/Sign Up) preceded by a mandatory, persistent disclaimer (TC-safe notice).
+5.  **Core UI (Offline):** Build the main UI components in an offline-first mode, using local state and mock data. This includes:
+    *   A 3-tab navigation structure (Aircraft, EKO, Profile).
+    *   A full CRUD (Create/Read/Update/Delete) module for Aircraft.
+    *   Placeholder screens for the EKO (AI assistant) and Profile (subscription) tabs.
+    *   A detailed Aircraft Detail screen.
+    *   A multi-page Maintenance module with a dashboard (Rapport) and sub-sections for Parts, AD/SB, STC, etc.
+6.  **Backend Connection:** Connect only the Login screen to the actual backend service.
+7.  **Current Task:** Create the UI for the Pièces (Parts), AD / SB, and STC sections within the Maintenance module. These are to be visual storage screens with mock data, simulating future OCR functionality.
+
+**User's preferred language**: Français
+
+**what currently exists?**
+A partially functional React Native application built with Expo SDK 52. The app is mostly in an offline UI state, with data managed by React Context providers.
+
+Key implemented features:
+-   **Authentication**: A disclaimer gate, a backend-connected Login screen, and a UI-only Sign Up screen.
+-   **Navigation**: A main 3-tab layout for Aircraft, EKO (AI Assistant), and Profile using Expo Router.
+-   **Aircraft Module**: Full local CRUD functionality for managing aircraft, including list, detail, add, and edit screens.
+-   **Maintenance Module**: A Maintenance screen that navigates to a detailed Rapport (Report) dashboard with visual progress bars for critical components.
+-   **i18n**: A simple, dependency-free utility for EN/FR translation.
+
+**Last working item**:
+-   **Last item agent was working on**: Implementing the UI for the Pièces / Parts, AD / SB, and STC sub-modules within the Maintenance section. This involved creating screens to display lists of items that would eventually be populated by OCR.
+-   **Status**: IN PROGRESS
+-   **Agent Testing Done**: N
+-   **Which testing method agent to use?**: Frontend (code review). The React Native nature of the project prevents the use of the screenshot tool for UI verification. The agent must review the newly created and modified files to ensure they meet the requirements.
+-   **User Testing Done**: N
+
+**All Pending/In progress Issue list**:
+-   **Issue 1**: Complete the Pièces, AD/SB, and STC screens (Priority: P0)
+
+    -   **Details**: The agent has created the necessary files (, , ), a new local store (), and added the  to the root layout. However, the content of these new screen files needs to be implemented to display the required UI (lists, cards, buttons, and disclaimers) as per the user's specification.
+    -   **Attempted fixes**: N/A (New feature implementation).
+    -   **Next debug checklist**:
+        1.  Verify the content of  to ensure it has the state and actions for managing parts, AD/SBs, and STCs.
+        2.  Implement the UI inside , , and  to render lists of items using data from the new store.
+        3.  Ensure each screen includes the mandatory bilingual TC-Safe disclaimer.
+        4.  Confirm that navigation from the main Maintenance screen to these new pages is correctly set up.
+    -   **Why fix this issue and what will be achieved?**: This will complete the UI foundation for the Maintenance module as requested by the user.
+    -   **Status**: IN PROGRESS
+    -   **Is recurring issue?**: N
+    -   **Should Test frontend/backend/both after fix?**: Frontend (code review).
+    -   **Blocked on other issue**: None.
+
+**In progress Task List**:
+-   **Task 1**: Implement Pièces, AD/SB, and STC screens (Priority: P0)
+    -   **Where to resume**: The agent just finished setting up the file structure and provider. The next step is to populate the newly created screen components (, , ) with the required UI and logic to interact with .
+    -   **What will be achieved with this?**: The core UI for the maintenance section will be complete, operating in a local, offline mode.
+    -   **Status**: IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?**: Frontend (code review).
+    -   **Blocked on something**: None.
+
+**Upcoming and Future Tasks**
+*   **Upcoming Tasks**:
+    *   **P1: Backend Integration for Sign Up**: Connect the  screen to a backend endpoint.
+    *   **P1: Backend Integration for Aircraft Data**: Migrate aircraft state management from  to use backend API calls for persistence.
+    *   **P1: Implement Log Book, ELT, and W/B Modules**: These are currently placeholders on the Aircraft Detail screen.
+*   **Future Tasks**:
+    *   **P2: Implement Real OCR Functionality**: Replace the mock OCR buttons with a real implementation, likely involving a third-party service.
+    *   **P2: Implement Real Sharing**: Build the backend logic for the Share with AME/AMO feature.
+    *   **P2: Implement EKO AI Assistant**: Connect the EKO tab to a backend service powered by an LLM.
+    *   **P2: Implement Subscription Management**: Build the UI and backend integration for the Manage Subscription feature.
+
+**Completed work in this session**
+-   **Auth & Disclaimer**: Implemented a mandatory disclaimer gate, Login screen (backend-connected), and Signup screen (UI-only).
+-   **Tab Navigation**: Created the main 3-tab layout for Aircraft, EKO, and Profile.
+-   **Aircraft Module**: Built a full local CRUD module for managing aircraft.
+-   **Maintenance Module**:
+    -   Created the main Maintenance screen and a detailed Report dashboard ().
+    -   Implemented a settings screen for the report ().
+    -   Applied several user-requested corrections to the report's logic and wording.
+
+**Earlier issues found/mentioned but not fixed**
+-   None. The agent has been following the user's strict guidance without introducing new issues.
+
+**Known issue recurrence from previous fork**
+-   N/A
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+-   **Framework**: React Native with Expo (Managed Workflow, SDK ~52).
+-   **Navigation**: Expo Router (file-system-based).
+-   **State Management**: React Context API for local state (, , etc.) and  for persistent flags.
+-   **API**:  for HTTP requests to the backend.
+-   **Internationalization**: A custom, dependency-free utility for EN/FR translations.
+
+**key DB schema**
+-   No direct database interaction. The application interacts with a backend via REST APIs, but the schema is not defined in this context.
+
+**changes in tech stack**
+-   None. The tech stack is explicitly locked by the user.
+
+**All files of reference**
+*   **Last Session Files**:
+    *   : New local store for Parts, AD/SB, and STC data.
+    *   : New screen for Parts (UI implementation pending).
+    *   : New screen for AD/SBs (UI implementation pending).
+    -   : New screen for STCs (UI implementation pending).
+    -   : Updated to add the .
+*   **Key Project Files**:
+    *   : Expo configuration.
+    *   : Central translation file.
+    *   : Root layout where all context providers are wrapped.
+    *   : Manages authentication API calls.
+
+**key api endpoints**
+-   : The only endpoint currently integrated, used for user authentication.
+
+**Critical Info for New Agent**
+-   **Follow Instructions Precisely**: The user acts as a strict supervisor, providing detailed, step-by-step requirements. Do not deviate, add features, or change the architecture without explicit instruction.
+-   **Locked Environment**: You are forbidden from upgrading the Expo SDK or any other dependencies. Do not add new packages.
+-   **Offline-First Development**: Assume all new features are UI-only and should use local state (React Context) unless the user explicitly asks for backend integration.
+-   **No Web Preview**: This is a React Native project. The screenshot tool will not work. Verify your work by carefully reviewing the code you write.
+-   **Bilingual & TC-Safe Mandate**: All user-facing text must be in both English and French via the  utility. All features must include disclaimers that the app is for informational purposes only (TC-Safe).
+
+**documents and test reports created in this job**
+-   None.
+
+**Last 10 User Messages and any pending HUMAN messages**
+1.  **User (Msg 282)**: Requested creation of Pièces / Parts, AD / SB, and STC screens as visual storage lists. **Status: IN PROGRESS**.
+2.  **Agent (Msg 281)**: Confirmed completion of corrections on the Maintenance Report.
+3.  **User (Msg 245)**: Requested three specific corrections to the Maintenance Report (wording, logic, and disclaimers). **Status: Completed**.
+4.  **Agent (Msg 244)**: Confirmed implementation of the Maintenance Report screen.
+5.  **User (Msg 226)**: Requested the creation of the detailed Maintenance Report dashboard. **Status: Completed**.
+6.  **Agent (Msg 225)**: Confirmed implementation of the main Maintenance screen.
+7.  **User (Msg 205)**: Requested the creation of the main Maintenance screen with 5 placeholder sub-pages. **Status: Completed**.
+8.  **Agent (Msg 204)**: Confirmed implementation of the Aircraft Detail screen.
+9.  **User (Msg 178)**: Requested the creation of the Aircraft Detail screen. **Status: Completed**.
+10. **Agent (Msg 177)**: Confirmed the reconnection of the login screen to the backend.
+
+**Project Health Check:**
+-   **Broken**: None.
+-   **Mocked**: The vast majority of the app's functionality is mocked, including user profile data, all aircraft and maintenance records (local state), AI assistance, subscription management, and OCR features.
+
+**3rd Party Integrations**
+-   None added. The project uses pre-existing dependencies like .
+
+**Testing status**
+-   **Testing agent used**: NO
+-   **Troubleshoot agent used**: NO
+-   **Test files created**: None.
+-   **Known regressions**: None.
+
+**Credentials to test flow:**
+-   N/A. No credentials are required for the current UI-focused tasks.
+
+**What agent forgot to execute**
+-   The agent has been diligent in following the user's granular instructions. The immediate next step is not something forgotten but the main part of the current task: populating the UI of the newly created , , and  files.</analysis>
