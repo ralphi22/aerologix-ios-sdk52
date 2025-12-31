@@ -4,38 +4,23 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { DisclaimerGate } from '@/components/disclaimer-gate';
-import { AircraftProvider } from '@/stores/aircraftLocalStore';
-import { ReportSettingsProvider } from '@/stores/reportSettingsStore';
-import { MaintenanceDataProvider } from '@/stores/maintenanceDataStore';
-import { EltProvider } from '@/stores/eltStore';
-import { OcrProvider } from '@/stores/ocrStore';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    <AircraftProvider>
-      <ReportSettingsProvider>
-        <MaintenanceDataProvider>
-          <EltProvider>
-            <OcrProvider>
-              <DisclaimerGate>
-                <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-                  <Stack>
-                    <Stack.Screen name="index" options={{ headerShown: false }} />
-                    <Stack.Screen name="login" options={{ headerShown: false }} />
-                    <Stack.Screen name="signup" options={{ headerShown: false }} />
-                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-                  </Stack>
-                  <StatusBar style="auto" />
-                </ThemeProvider>
-              </DisclaimerGate>
-            </OcrProvider>
-          </EltProvider>
-        </MaintenanceDataProvider>
-      </ReportSettingsProvider>
-    </AircraftProvider>
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <Stack>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="signup" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="modal"
+          options={{ presentation: 'modal', title: 'Modal' }}
+        />
+      </Stack>
+      <StatusBar style="auto" />
+    </ThemeProvider>
   );
 }
