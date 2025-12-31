@@ -266,6 +266,13 @@ interface Invoice {
 ## Changelog
 
 ### 2024-12-31
+- **Central OCR Module Complete**:
+  - OCR Scanner: photo/import, doc type selection, mock analysis, validation
+  - OCR History: document archive with summary and details
+  - Maintenance Report OCR: hours, parts, AD/SB, ELT detection
+  - Invoice OCR: supplier, amounts, stored in invoices
+  - Anti-duplicate check for maintenance reports
+  - Data distribution to modules after user validation
 - **ELT OCR Scanner**: Added document scanning with user validation:
   - Document type selection (4 types)
   - Mock OCR with confidence levels per field
