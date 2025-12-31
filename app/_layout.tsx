@@ -8,6 +8,7 @@ import { DisclaimerGate } from '@/components/disclaimer-gate';
 import { AircraftProvider } from '@/stores/aircraftLocalStore';
 import { ReportSettingsProvider } from '@/stores/reportSettingsStore';
 import { MaintenanceDataProvider } from '@/stores/maintenanceDataStore';
+import { EltProvider } from '@/stores/eltStore';
 
 export const unstable_settings = {
   initialRouteName: 'login',
@@ -20,18 +21,20 @@ export default function RootLayout() {
     <AircraftProvider>
       <ReportSettingsProvider>
         <MaintenanceDataProvider>
-          <DisclaimerGate>
-            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-              <Stack>
-                <Stack.Screen name="index" options={{ headerShown: false }} />
-                <Stack.Screen name="login" options={{ headerShown: false }} />
-                <Stack.Screen name="signup" options={{ headerShown: false }} />
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-              </Stack>
-              <StatusBar style="auto" />
-            </ThemeProvider>
-          </DisclaimerGate>
+          <EltProvider>
+            <DisclaimerGate>
+              <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+                <Stack>
+                  <Stack.Screen name="index" options={{ headerShown: false }} />
+                  <Stack.Screen name="login" options={{ headerShown: false }} />
+                  <Stack.Screen name="signup" options={{ headerShown: false }} />
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+                </Stack>
+                <StatusBar style="auto" />
+              </ThemeProvider>
+            </DisclaimerGate>
+          </EltProvider>
         </MaintenanceDataProvider>
       </ReportSettingsProvider>
     </AircraftProvider>
