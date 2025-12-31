@@ -171,6 +171,7 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
   const [parts, setParts] = useState<Part[]>(mockParts);
   const [adSbs, setAdSbs] = useState<AdSb[]>(mockAdSbs);
   const [stcs, setStcs] = useState<Stc[]>(mockStcs);
+  const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
 
   // Parts
   const addPart = (partData: Omit<Part, 'id'>) => {
@@ -213,6 +214,28 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
 
   const getStcsByAircraft = (aircraftId: string) => {
     return stcs;
+  };
+
+  // Invoices
+  const addInvoice = (invoiceData: Omit<Invoice, 'id'>) => {
+    const newInvoice: Invoice = { ...invoiceData, id: generateId() };
+    setInvoices((prev) => [newInvoice, ...prev]);
+  };
+
+  const updateInvoice = (id: string, data: Partial<Invoice>) => {
+    setInvoices((prev) => prev.map((inv) => inv.id === id ? { ...inv, ...data } : inv));
+  };
+
+  const deleteInvoice = (id: string) => {
+    setInvoices((prev) => prev.filter((inv) => inv.id !== id));
+  };
+
+  const getInvoicesByAircraft = (aircraftId: string) => {
+    return invoices;
+  };
+
+  const getInvoiceById = (id: string) => {
+    return invoices.find((inv) => inv.id === id);
   };
 
   return React.createElement(
