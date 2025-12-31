@@ -16,6 +16,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
 import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
 import { useReportSettings } from '@/stores/reportSettingsStore';
+import { useElt } from '@/stores/eltStore';
 
 const COLORS = {
   primary: '#0033A0',
