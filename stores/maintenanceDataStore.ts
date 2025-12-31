@@ -245,6 +245,7 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
         parts, addPart, deletePart, getPartsByAircraft,
         adSbs, addAdSb, deleteAdSb, getAdSbsByAircraft,
         stcs, addStc, deleteStc, getStcsByAircraft,
+        invoices, addInvoice, updateInvoice, deleteInvoice, getInvoicesByAircraft, getInvoiceById,
       },
     },
     children
