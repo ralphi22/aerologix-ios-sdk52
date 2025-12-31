@@ -58,6 +58,16 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
     setAircraft((prev) => [newAircraft, ...prev]);
   };
 
+  const updateAircraft = (id: string, aircraftData: Omit<Aircraft, 'id' | 'createdAt'>) => {
+    setAircraft((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, ...aircraftData }
+          : a
+      )
+    );
+  };
+
   const deleteAircraft = (id: string) => {
     setAircraft((prev) => prev.filter((a) => a.id !== id));
   };
@@ -68,7 +78,7 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
 
   return React.createElement(
     AircraftContext.Provider,
-    { value: { aircraft, addAircraft, deleteAircraft, getAircraftById } },
+    { value: { aircraft, addAircraft, updateAircraft, deleteAircraft, getAircraftById } },
     children
   );
 }
