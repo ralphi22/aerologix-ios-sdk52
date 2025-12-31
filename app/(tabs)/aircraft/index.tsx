@@ -105,7 +105,7 @@ export default function AircraftListScreen() {
   const { aircraft, deleteAircraft } = useAircraftLocalStore();
 
   const handleAddAircraft = () => {
-    router.push('/aircraft/add');
+    router.push('/(tabs)/aircraft/add');
   };
 
   return (
