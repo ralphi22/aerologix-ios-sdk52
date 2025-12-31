@@ -322,11 +322,22 @@ const styles = StyleSheet.create({
   disclaimer: {
     flexDirection: 'row',
     margin: 16,
+    marginBottom: 8,
     padding: 16,
     backgroundColor: COLORS.yellow,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.yellowBorder,
+  },
+  limitsDisclaimer: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: '#E3F2FD',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#90CAF9',
   },
   disclaimerIcon: {
     fontSize: 16,
