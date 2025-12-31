@@ -374,12 +374,12 @@ export default function ReportScreen() {
           {/* ELT */}
           <CriticalElementCard
             icon="📍"
-            iconBg={COLORS.greenLight}
+            iconBg={eltProgress.status === 'exceeded' ? COLORS.redLight : COLORS.greenLight}
             title="ELT"
             subtitle="Date"
-            currentValue={`Test: ${settings.eltTestDate} | Ex...`}
+            currentValue={`Test: ${eltData.lastTestDate}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
-            limitValue={`Test ${fixedLimits.ELT_TEST_MONTHS}m / Batt ${fixedLimits.ELT_BATTERY_MONTHS}m`}
+            limitValue={`${eltLimits.TEST_MONTHS}m / Batt ${eltLimits.BATTERY_MIN_MONTHS}-${eltLimits.BATTERY_MAX_MONTHS}m`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={eltProgress.percent}
             status={eltProgress.status}
