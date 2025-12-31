@@ -13,6 +13,7 @@ export default function AircraftLayout() {
       <Stack.Screen name="edit" />
       <Stack.Screen name="module" />
       <Stack.Screen name="maintenance" />
+      <Stack.Screen name="elt" />
     </Stack>
   );
 }
