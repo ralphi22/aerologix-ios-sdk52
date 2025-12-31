@@ -68,6 +68,13 @@ interface MaintenanceDataContextType {
   addStc: (stc: Omit<Stc, 'id'>) => void;
   deleteStc: (id: string) => void;
   getStcsByAircraft: (aircraftId: string) => Stc[];
+  // Invoices
+  invoices: Invoice[];
+  addInvoice: (invoice: Omit<Invoice, 'id'>) => void;
+  updateInvoice: (id: string, data: Partial<Invoice>) => void;
+  deleteInvoice: (id: string) => void;
+  getInvoicesByAircraft: (aircraftId: string) => Invoice[];
+  getInvoiceById: (id: string) => Invoice | undefined;
 }
 
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
