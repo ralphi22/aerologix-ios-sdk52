@@ -38,10 +38,11 @@ interface AircraftCardProps {
     engineHours: number;
     propellerHours: number;
   };
+  onPress: () => void;
   onDelete: () => void;
 }
 
-function AircraftCard({ aircraft, onDelete }: AircraftCardProps) {
+function AircraftCard({ aircraft, onPress, onDelete }: AircraftCardProps) {
   const handleDelete = () => {
     Alert.alert(
       t('delete_aircraft'),
@@ -54,7 +55,7 @@ function AircraftCard({ aircraft, onDelete }: AircraftCardProps) {
   };
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
       {/* Background decoration */}
       <View style={styles.cardDecoration}>
         <Text style={styles.cardDecorationText}>✈</Text>
