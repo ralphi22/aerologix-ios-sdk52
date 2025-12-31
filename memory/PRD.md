@@ -81,7 +81,6 @@
 
 ### P1 - Additional Modules
 - [ ] Log Book module
-- [ ] ELT module  
 - [ ] W/B (Weight & Balance) module
 
 ### P2 - Advanced Features
