@@ -3,16 +3,16 @@
     "version": ">= 16.28.0"
   },
   "build": {
-    "ios": {
-      "production": {
-        "autoIncrement": true,
-        "distribution": "store"
+    "testflight": {
+      "ios": {
+        "distribution": "app-store",
+        "buildNumber": "12"
       }
     }
   },
   "submit": {
-    "ios": {
-      "production": {}
+    "testflight": {
+      "ios": {}
     }
   }
 }
