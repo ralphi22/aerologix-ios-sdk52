@@ -1,19 +1,21 @@
 import axios from 'axios';
-import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-// Backend Render — source unique
-const API_URL =
-  Constants.expoConfig?.extra?.apiUrl ||
-  process.env.EXPO_PUBLIC_BACKEND_URL ||
-  'https://aerologix-ai-mobile.onrender.com';
+/**
+ * Backend Render — SOURCE UNIQUE ET VERROUILLÉE
+ * ❌ Pas de fallback
+ * ❌ Pas de Constants.expoConfig
+ * ❌ Pas de logique par environnement
+ */
+const API_URL = 'https://aerologix-backend.onrender.com';
 
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 15000,
 });
 
 // Storage compatible mobile + web
