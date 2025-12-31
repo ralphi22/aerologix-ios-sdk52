@@ -7,6 +7,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DisclaimerGate } from '@/components/disclaimer-gate';
 import { AircraftProvider } from '@/stores/aircraftLocalStore';
 import { ReportSettingsProvider } from '@/stores/reportSettingsStore';
+import { MaintenanceDataProvider } from '@/stores/maintenanceDataStore';
 
 export const unstable_settings = {
   initialRouteName: 'login',
