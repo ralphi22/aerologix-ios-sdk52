@@ -107,6 +107,24 @@ export default function AircraftDetailScreen() {
       return;
     }
     
+    // Special handling for OCR Scanner
+    if (moduleName === 'ocr-scan') {
+      router.push({
+        pathname: '/(tabs)/aircraft/ocr-scan',
+        params: { aircraftId, registration: aircraft?.registration },
+      });
+      return;
+    }
+    
+    // Special handling for OCR History
+    if (moduleName === 'ocr-history') {
+      router.push({
+        pathname: '/(tabs)/aircraft/ocr-history',
+        params: { aircraftId, registration: aircraft?.registration },
+      });
+      return;
+    }
+    
     router.push({
       pathname: '/(tabs)/aircraft/module',
       params: { moduleName, aircraftId },
