@@ -97,7 +97,7 @@ function AircraftCard({ aircraft, onPress, onDelete }: AircraftCardProps) {
       <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
         <Text style={styles.deleteButtonText}>{t('delete_aircraft')}</Text>
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -107,6 +107,10 @@ export default function AircraftListScreen() {
 
   const handleAddAircraft = () => {
     router.push('/(tabs)/aircraft/add');
+  };
+
+  const handleAircraftPress = (aircraftId: string) => {
+    router.push(`/(tabs)/aircraft/${aircraftId}`);
   };
 
   return (
@@ -131,6 +135,7 @@ export default function AircraftListScreen() {
             <AircraftCard
               key={item.id}
               aircraft={item}
+              onPress={() => handleAircraftPress(item.id)}
               onDelete={() => deleteAircraft(item.id)}
             />
           ))}
