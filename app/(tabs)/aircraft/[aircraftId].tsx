@@ -230,9 +230,21 @@ export default function AircraftDetailScreen() {
               <View style={styles.moduleContent}>
                 <Text style={styles.moduleTitle}>ELT</Text>
                 <Text style={styles.moduleSubtitle}>Emergency Locator Transmitter</Text>
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusText}>
-                    {lang === 'fr' ? 'Opérationnel' : 'Operational'}
+                <View style={[
+                  styles.statusBadge,
+                  eltStatus === 'attention' && styles.statusBadgeWarning,
+                  eltStatus === 'expired' && styles.statusBadgeError,
+                ]}>
+                  <Text style={[
+                    styles.statusText,
+                    eltStatus === 'attention' && styles.statusTextWarning,
+                    eltStatus === 'expired' && styles.statusTextError,
+                  ]}>
+                    {eltStatus === 'operational'
+                      ? (lang === 'fr' ? 'Opérationnel' : 'Operational')
+                      : eltStatus === 'attention'
+                      ? (lang === 'fr' ? 'Attention' : 'Attention')
+                      : (lang === 'fr' ? 'À vérifier' : 'Check Required')}
                   </Text>
                 </View>
               </View>
