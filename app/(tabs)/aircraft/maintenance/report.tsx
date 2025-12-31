@@ -153,21 +153,21 @@ export default function ReportScreen() {
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
   const { getAircraftById } = useAircraftLocalStore();
-  const { settings } = useReportSettings();
+  const { settings, fixedLimits } = useReportSettings();
 
   const aircraft = getAircraftById(aircraftId || '');
   const engineHours = aircraft?.engineHours || 0;
   const propellerHours = aircraft?.propellerHours || 0;
   const airframeHours = aircraft?.airframeHours || 0;
 
-  // Calculate all statuses
+  // Calculate all statuses using FIXED_LIMITS constants
   const motorProgress = calculateHoursProgress(engineHours, settings.motorTbo);
-  const heliceProgress = calculateDateProgress(settings.heliceDate, 60); // 5 years = 60 months
-  const celluleProgress = calculateDateProgress(settings.celluleDate, 60); // 5 years
-  const avioniqueProgress = calculateDateProgress(settings.avioniqueDate, 24); // 24 months
-  const magnetosProgress = calculateHoursProgress(settings.magnetosHours, 500);
-  const pompeProgress = calculateHoursProgress(settings.pompeVideHours, 400);
-  const eltProgress = calculateDateProgress(settings.eltTestDate, 12); // 12 months test
+  const heliceProgress = calculateDateProgress(settings.heliceDate, fixedLimits.HELICE_YEARS * 12);
+  const celluleProgress = calculateDateProgress(settings.celluleDate, fixedLimits.CELLULE_YEARS * 12);
+  const avioniqueProgress = calculateDateProgress(settings.avioniqueDate, fixedLimits.AVIONIQUE_MONTHS);
+  const magnetosProgress = calculateHoursProgress(settings.magnetosHours, fixedLimits.MAGNETOS_HOURS);
+  const pompeProgress = calculateHoursProgress(settings.pompeVideHours, fixedLimits.POMPE_VIDE_HOURS);
+  const eltProgress = calculateDateProgress(settings.eltTestDate, fixedLimits.ELT_TEST_MONTHS);
 
   // Check for alerts
   const alerts: { title: string; titleFr: string; message: string; messageFr: string }[] = [];
