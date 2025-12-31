@@ -219,6 +219,13 @@ interface Invoice {
 ## Changelog
 
 ### 2024-12-31
+- **ELT Module Complete**: Full Emergency Locator Transmitter tracking:
+  - Visual status indicator (operational/attention/check required)
+  - Progress bars for test cycle and battery
+  - Editable dates and ELT identification
+  - Canadian ELT Beacon Registry link
+  - Report integration (read-only consumption)
+  - Aircraft detail dynamic status
 - **Invoices Module Complete**: Full financial tracking with:
   - Invoice list with cards showing supplier, date, total, badges
   - Financial analysis: annual total, hours flown, estimated hourly cost
