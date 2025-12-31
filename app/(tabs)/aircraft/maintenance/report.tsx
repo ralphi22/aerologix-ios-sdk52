@@ -342,7 +342,7 @@ export default function ReportScreen() {
             subtitle={lang === 'fr' ? 'Heures' : 'Hours'}
             currentValue={`${settings.magnetosHours.toFixed(1)} h ${lang === 'fr' ? 'depuis inspe...' : 'since insp...'}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
-            limitValue="500 h"
+            limitValue={`${fixedLimits.MAGNETOS_HOURS} h`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={magnetosProgress.percent}
             status={magnetosProgress.status}
@@ -356,7 +356,7 @@ export default function ReportScreen() {
             subtitle={lang === 'fr' ? 'Heures' : 'Hours'}
             currentValue={`${settings.pompeVideHours.toFixed(1)} h ${lang === 'fr' ? 'depuis rempl...' : 'since repl...'}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
-            limitValue="400 h"
+            limitValue={`${fixedLimits.POMPE_VIDE_HOURS} h`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={pompeProgress.percent}
             status={pompeProgress.status}
@@ -370,7 +370,7 @@ export default function ReportScreen() {
             subtitle="Date"
             currentValue={`Test: ${settings.eltTestDate} | Ex...`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
-            limitValue={lang === 'fr' ? 'Test 12m / Batt 24m' : 'Test 12m / Batt 24m'}
+            limitValue={`Test ${fixedLimits.ELT_TEST_MONTHS}m / Batt ${fixedLimits.ELT_BATTERY_MONTHS}m`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={eltProgress.percent}
             status={eltProgress.status}
