@@ -1,6 +1,6 @@
 /**
  * login.tsx - Login screen for AeroLogix AI
- * Matches the provided screenshot design
+ * Connected to backend authService
  */
 
 import React, { useState } from 'react';
@@ -17,7 +17,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { t } from '@/i18n';
+import { t, getLanguage } from '@/i18n';
+import authService from '@/services/authService';
 
 // AeroLogix brand colors from screenshot analysis
 const COLORS = {
@@ -37,22 +38,63 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
+    const lang = getLanguage();
+
+    // Validation
     if (!email.trim() || !password.trim()) {
       Alert.alert('Error', t('error_generic'));
       return;
     }
 
+    // [LOG] Login attempt
+    console.log('LOGIN_ATTEMPT', { email: email.trim() });
+
     setIsLoading(true);
     try {
-      // OFFLINE MODE: Skip backend auth, navigate directly to app
-      // In production, this would call authService.login()
-      setTimeout(() => {
-        setIsLoading(false);
-        router.replace('/(tabs)');
-      }, 500);
+      // Call backend authService
+      const user = await authService.login({
+        email: email.trim(),
+        password: password,
+      });
+
+      // [LOG] Login success
+      console.log('LOGIN_SUCCESS', { userId: user.id, email: user.email });
+
+      // Navigate to main app
+      router.replace('/(tabs)/aircraft');
+
     } catch (error: any) {
-      const message = error?.response?.data?.detail || error?.message || t('error_generic');
-      Alert.alert('Error', message);
+      // [LOG] Login error
+      console.log('LOGIN_ERROR', {
+        status: error?.response?.status,
+        message: error?.response?.data?.detail || error?.message,
+      });
+
+      // Determine error message
+      let errorMessage: string;
+
+      if (error?.response) {
+        // Server responded with error (401, 400, etc.)
+        const status = error.response.status;
+        if (status === 401 || status === 400) {
+          errorMessage = lang === 'fr'
+            ? 'Email ou mot de passe invalide'
+            : 'Invalid email or password';
+        } else {
+          errorMessage = error.response.data?.detail || t('error_generic');
+        }
+      } else if (error?.request) {
+        // Network error - no response received
+        errorMessage = lang === 'fr'
+          ? 'Impossible de joindre le serveur'
+          : 'Unable to reach server';
+      } else {
+        // Other error
+        errorMessage = t('error_generic');
+      }
+
+      Alert.alert('Error', errorMessage);
+    } finally {
       setIsLoading(false);
     }
   };
