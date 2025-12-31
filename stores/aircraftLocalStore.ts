@@ -34,6 +34,7 @@ export interface Aircraft {
 interface AircraftContextType {
   aircraft: Aircraft[];
   addAircraft: (aircraft: Omit<Aircraft, 'id' | 'createdAt'>) => void;
+  updateAircraft: (id: string, aircraft: Omit<Aircraft, 'id' | 'createdAt'>) => void;
   deleteAircraft: (id: string) => void;
   getAircraftById: (id: string) => Aircraft | undefined;
 }
