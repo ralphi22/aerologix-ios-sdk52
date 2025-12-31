@@ -60,10 +60,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => <TabIcon icon="👤" color={color} focused={focused} />,
         }}
       />
-      {/* Hide unused screens */}
-      <Tabs.Screen name="index" options={{ href: null }} />
-      <Tabs.Screen name="explore" options={{ href: null }} />
-      <Tabs.Screen name="assistant" options={{ href: null }} />
     </Tabs>
   );
 }
