@@ -155,7 +155,7 @@ export default function ReportScreen() {
   const lang = getLanguage();
   const { getAircraftById } = useAircraftLocalStore();
   const { settings, fixedLimits } = useReportSettings();
-  const { getTestProgress: getEltTestProgress, fixedLimits: eltLimits } = useElt();
+  const { getTestProgress: getEltTestProgress, fixedLimits: eltLimits, eltData } = useElt();
 
   const aircraft = getAircraftById(aircraftId || '');
   const engineHours = aircraft?.engineHours || 0;
