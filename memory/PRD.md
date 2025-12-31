@@ -192,6 +192,12 @@ interface Invoice {
 ## Changelog
 
 ### 2024-12-31
+- **Invoices Module Complete**: Full financial tracking with:
+  - Invoice list with cards showing supplier, date, total, badges
+  - Financial analysis: annual total, hours flown, estimated hourly cost
+  - Invoice detail screen with OCR data and manual correction
+  - Add/delete invoice functionality
+  - Bilingual disclaimers (TC-Safe financial)
 - Verified and completed Parts, AD/SB, STC screens implementation
 - Added MaintenanceDataProvider to root layout
 - All screens include TC-Safe bilingual disclaimers
