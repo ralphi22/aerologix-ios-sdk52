@@ -18,6 +18,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { t, getLanguage } from '@/i18n';
 import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
+import { useElt } from '@/stores/eltStore';
 
 const COLORS = {
   primary: '#0033A0',
@@ -29,6 +30,8 @@ const COLORS = {
   textMuted: '#6C757D',
   border: '#E0E0E0',
   success: '#4CAF50',
+  orange: '#FF9800',
+  red: '#E53935',
   warning: '#FFF8E1',
   warningBorder: '#FFE082',
   warningText: '#5D4037',
