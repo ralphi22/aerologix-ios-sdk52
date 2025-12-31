@@ -86,7 +86,7 @@ function StatusBadge({ status }: StatusBadgeProps) {
     ? (lang === 'fr' ? 'Dépassé' : 'Exceeded')
     : status === 'warning' 
     ? (lang === 'fr' ? 'Attention' : 'Warning')
-    : 'OK';
+    : (lang === 'fr' ? 'Statut visuel' : 'Visual status');
   
   return (
     <View style={[styles.statusBadge, { backgroundColor: status === 'ok' ? '#E8F5E9' : status === 'warning' ? '#FFF3E0' : '#FFEBEE' }]}>
