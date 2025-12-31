@@ -58,6 +58,18 @@
   - TC-Safe financial disclaimers
 - [x] MaintenanceDataProvider integrated in root layout
 
+### Phase 5: ELT Module (Completed)
+- [x] **ELT Screen** - Full Emergency Locator Transmitter tracking:
+  - Visual status indicator (green/orange/red)
+  - Progress bars for test cycle (12 months) and battery (24-72 months)
+  - Editable key dates (activation, service, test, battery change, expiry)
+  - ELT identification fields (manufacturer, model, serial, hex code)
+  - Canadian ELT Beacon Registry link (external)
+  - TC-Safe disclaimers (bilingual)
+- [x] EltProvider integrated in root layout
+- [x] Report module consumes ELT data (read-only)
+- [x] Aircraft detail screen shows dynamic ELT status
+
 ---
 
 ## Pending / Upcoming Tasks
