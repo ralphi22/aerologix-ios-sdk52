@@ -5,8 +5,8 @@
   "build": {
     "testflight": {
       "ios": {
-        "distribution": "app-store",
-        "buildNumber": "12"
+        "distribution": "store",
+        "autoIncrement": true
       }
     }
   },
