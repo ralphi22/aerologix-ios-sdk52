@@ -6,6 +6,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DisclaimerGate } from '@/components/disclaimer-gate';
 import { AircraftProvider } from '@/stores/aircraftLocalStore';
+import { ReportSettingsProvider } from '@/stores/reportSettingsStore';
 
 export const unstable_settings = {
   initialRouteName: 'login',
@@ -16,18 +17,20 @@ export default function RootLayout() {
 
   return (
     <AircraftProvider>
-      <DisclaimerGate>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <Stack>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="login" options={{ headerShown: false }} />
-            <Stack.Screen name="signup" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-          </Stack>
-          <StatusBar style="auto" />
-        </ThemeProvider>
-      </DisclaimerGate>
+      <ReportSettingsProvider>
+        <DisclaimerGate>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <Stack>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="login" options={{ headerShown: false }} />
+              <Stack.Screen name="signup" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+            </Stack>
+            <StatusBar style="auto" />
+          </ThemeProvider>
+        </DisclaimerGate>
+      </ReportSettingsProvider>
     </AircraftProvider>
   );
 }
