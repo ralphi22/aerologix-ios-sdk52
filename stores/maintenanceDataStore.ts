@@ -1,5 +1,5 @@
 /**
- * Maintenance Data Store - Local state for Parts, AD/SB, STC
+ * Maintenance Data Store - Local state for Parts, AD/SB, STC, Invoices
  * Visual storage only - no regulatory decisions
  */
 
@@ -34,6 +34,18 @@ export interface Stc {
   description: string;
   dateAdded: string;
   aircraftId: string;
+}
+
+export interface Invoice {
+  id: string;
+  supplier: string;
+  date: string;
+  partsAmount: number;
+  laborAmount: number;
+  hoursWorked: number;
+  totalAmount: number;
+  aircraftId: string;
+  notes: string;
 }
 
 // ============================================
