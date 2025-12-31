@@ -133,6 +133,21 @@ interface Stc {
 }
 ```
 
+### Invoice
+```typescript
+interface Invoice {
+  id: string;
+  supplier: string;
+  date: string;
+  partsAmount: number;
+  laborAmount: number;
+  hoursWorked: number;
+  totalAmount: number;
+  aircraftId: string;
+  notes: string;
+}
+```
+
 ---
 
 ## API Endpoints (Current)
