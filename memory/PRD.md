@@ -98,16 +98,30 @@
 
 ### ELT Data
 ```typescript
+type EltType = '121.5 MHz' | '406 MHz' | '406 MHz + GPS' | '';
+
 interface EltData {
+  manufacturer: string;
+  model: string;
+  serialNumber: string;
+  eltType: EltType;            // Type d'ELT
+  hexCode: string;             // 406 MHz hex code
   activationDate: string;      // Date d'activation ELT
   serviceDate: string;         // Date de mise en service
   lastTestDate: string;        // Dernier test ELT (cycle 12 mois)
   lastBatteryDate: string;     // Dernier changement batterie
   batteryExpiryDate: string;   // Expiration batterie
-  manufacturer: string;
-  model: string;
-  serialNumber: string;
-  hexCode: string;             // 406 MHz hex code
+  aircraftId: string;
+  lastOcrScanDate: string;     // Date du dernier scan OCR
+  ocrValidated: boolean;       // User has validated OCR data
+}
+
+interface OcrScanRecord {
+  id: string;
+  documentType: 'maintenance_report' | 'elt_certificate' | 'battery_label' | 'registration' | 'other';
+  scanDate: string;
+  detectedData: OcrDetectedData;
+  validated: boolean;
   aircraftId: string;
 }
 ```
