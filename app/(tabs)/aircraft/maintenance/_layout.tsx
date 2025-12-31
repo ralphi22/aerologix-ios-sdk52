@@ -9,6 +9,7 @@ export default function MaintenanceLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="report" />
+      <Stack.Screen name="report-settings" />
       <Stack.Screen name="parts" />
       <Stack.Screen name="invoices" />
       <Stack.Screen name="ad-sb" />
