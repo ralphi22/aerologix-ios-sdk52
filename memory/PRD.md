@@ -240,6 +240,12 @@ interface Invoice {
 ## Changelog
 
 ### 2024-12-31
+- **ELT OCR Scanner**: Added document scanning with user validation:
+  - Document type selection (4 types)
+  - Mock OCR with confidence levels per field
+  - Field-by-field validation requirement
+  - No automatic data storage without user confirmation
+- **ELT Type Field**: Added ELT type selector (121.5 MHz, 406 MHz, 406 MHz + GPS)
 - **ELT Module Complete**: Full Emergency Locator Transmitter tracking:
   - Visual status indicator (operational/attention/check required)
   - Progress bars for test cycle and battery
