@@ -15,6 +15,8 @@ export default function AircraftLayout() {
       <Stack.Screen name="maintenance" />
       <Stack.Screen name="elt" />
       <Stack.Screen name="elt-ocr" />
+      <Stack.Screen name="ocr-scan" />
+      <Stack.Screen name="ocr-history" />
     </Stack>
   );
 }
