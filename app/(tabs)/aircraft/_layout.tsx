@@ -9,6 +9,9 @@ export default function AircraftLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="add" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="[aircraftId]" />
+      <Stack.Screen name="edit" />
+      <Stack.Screen name="module" />
     </Stack>
   );
 }
