@@ -1,11 +1,11 @@
 /**
  * Tab layout for main app navigation
- * Aircraft | AI Assistant | Profile
+ * Aircraft | EKO | Profile
  */
 
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Text, StyleSheet, View } from 'react-native';
 import { t } from '@/i18n';
 
 const COLORS = {
@@ -14,17 +14,13 @@ const COLORS = {
   background: '#FFFFFF',
 };
 
-// Simple icon components using emoji/text
-function AircraftIcon({ color }: { color: string }) {
-  return <Text style={[styles.tabIcon, { color }]}>✈️</Text>;
-}
-
-function AssistantIcon({ color }: { color: string }) {
-  return <Text style={[styles.tabIcon, { color }]}>✨</Text>;
-}
-
-function ProfileIcon({ color }: { color: string }) {
-  return <Text style={[styles.tabIcon, { color }]}>👤</Text>;
+// Tab icon components
+function TabIcon({ icon, color, focused }: { icon: string; color: string; focused: boolean }) {
+  return (
+    <View style={styles.iconContainer}>
+      <Text style={[styles.tabIcon, { color }]}>{icon}</Text>
+    </View>
+  );
 }
 
 export default function TabLayout() {
@@ -35,41 +31,39 @@ export default function TabLayout() {
         tabBarInactiveTintColor: COLORS.inactive,
         tabBarStyle: styles.tabBar,
         tabBarLabelStyle: styles.tabLabel,
-        headerShown: true,
         headerStyle: styles.header,
         headerTitleStyle: styles.headerTitle,
-        headerTintColor: COLORS.primary,
+        headerTitleAlign: 'center',
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="aircraft"
         options={{
           title: t('tab_aircraft'),
           headerTitle: t('aircraft_title'),
-          tabBarIcon: ({ color }) => <AircraftIcon color={color} />,
+          tabBarIcon: ({ color, focused }) => <TabIcon icon="✈️" color={color} focused={focused} />,
         }}
       />
       <Tabs.Screen
-        name="assistant"
+        name="eko"
         options={{
-          title: t('tab_assistant'),
-          tabBarIcon: ({ color }) => <AssistantIcon color={color} />,
+          title: 'EKO',
+          headerTitle: 'EKO',
+          tabBarIcon: ({ color, focused }) => <TabIcon icon="✨" color={color} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: t('tab_profile'),
-          tabBarIcon: ({ color }) => <ProfileIcon color={color} />,
+          headerTitle: t('profile'),
+          tabBarIcon: ({ color, focused }) => <TabIcon icon="👤" color={color} focused={focused} />,
         }}
       />
-      {/* Hide explore tab */}
-      <Tabs.Screen
-        name="explore"
-        options={{
-          href: null,
-        }}
-      />
+      {/* Hide unused screens */}
+      <Tabs.Screen name="index" options={{ href: null }} />
+      <Tabs.Screen name="explore" options={{ href: null }} />
+      <Tabs.Screen name="assistant" options={{ href: null }} />
     </Tabs>
   );
 }
@@ -81,22 +75,27 @@ const styles = StyleSheet.create({
     borderTopColor: '#E0E0E0',
     paddingTop: 8,
     paddingBottom: 8,
-    height: 60,
+    height: 65,
   },
   tabLabel: {
     fontSize: 12,
     fontWeight: '500',
+    marginTop: 2,
+  },
+  iconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tabIcon: {
     fontSize: 24,
   },
   header: {
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.primary,
     shadowColor: 'transparent',
     elevation: 0,
   },
   headerTitle: {
-    color: COLORS.primary,
+    color: COLORS.background,
     fontWeight: '600',
     fontSize: 18,
   },
