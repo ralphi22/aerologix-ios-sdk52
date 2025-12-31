@@ -84,6 +84,15 @@ export default function AircraftDetailScreen() {
   };
 
   const navigateToModule = (moduleName: string) => {
+    // Special handling for maintenance module
+    if (moduleName === 'maintenance') {
+      router.push({
+        pathname: '/(tabs)/aircraft/maintenance',
+        params: { aircraftId, registration: aircraft?.registration },
+      });
+      return;
+    }
+    
     router.push({
       pathname: '/(tabs)/aircraft/module',
       params: { moduleName, aircraftId },
