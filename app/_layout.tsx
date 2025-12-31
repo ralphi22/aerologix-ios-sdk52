@@ -11,10 +11,6 @@ import { MaintenanceDataProvider } from '@/stores/maintenanceDataStore';
 import { EltProvider } from '@/stores/eltStore';
 import { OcrProvider } from '@/stores/ocrStore';
 
-export const unstable_settings = {
-  initialRouteName: 'login',
-};
-
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
