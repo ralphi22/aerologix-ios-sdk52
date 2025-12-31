@@ -300,7 +300,7 @@ export default function ReportScreen() {
             subtitle="Date"
             currentValue={`${lang === 'fr' ? 'Dernière' : 'Last'}: ${settings.heliceDate}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
-            limitValue={lang === 'fr' ? '5 ans max' : '5 years max'}
+            limitValue={`${fixedLimits.HELICE_YEARS} ${lang === 'fr' ? 'ans max' : 'years max'}`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={heliceProgress.percent}
             status={heliceProgress.status}
@@ -314,7 +314,7 @@ export default function ReportScreen() {
             subtitle="Date"
             currentValue={`${lang === 'fr' ? 'Dernière' : 'Last'}: ${settings.celluleDate}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
-            limitValue={lang === 'fr' ? '5 ans max' : '5 years max'}
+            limitValue={`${fixedLimits.CELLULE_YEARS} ${lang === 'fr' ? 'ans max' : 'years max'}`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={celluleProgress.percent}
             status={celluleProgress.status}
@@ -328,7 +328,7 @@ export default function ReportScreen() {
             subtitle="Date"
             currentValue={`${lang === 'fr' ? 'Dernière' : 'Last'}: ${settings.avioniqueDate}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
-            limitValue={lang === 'fr' ? '24 mois' : '24 months'}
+            limitValue={`${fixedLimits.AVIONIQUE_MONTHS} ${lang === 'fr' ? 'mois' : 'months'}`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={avioniqueProgress.percent}
             status={avioniqueProgress.status}
