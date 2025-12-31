@@ -48,7 +48,14 @@
 - [x] **Parts screen** - visual storage with CRUD, OCR mock, TC-Safe disclaimer
 - [x] **AD/SB screen** - AD and SB list with type badges, CRUD, OCR mock, TC-Safe disclaimer
 - [x] **STC screen** - STC list with CRUD, OCR mock, TC-Safe disclaimer
-- [x] Invoices screen (placeholder)
+- [x] **Invoices screen** - Full financial tracking module:
+  - Invoice list with supplier, date, amounts
+  - Financial analysis section (total annual, hourly cost)
+  - Add invoice modal with parts/labor/hours breakdown
+  - Invoice detail screen with OCR data display
+  - Manual correction capability for OCR values
+  - Visual badges (parts, labor, hours)
+  - TC-Safe financial disclaimers
 - [x] MaintenanceDataProvider integrated in root layout
 
 ---
