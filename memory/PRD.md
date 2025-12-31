@@ -64,8 +64,15 @@
   - Progress bars for test cycle (12 months) and battery (24-72 months)
   - Editable key dates (activation, service, test, battery change, expiry)
   - ELT identification fields (manufacturer, model, serial, hex code)
+  - **ELT Type selector** (121.5 MHz, 406 MHz, 406 MHz + GPS)
   - Canadian ELT Beacon Registry link (external)
   - TC-Safe disclaimers (bilingual)
+- [x] **ELT OCR Scanner** - Document extraction with user validation:
+  - Document type selection (maintenance report, ELT certificate, battery label, registration)
+  - Mock OCR detection with confidence levels
+  - Field-by-field validation (user must confirm each field)
+  - Support for all ELT fields via OCR
+  - OCR disclaimer (data must be validated by user)
 - [x] EltProvider integrated in root layout
 - [x] Report module consumes ELT data (read-only)
 - [x] Aircraft detail screen shows dynamic ELT status
