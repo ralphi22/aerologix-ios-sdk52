@@ -41,9 +41,11 @@ export default function AircraftDetailScreen() {
   const router = useRouter();
   const { aircraftId } = useLocalSearchParams<{ aircraftId: string }>();
   const { getAircraftById } = useAircraftLocalStore();
+  const { getEltStatus } = useElt();
   const lang = getLanguage();
 
   const aircraft = getAircraftById(aircraftId || '');
+  const eltStatus = getEltStatus();
 
   // Local state for description
   const [description, setDescription] = useState('');
