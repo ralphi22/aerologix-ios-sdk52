@@ -624,10 +624,22 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     alignSelf: 'flex-start',
   },
+  statusBadgeWarning: {
+    backgroundColor: '#FFF3E0',
+  },
+  statusBadgeError: {
+    backgroundColor: '#FFEBEE',
+  },
   statusText: {
     fontSize: 11,
     color: COLORS.success,
     fontWeight: '600',
+  },
+  statusTextWarning: {
+    color: COLORS.orange,
+  },
+  statusTextError: {
+    color: COLORS.red,
   },
   // Share button
   shareButton: {
