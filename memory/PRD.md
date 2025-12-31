@@ -89,6 +89,22 @@
 - [ ] EKO AI Assistant (LLM integration)
 - [ ] Subscription management
 
+### ELT Data
+```typescript
+interface EltData {
+  activationDate: string;      // Date d'activation ELT
+  serviceDate: string;         // Date de mise en service
+  lastTestDate: string;        // Dernier test ELT (cycle 12 mois)
+  lastBatteryDate: string;     // Dernier changement batterie
+  batteryExpiryDate: string;   // Expiration batterie
+  manufacturer: string;
+  model: string;
+  serialNumber: string;
+  hexCode: string;             // 406 MHz hex code
+  aircraftId: string;
+}
+```
+
 ---
 
 ## Data Models (Local State)
