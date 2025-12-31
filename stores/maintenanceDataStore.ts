@@ -129,6 +129,42 @@ const mockStcs: Stc[] = [
   },
 ];
 
+const mockInvoices: Invoice[] = [
+  {
+    id: 'inv1',
+    supplier: 'Aviation Parts Inc.',
+    date: '2024-08-15',
+    partsAmount: 1250.00,
+    laborAmount: 450.00,
+    hoursWorked: 3.0,
+    totalAmount: 1700.00,
+    aircraftId: 'mock',
+    notes: 'Annual inspection - spark plugs replacement',
+  },
+  {
+    id: 'inv2',
+    supplier: 'SkyTech Maintenance',
+    date: '2024-06-20',
+    partsAmount: 320.00,
+    laborAmount: 280.00,
+    hoursWorked: 2.0,
+    totalAmount: 600.00,
+    aircraftId: 'mock',
+    notes: 'Oil change and filter replacement',
+  },
+  {
+    id: 'inv3',
+    supplier: 'Prop Solutions Ltd.',
+    date: '2024-03-10',
+    partsAmount: 0,
+    laborAmount: 850.00,
+    hoursWorked: 5.5,
+    totalAmount: 850.00,
+    aircraftId: 'mock',
+    notes: 'Propeller balancing and inspection',
+  },
+];
+
 const MaintenanceDataContext = createContext<MaintenanceDataContextType | undefined>(undefined);
 
 export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
