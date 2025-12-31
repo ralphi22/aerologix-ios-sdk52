@@ -77,6 +77,32 @@
 - [x] Report module consumes ELT data (read-only)
 - [x] Aircraft detail screen shows dynamic ELT status
 
+### Phase 6: Central OCR Module (Completed)
+- [x] **OCR Scanner Screen** - Central document scanning:
+  - Source selection (photo / import file)
+  - Document type selection (Maintenance Report, Invoice, Other)
+  - Mock OCR analysis with confidence levels
+  - User validation required for all fields
+  - Anti-duplicate detection for maintenance reports
+  - Data distribution to appropriate modules after validation
+- [x] **OCR History Screen** - Document archive:
+  - List of all scanned documents
+  - Summary cards (reports, invoices, other)
+  - Document details and applied modules
+  - Access to scan new documents
+- [x] **Maintenance Report OCR**:
+  - Identification (registration, date, AMO, description)
+  - Hours (airframe, engine, propeller) - CRITICAL
+  - Parts detection (name, P/N, quantity, action)
+  - AD/SB detection (number, description)
+  - ELT mentions detection
+  - Updates aircraft counters after validation
+- [x] **Invoice OCR**:
+  - Supplier, date, amounts
+  - Stored in Invoices module
+  - No counter updates
+- [x] OcrProvider integrated in root layout
+
 ---
 
 ## Pending / Upcoming Tasks
