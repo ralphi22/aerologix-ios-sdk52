@@ -1,5 +1,5 @@
 /**
- * Login Screen - TEST: Navigation vers /home (pas de tabs)
+ * Login Screen - Navigation vers /(tabs)
  */
 
 import React, { useState } from 'react';
@@ -15,7 +15,6 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import authService from '@/services/authService';
 
 export default function LoginScreen() {
@@ -40,8 +39,8 @@ export default function LoginScreen() {
         await authService.login({ email, password });
       }
       
-      // TEST: Navigation vers /home (écran simple, pas de tabs)
-      router.replace('/home');
+      // Navigation vers les tabs
+      router.replace('/(tabs)');
       
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || error.message || "Échec";
@@ -58,50 +57,40 @@ export default function LoginScreen() {
     >
       <View style={styles.content}>
         <View style={styles.header}>
-          <Ionicons name="airplane" size={60} color="#1E3A8A" />
           <Text style={styles.title}>AeroLogix AI</Text>
-          <Text style={styles.subtitle}>Test sans Tabs</Text>
+          <Text style={styles.subtitle}>Test avec Tabs minimaux</Text>
         </View>
 
         <View style={styles.form}>
           {isSignup && (
-            <View style={styles.inputContainer}>
-              <Ionicons name="person-outline" size={20} color="#64748B" />
-              <TextInput
-                style={styles.input}
-                placeholder="Nom"
-                placeholderTextColor="#94A3B8"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-              />
-            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Nom"
+              placeholderTextColor="#94A3B8"
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+            />
           )}
 
-          <View style={styles.inputContainer}>
-            <Ionicons name="mail-outline" size={20} color="#64748B" />
-            <TextInput
-              style={styles.input}
-              placeholder="Courriel"
-              placeholderTextColor="#94A3B8"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
+          <TextInput
+            style={styles.input}
+            placeholder="Courriel"
+            placeholderTextColor="#94A3B8"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
 
-          <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={20} color="#64748B" />
-            <TextInput
-              style={styles.input}
-              placeholder="Mot de passe"
-              placeholderTextColor="#94A3B8"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
+          <TextInput
+            style={styles.input}
+            placeholder="Mot de passe"
+            placeholderTextColor="#94A3B8"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
 
           <Pressable
             style={[styles.button, isLoading && { opacity: 0.7 }]}
@@ -122,7 +111,7 @@ export default function LoginScreen() {
             onPress={() => setIsSignup(!isSignup)}
           >
             <Text style={styles.switchText}>
-              {isSignup ? 'Déjà un compte ? Connexion' : 'Pas de compte ? Créer'}
+              {isSignup ? 'Déjà un compte ? Connexion' : 'Créer un compte'}
             </Text>
           </Pressable>
         </View>
@@ -135,19 +124,17 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F1F5F9' },
   content: { flex: 1, justifyContent: 'center', padding: 24 },
   header: { alignItems: 'center', marginBottom: 48 },
-  title: { fontSize: 32, fontWeight: 'bold', color: '#1E3A8A', marginTop: 16 },
+  title: { fontSize: 32, fontWeight: 'bold', color: '#1E3A8A' },
   subtitle: { fontSize: 14, color: '#64748B', marginTop: 8 },
   form: { gap: 16 },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  input: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#1E293B',
   },
-  input: { flex: 1, fontSize: 16, color: '#1E293B' },
   button: {
     backgroundColor: '#1E3A8A',
     borderRadius: 12,
