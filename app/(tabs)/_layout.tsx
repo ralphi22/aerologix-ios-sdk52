@@ -1,19 +1,17 @@
 /**
  * Tab layout for main app navigation
  * Aircraft | EKO | Profile
+ * 
+ * ARCHITECTURE CRITIQUE iOS:
+ * - Tabs TOUJOURS rendu (jamais null)
+ * - Providers déplacés au niveau des écrans individuels
+ * - Aucun gate bloquant au-dessus de la navigation
  */
 
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Text, StyleSheet, View } from 'react-native';
 import { t } from '@/i18n';
-
-import { DisclaimerGate } from '@/components/disclaimer-gate';
-import { AircraftProvider } from '@/stores/aircraftLocalStore';
-import { ReportSettingsProvider } from '@/stores/reportSettingsStore';
-import { MaintenanceDataProvider } from '@/stores/maintenanceDataStore';
-import { EltProvider } from '@/stores/eltStore';
-import { OcrProvider } from '@/stores/ocrStore';
 
 const COLORS = {
   primary: '#0033A0',
@@ -25,11 +23,10 @@ const COLORS = {
 function TabIcon({
   icon,
   color,
-  focused,
 }: {
   icon: string;
   color: string;
-  focused: boolean;
+  focused?: boolean;
 }) {
   return (
     <View style={styles.iconContainer}>
@@ -39,61 +36,56 @@ function TabIcon({
 }
 
 export default function TabLayout() {
+  // CRITIQUE: Tabs TOUJOURS rendu - jamais de return null
   return (
-    <AircraftProvider>
-      <ReportSettingsProvider>
-        <MaintenanceDataProvider>
-          <EltProvider>
-            <OcrProvider>
-              <DisclaimerGate>
-                <Tabs
-                  screenOptions={{
-                    tabBarActiveTintColor: COLORS.primary,
-                    tabBarInactiveTintColor: COLORS.inactive,
-                    tabBarStyle: styles.tabBar,
-                    tabBarLabelStyle: styles.tabLabel,
-                    headerStyle: styles.header,
-                    headerTitleStyle: styles.headerTitle,
-                    headerTitleAlign: 'center',
-                  }}
-                >
-                  <Tabs.Screen
-                    name="aircraft"
-                    options={{
-                      title: t('tab_aircraft'),
-                      headerTitle: t('aircraft_title'),
-                      tabBarIcon: ({ color, focused }) => (
-                        <TabIcon icon="✈️" color={color} focused={focused} />
-                      ),
-                    }}
-                  />
-                  <Tabs.Screen
-                    name="eko"
-                    options={{
-                      title: 'EKO',
-                      headerTitle: 'EKO',
-                      tabBarIcon: ({ color, focused }) => (
-                        <TabIcon icon="✨" color={color} focused={focused} />
-                      ),
-                    }}
-                  />
-                  <Tabs.Screen
-                    name="profile"
-                    options={{
-                      title: t('tab_profile'),
-                      headerTitle: t('profile'),
-                      tabBarIcon: ({ color, focused }) => (
-                        <TabIcon icon="👤" color={color} focused={focused} />
-                      ),
-                    }}
-                  />
-                </Tabs>
-              </DisclaimerGate>
-            </OcrProvider>
-          </EltProvider>
-        </MaintenanceDataProvider>
-      </ReportSettingsProvider>
-    </AircraftProvider>
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.inactive,
+        tabBarStyle: styles.tabBar,
+        tabBarLabelStyle: styles.tabLabel,
+        headerStyle: styles.header,
+        headerTitleStyle: styles.headerTitle,
+        headerTitleAlign: 'center',
+      }}
+    >
+      <Tabs.Screen
+        name="aircraft"
+        options={{
+          title: t('tab_aircraft'),
+          headerTitle: t('aircraft_title'),
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon="✈️" color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="eko"
+        options={{
+          title: 'EKO',
+          headerTitle: 'EKO',
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon="✨" color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: t('tab_profile'),
+          headerTitle: t('profile'),
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon="👤" color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="index"
+        options={{
+          href: null,
+        }}
+      />
+    </Tabs>
   );
 }
 
