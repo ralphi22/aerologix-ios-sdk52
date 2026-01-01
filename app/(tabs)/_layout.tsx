@@ -4,7 +4,7 @@
  * 
  * ARCHITECTURE CRITIQUE iOS:
  * - Tabs TOUJOURS rendu (jamais null)
- * - AircraftProvider monté ICI (scope: tous les tabs)
+ * - Providers montés dans les layouts enfants (aircraft/_layout.tsx)
  * - Aucun gate bloquant au-dessus de la navigation
  */
 
@@ -12,7 +12,6 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { Text, StyleSheet, View } from 'react-native';
 import { t } from '@/i18n';
-import { AircraftProvider } from '@/stores/aircraftLocalStore';
 
 const COLORS = {
   primary: '#0033A0',
@@ -39,8 +38,7 @@ function TabIcon({
 export default function TabLayout() {
   // CRITIQUE: Tabs TOUJOURS rendu - jamais de return null
   return (
-    <AircraftProvider>
-      <Tabs
+    <Tabs
         screenOptions={{
           tabBarActiveTintColor: COLORS.primary,
           tabBarInactiveTintColor: COLORS.inactive,
