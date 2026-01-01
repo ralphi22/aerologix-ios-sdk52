@@ -86,7 +86,6 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
-    </AircraftProvider>
   );
 }
 
