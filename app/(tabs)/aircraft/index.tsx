@@ -1,6 +1,6 @@
 /**
- * Aircraft List Screen - Main tab
- * Shows list of aircraft or empty state
+ * Aircraft List Screen - VERSION SIMPLE pour debug
+ * Sans aucun context/provider
  */
 
 import React from 'react';
@@ -9,143 +9,34 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
-  Alert,
-  SafeAreaView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { t } from '@/i18n';
-import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
-
-const COLORS = {
-  primary: '#0033A0',
-  cardBg: '#283593',
-  white: '#FFFFFF',
-  background: '#F5F5F5',
-  textMuted: '#9E9E9E',
-  badgeBg: '#B8C5D6',
-  badgeText: '#424242',
-  fab: '#0033A0',
-};
-
-interface AircraftCardProps {
-  aircraft: {
-    id: string;
-    registration: string;
-    commonName: string;
-    model: string;
-    airframeHours: number;
-    engineHours: number;
-    propellerHours: number;
-  };
-  onPress: () => void;
-  onDelete: () => void;
-}
-
-function AircraftCard({ aircraft, onPress, onDelete }: AircraftCardProps) {
-  const handleDelete = () => {
-    Alert.alert(
-      t('delete_aircraft'),
-      t('delete_confirm'),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        { text: t('delete_aircraft'), style: 'destructive', onPress: onDelete },
-      ]
-    );
-  };
-
-  return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
-      {/* Background decoration */}
-      <View style={styles.cardDecoration}>
-        <Text style={styles.cardDecorationText}>✈</Text>
-      </View>
-
-      {/* Header row */}
-      <View style={styles.cardHeader}>
-        <View>
-          <Text style={styles.registration}>{aircraft.registration}</Text>
-          <Text style={styles.model}>
-            {aircraft.commonName} {aircraft.model}
-          </Text>
-        </View>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>BASIC</Text>
-        </View>
-      </View>
-
-      {/* Hours row */}
-      <View style={styles.hoursContainer}>
-        <View style={styles.hourItem}>
-          <Text style={styles.hourIcon}>⏱</Text>
-          <Text style={styles.hourLabel}>{t('airframe')}</Text>
-          <Text style={styles.hourValue}>{aircraft.airframeHours}{t('hours')}</Text>
-        </View>
-        <View style={styles.hourItem}>
-          <Text style={styles.hourIcon}>⚙️</Text>
-          <Text style={styles.hourLabel}>{t('engine')}</Text>
-          <Text style={styles.hourValue}>{aircraft.engineHours}{t('hours')}</Text>
-        </View>
-        <View style={styles.hourItem}>
-          <Text style={styles.hourIcon}>🔄</Text>
-          <Text style={styles.hourLabel}>{t('propeller')}</Text>
-          <Text style={styles.hourValue}>{aircraft.propellerHours}{t('hours')}</Text>
-        </View>
-      </View>
-
-      {/* Delete button */}
-      <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-        <Text style={styles.deleteButtonText}>{t('delete_aircraft')}</Text>
-      </TouchableOpacity>
-    </TouchableOpacity>
-  );
-}
+import { Ionicons } from '@expo/vector-icons';
 
 export default function AircraftListScreen() {
   const router = useRouter();
-  const { aircraft, deleteAircraft } = useAircraftLocalStore();
-
-  const handleAddAircraft = () => {
-    router.push('/(tabs)/aircraft/add');
-  };
-
-  const handleAircraftPress = (aircraftId: string) => {
-    router.push(`/(tabs)/aircraft/${aircraftId}`);
-  };
 
   return (
     <View style={styles.container}>
-      {aircraft.length === 0 ? (
-        // Empty state
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>✈️</Text>
-          <Text style={styles.emptyText}>{t('no_aircraft')}</Text>
-          <TouchableOpacity style={styles.addButton} onPress={handleAddAircraft}>
-            <Text style={styles.addButtonText}>{t('add_aircraft')}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        // Aircraft list
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {aircraft.map((item) => (
-            <AircraftCard
-              key={item.id}
-              aircraft={item}
-              onPress={() => handleAircraftPress(item.id)}
-              onDelete={() => deleteAircraft(item.id)}
-            />
-          ))}
-        </ScrollView>
-      )}
+      <View style={styles.header}>
+        <Ionicons name="airplane" size={60} color="#1E3A8A" />
+        <Text style={styles.title}>Aéronefs</Text>
+        <Text style={styles.subtitle}>Votre flotte d'aéronefs</Text>
+      </View>
 
-      {/* Floating Action Button */}
-      <TouchableOpacity style={styles.fab} onPress={handleAddAircraft}>
-        <Text style={styles.fabIcon}>+</Text>
-      </TouchableOpacity>
+      <View style={styles.emptyContainer}>
+        <Ionicons name="airplane-outline" size={80} color="#94A3B8" />
+        <Text style={styles.emptyText}>Aucun aéronef</Text>
+        <Text style={styles.emptySubtext}>Ajoutez votre premier aéronef pour commencer</Text>
+        
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={() => router.push('/(tabs)/aircraft/add')}
+        >
+          <Ionicons name="add" size={24} color="#FFFFFF" />
+          <Text style={styles.addButtonText}>Ajouter un aéronef</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -153,153 +44,57 @@ export default function AircraftListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F1F5F9',
   },
-  scrollView: {
-    flex: 1,
+  header: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 100,
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#1E3A8A',
+    marginTop: 16,
   },
-  // Empty state
+  subtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    marginTop: 4,
+  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 32,
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
   emptyText: {
-    fontSize: 18,
-    color: COLORS.textMuted,
-    marginBottom: 24,
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#475569',
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#94A3B8',
+    marginTop: 8,
     textAlign: 'center',
   },
   addButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 32,
-    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E3A8A',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
     borderRadius: 12,
+    marginTop: 32,
+    gap: 8,
   },
   addButtonText: {
-    color: COLORS.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-  },
-  // Card
-  card: {
-    backgroundColor: COLORS.cardBg,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  cardDecoration: {
-    position: 'absolute',
-    right: 10,
-    top: 10,
-    opacity: 0.15,
-  },
-  cardDecorationText: {
-    fontSize: 120,
-    color: COLORS.white,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 20,
-    zIndex: 1,
-  },
-  registration: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: COLORS.white,
-    letterSpacing: 1,
-  },
-  model: {
-    fontSize: 16,
-    color: COLORS.white,
-    opacity: 0.9,
-    marginTop: 4,
-  },
-  badge: {
-    backgroundColor: COLORS.badgeBg,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  badgeText: {
-    color: COLORS.badgeText,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  // Hours
-  hoursContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 10,
-    zIndex: 1,
-  },
-  hourItem: {
-    alignItems: 'center',
-  },
-  hourIcon: {
-    fontSize: 20,
-    marginBottom: 4,
-  },
-  hourLabel: {
-    fontSize: 12,
-    color: COLORS.white,
-    opacity: 0.8,
-    marginBottom: 4,
-  },
-  hourValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.white,
-  },
-  // Delete button
-  deleteButton: {
-    marginTop: 20,
-    alignSelf: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    zIndex: 1,
-  },
-  deleteButtonText: {
-    color: COLORS.white,
-    fontSize: 14,
-    opacity: 0.8,
-  },
-  // FAB
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: COLORS.fab,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  fabIcon: {
-    fontSize: 32,
-    color: COLORS.white,
-    lineHeight: 34,
   },
 });
