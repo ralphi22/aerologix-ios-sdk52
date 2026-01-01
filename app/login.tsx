@@ -1,6 +1,7 @@
 /**
- * login.tsx - Login screen for AeroLogix AI
- * Connected to backend authService
+ * Login/Signup Screen - STYLE ANCIEN PROJET
+ * Un seul écran avec toggle login/signup
+ * Navigation vers /(tabs) après auth
  */
 
 import React, { useState } from 'react';
@@ -8,266 +9,217 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { t, getLanguage } from '@/i18n';
+import { Ionicons } from '@expo/vector-icons';
 import authService from '@/services/authService';
-
-// AeroLogix brand colors from screenshot analysis
-const COLORS = {
-  primary: '#0033A0',
-  primaryLight: '#0056B3',
-  background: '#F8F9FA',
-  white: '#FFFFFF',
-  textDark: '#11181C',
-  textMuted: '#6C757D',
-  inputBorder: '#E9ECEF',
-};
 
 export default function LoginScreen() {
   const router = useRouter();
+  const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async () => {
-    const lang = getLanguage();
-
-    // Validation
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', t('error_generic'));
+  const handleSubmit = async () => {
+    if (!email || !password || (isSignup && !name)) {
+      if (Platform.OS === 'web') {
+        window.alert('Veuillez remplir tous les champs');
+      } else {
+        Alert.alert('Erreur', 'Veuillez remplir tous les champs');
+      }
       return;
     }
 
-    // [LOG] Login attempt
-    console.log('LOGIN_ATTEMPT', { email: email.trim() });
-
     setIsLoading(true);
     try {
-      // Call backend authService
-      const user = await authService.login({
-        email: email.trim(),
-        password: password,
-      });
-
-      // [LOG] Login success
-      console.log('LOGIN_SUCCESS', { userId: user.id, email: user.email });
-
-      // Navigate to main app
-      router.replace('/(tabs)/aircraft');
-
-    } catch (error: any) {
-      // [LOG] Login error
-      console.log('LOGIN_ERROR', {
-        status: error?.response?.status,
-        message: error?.response?.data?.detail || error?.message,
-      });
-
-      // Determine error message
-      let errorMessage: string;
-
-      if (error?.response) {
-        // Server responded with error (401, 400, etc.)
-        const status = error.response.status;
-        if (status === 401 || status === 400) {
-          errorMessage = lang === 'fr'
-            ? 'Email ou mot de passe invalide'
-            : 'Invalid email or password';
-        } else {
-          errorMessage = error.response.data?.detail || t('error_generic');
-        }
-      } else if (error?.request) {
-        // Network error - no response received
-        errorMessage = lang === 'fr'
-          ? 'Impossible de joindre le serveur'
-          : 'Unable to reach server';
+      console.log('Attempting auth...', isSignup ? 'signup' : 'login');
+      
+      if (isSignup) {
+        await authService.signup({ email, name, password });
       } else {
-        // Other error
-        errorMessage = t('error_generic');
+        await authService.login({ email, password });
       }
-
-      Alert.alert('Error', errorMessage);
+      
+      console.log('Auth successful, navigating...');
+      router.replace('/(tabs)');
+      
+    } catch (error: any) {
+      console.error('Auth error:', error);
+      const errorMessage =
+        error.response?.data?.detail ||
+        error.message ||
+        "Échec de l'authentification";
+      
+      if (Platform.OS === 'web') {
+        window.alert(errorMessage);
+      } else {
+        Alert.alert('Erreur', errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  const navigateToSignup = () => {
-    router.push('/signup');
-  };
-
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <View style={styles.content}>
-          {/* Logo / Icon */}
-          <View style={styles.logoContainer}>
-            <Text style={styles.airplaneIcon}>✈️</Text>
-          </View>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <View style={styles.content}>
+        <View style={styles.header}>
+          <Ionicons name="airplane" size={60} color="#1E3A8A" />
+          <Text style={styles.title}>AeroLogix AI</Text>
+          <Text style={styles.subtitle}>Gestion de maintenance aéronautique</Text>
+        </View>
 
-          {/* Title */}
-          <Text style={styles.title}>{t('app_name')}</Text>
-          <Text style={styles.tagline}>{t('app_tagline')}</Text>
+        <View style={styles.form}>
+          {isSignup && (
+            <View style={styles.inputContainer}>
+              <Ionicons name="person-outline" size={20} color="#64748B" />
+              <TextInput
+                style={styles.input}
+                placeholder="Nom"
+                placeholderTextColor="#94A3B8"
+                value={name}
+                onChangeText={setName}
+                autoCapitalize="words"
+                editable={!isLoading}
+              />
+            </View>
+          )}
 
-          {/* Input Fields */}
           <View style={styles.inputContainer}>
-            {/* Email Input */}
-            <View style={styles.inputWrapper}>
-              <Text style={styles.inputIcon}>✉️</Text>
-              <TextInput
-                style={styles.input}
-                placeholder={t('email')}
-                placeholderTextColor={COLORS.textMuted}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isLoading}
-              />
-            </View>
-
-            {/* Password Input */}
-            <View style={styles.inputWrapper}>
-              <Text style={styles.inputIcon}>🔒</Text>
-              <TextInput
-                style={styles.input}
-                placeholder={t('password')}
-                placeholderTextColor={COLORS.textMuted}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoCapitalize="none"
-                editable={!isLoading}
-              />
-            </View>
+            <Ionicons name="mail-outline" size={20} color="#64748B" />
+            <TextInput
+              style={styles.input}
+              placeholder="Courriel"
+              placeholderTextColor="#94A3B8"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isLoading}
+            />
           </View>
 
-          {/* Login Button */}
-          <TouchableOpacity
-            style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-            onPress={handleLogin}
-            activeOpacity={0.8}
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={20} color="#64748B" />
+            <TextInput
+              style={styles.input}
+              placeholder="Mot de passe"
+              placeholderTextColor="#94A3B8"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              editable={!isLoading}
+            />
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              pressed && { opacity: 0.8 },
+              isLoading && { opacity: 0.7 },
+            ]}
+            onPress={handleSubmit}
             disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color={COLORS.white} />
+              <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.loginButtonText}>{t('login')}</Text>
+              <Text style={styles.buttonText}>
+                {isSignup ? 'Créer un compte' : 'Connexion'}
+              </Text>
             )}
-          </TouchableOpacity>
+          </Pressable>
 
-          {/* Sign Up Link */}
-          <View style={styles.signupContainer}>
-            <Text style={styles.signupText}>{t('no_account')} </Text>
-            <TouchableOpacity onPress={navigateToSignup} disabled={isLoading}>
-              <Text style={styles.signupLink}>{t('signup')}</Text>
-            </TouchableOpacity>
-          </View>
+          <Pressable
+            style={styles.switchButton}
+            onPress={() => setIsSignup(!isSignup)}
+            disabled={isLoading}
+          >
+            <Text style={styles.switchText}>
+              {isSignup
+                ? 'Déjà un compte ? Connexion'
+                : 'Pas de compte ? Créer un compte'}
+            </Text>
+          </Pressable>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  keyboardView: {
-    flex: 1,
+    backgroundColor: '#F1F5F9',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
+    padding: 24,
+  },
+  header: {
     alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  logoContainer: {
-    marginBottom: 16,
-  },
-  airplaneIcon: {
-    fontSize: 64,
+    marginBottom: 48,
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: COLORS.primary,
-    marginBottom: 8,
+    color: '#1E3A8A',
+    marginTop: 16,
   },
-  tagline: {
-    fontSize: 16,
-    color: COLORS.textMuted,
-    marginBottom: 40,
-    textAlign: 'center',
+  subtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    marginTop: 8,
+  },
+  form: {
+    gap: 16,
   },
   inputContainer: {
-    width: '100%',
-    gap: 16,
-    marginBottom: 24,
-  },
-  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  inputIcon: {
-    fontSize: 20,
-    marginRight: 12,
-    opacity: 0.6,
+    paddingVertical: 12,
+    gap: 12,
   },
   input: {
     flex: 1,
-    height: 50,
     fontSize: 16,
-    color: COLORS.textDark,
+    color: '#1E293B',
   },
-  loginButton: {
-    width: '100%',
-    backgroundColor: COLORS.primary,
-    paddingVertical: 16,
+  button: {
+    backgroundColor: '#1E3A8A',
     borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginBottom: 24,
+    marginTop: 8,
   },
-  loginButtonDisabled: {
-    opacity: 0.7,
-  },
-  loginButtonText: {
-    color: COLORS.white,
-    fontSize: 18,
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '600',
   },
-  signupContainer: {
-    flexDirection: 'row',
+  switchButton: {
     alignItems: 'center',
+    marginTop: 16,
   },
-  signupText: {
-    fontSize: 16,
-    color: COLORS.textMuted,
-  },
-  signupLink: {
-    fontSize: 16,
-    color: COLORS.primaryLight,
-    fontWeight: '600',
+  switchText: {
+    color: '#1E3A8A',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

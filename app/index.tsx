@@ -1,5 +1,6 @@
-import { Redirect } from 'expo-router';
+/**
+ * Entry point - Export direct vers login (comme ancien projet)
+ * Pas de Redirect component qui peut bloquer
+ */
 
-export default function RootIndex() {
-  return <Redirect href="/login" />;
-}
+export { default } from './login';

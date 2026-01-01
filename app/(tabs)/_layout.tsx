@@ -1,66 +1,46 @@
 /**
- * Tab layout for main app navigation
- * Aircraft | EKO | Profile
- * 
- * ARCHITECTURE CRITIQUE iOS:
- * - Tabs TOUJOURS rendu (jamais null)
- * - Providers montés ICI pour tous les tabs
- * - DisclaimerGate RETIRÉ (causait écran blanc)
+ * Tab layout - SIMPLE (comme ancien projet)
+ * Pas de providers ici - ils seront dans les écrans qui en ont besoin
+ * Pas de screen index caché
  */
 
-import React from 'react';
 import { Tabs } from 'expo-router';
-import { Text, StyleSheet, View } from 'react-native';
-import { t } from '@/i18n';
+import { Ionicons } from '@expo/vector-icons';
 
-import { AircraftProvider } from '@/stores/aircraftLocalStore';
-import { ReportSettingsProvider } from '@/stores/reportSettingsStore';
-import { MaintenanceDataProvider } from '@/stores/maintenanceDataStore';
-import { EltProvider } from '@/stores/eltStore';
-import { OcrProvider } from '@/stores/ocrStore';
-
-const COLORS = {
-  primary: '#0033A0',
-  inactive: '#9E9E9E',
-  background: '#FFFFFF',
-};
-
-// Tab icon components
-function TabIcon({
-  icon,
-  color,
-}: {
-  icon: string;
-  color: string;
-  focused?: boolean;
-}) {
-  return (
-    <View style={styles.iconContainer}>
-      <Text style={[styles.tabIcon, { color }]}>{icon}</Text>
-    </View>
-  );
-}
-
-function TabsContent() {
+export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.inactive,
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabLabel,
-        headerStyle: styles.header,
-        headerTitleStyle: styles.headerTitle,
-        headerTitleAlign: 'center',
+        tabBarActiveTintColor: '#1E3A8A',
+        tabBarInactiveTintColor: '#94A3B8',
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopWidth: 1,
+          borderTopColor: '#E2E8F0',
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+        },
+        headerStyle: {
+          backgroundColor: '#1E3A8A',
+        },
+        headerTintColor: '#FFFFFF',
+        headerTitleStyle: {
+          fontWeight: 'bold',
+          fontSize: 20,
+        },
       }}
     >
       <Tabs.Screen
         name="aircraft"
         options={{
-          title: t('tab_aircraft'),
-          headerTitle: t('aircraft_title'),
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon="✈️" color={color} focused={focused} />
+          title: 'Aéronefs',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="airplane" size={size} color={color} />
           ),
         }}
       />
@@ -68,78 +48,20 @@ function TabsContent() {
         name="eko"
         options={{
           title: 'EKO',
-          headerTitle: 'EKO',
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon="✨" color={color} focused={focused} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="sparkles" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: t('tab_profile'),
-          headerTitle: t('profile'),
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon="👤" color={color} focused={focused} />
+          title: 'Profil',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
           ),
-        }}
-      />
-      <Tabs.Screen
-        name="index"
-        options={{
-          href: null,
         }}
       />
     </Tabs>
   );
 }
-
-export default function TabLayout() {
-  // Providers wrapping Tabs - tous les contextes disponibles
-  return (
-    <AircraftProvider>
-      <ReportSettingsProvider>
-        <MaintenanceDataProvider>
-          <EltProvider>
-            <OcrProvider>
-              <TabsContent />
-            </OcrProvider>
-          </EltProvider>
-        </MaintenanceDataProvider>
-      </ReportSettingsProvider>
-    </AircraftProvider>
-  );
-}
-
-const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: COLORS.background,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    paddingTop: 8,
-    paddingBottom: 8,
-    height: 65,
-  },
-  tabLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  iconContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabIcon: {
-    fontSize: 24,
-  },
-  header: {
-    backgroundColor: COLORS.primary,
-    shadowColor: 'transparent',
-    elevation: 0,
-  },
-  headerTitle: {
-    color: COLORS.background,
-    fontWeight: '600',
-    fontSize: 18,
-  },
-});
