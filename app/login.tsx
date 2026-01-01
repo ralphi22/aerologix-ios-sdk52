@@ -41,8 +41,8 @@ export default function LoginScreen() {
         await authService.login({ email, password });
       }
       
-      // Navigation vers les tabs
-      router.replace('/(tabs)');
+      // Navigation vers le premier tab (aircraft)
+      router.replace('/(tabs)/aircraft');
       
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || error.message || "Échec de l'authentification";
