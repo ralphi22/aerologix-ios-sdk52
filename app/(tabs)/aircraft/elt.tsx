@@ -68,6 +68,8 @@ function StatusIndicator({ status }: { status: EltStatus }) {
           icon: '⚠',
         };
       case 'expired':
+      default:
+        // Fallback défensif - évite crash si status undefined/inconnu
         return {
           color: COLORS.red,
           bgColor: COLORS.redLight,
