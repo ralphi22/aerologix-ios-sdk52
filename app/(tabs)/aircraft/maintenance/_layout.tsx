@@ -1,6 +1,6 @@
 /**
  * Maintenance stack layout
- * Providers déjà montés dans (tabs)/_layout.tsx
+ * Providers déjà montés dans aircraft/_layout.tsx
  */
 
 import { Stack } from 'expo-router';
