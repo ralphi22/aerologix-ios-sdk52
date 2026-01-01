@@ -1,7 +1,5 @@
 /**
- * Login/Signup Screen - STYLE ANCIEN PROJET
- * Un seul écran avec toggle login/signup
- * Navigation vers /(tabs) après auth
+ * Login Screen - TEST: Navigation vers /home (pas de tabs)
  */
 
 import React, { useState } from 'react';
@@ -30,40 +28,24 @@ export default function LoginScreen() {
 
   const handleSubmit = async () => {
     if (!email || !password || (isSignup && !name)) {
-      if (Platform.OS === 'web') {
-        window.alert('Veuillez remplir tous les champs');
-      } else {
-        Alert.alert('Erreur', 'Veuillez remplir tous les champs');
-      }
+      Alert.alert('Erreur', 'Veuillez remplir tous les champs');
       return;
     }
 
     setIsLoading(true);
     try {
-      console.log('Attempting auth...', isSignup ? 'signup' : 'login');
-      
       if (isSignup) {
         await authService.signup({ email, name, password });
       } else {
         await authService.login({ email, password });
       }
       
-      console.log('Auth successful, navigating...');
-      // Option B: push au lieu de replace pour éviter crash react-native-screens
-      router.push('/(tabs)');
+      // TEST: Navigation vers /home (écran simple, pas de tabs)
+      router.replace('/home');
       
     } catch (error: any) {
-      console.error('Auth error:', error);
-      const errorMessage =
-        error.response?.data?.detail ||
-        error.message ||
-        "Échec de l'authentification";
-      
-      if (Platform.OS === 'web') {
-        window.alert(errorMessage);
-      } else {
-        Alert.alert('Erreur', errorMessage);
-      }
+      const errorMessage = error.response?.data?.detail || error.message || "Échec";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -78,7 +60,7 @@ export default function LoginScreen() {
         <View style={styles.header}>
           <Ionicons name="airplane" size={60} color="#1E3A8A" />
           <Text style={styles.title}>AeroLogix AI</Text>
-          <Text style={styles.subtitle}>Gestion de maintenance aéronautique</Text>
+          <Text style={styles.subtitle}>Test sans Tabs</Text>
         </View>
 
         <View style={styles.form}>
@@ -92,7 +74,6 @@ export default function LoginScreen() {
                 value={name}
                 onChangeText={setName}
                 autoCapitalize="words"
-                editable={!isLoading}
               />
             </View>
           )}
@@ -107,8 +88,6 @@ export default function LoginScreen() {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              autoCorrect={false}
-              editable={!isLoading}
             />
           </View>
 
@@ -121,16 +100,11 @@ export default function LoginScreen() {
               value={password}
               onChangeText={setPassword}
               secureTextEntry
-              editable={!isLoading}
             />
           </View>
 
           <Pressable
-            style={({ pressed }) => [
-              styles.button,
-              pressed && { opacity: 0.8 },
-              isLoading && { opacity: 0.7 },
-            ]}
+            style={[styles.button, isLoading && { opacity: 0.7 }]}
             onPress={handleSubmit}
             disabled={isLoading}
           >
@@ -146,12 +120,9 @@ export default function LoginScreen() {
           <Pressable
             style={styles.switchButton}
             onPress={() => setIsSignup(!isSignup)}
-            disabled={isLoading}
           >
             <Text style={styles.switchText}>
-              {isSignup
-                ? 'Déjà un compte ? Connexion'
-                : 'Pas de compte ? Créer un compte'}
+              {isSignup ? 'Déjà un compte ? Connexion' : 'Pas de compte ? Créer'}
             </Text>
           </Pressable>
         </View>
@@ -161,33 +132,12 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F1F5F9',
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 24,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 48,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1E3A8A',
-    marginTop: 16,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    marginTop: 8,
-  },
-  form: {
-    gap: 16,
-  },
+  container: { flex: 1, backgroundColor: '#F1F5F9' },
+  content: { flex: 1, justifyContent: 'center', padding: 24 },
+  header: { alignItems: 'center', marginBottom: 48 },
+  title: { fontSize: 32, fontWeight: 'bold', color: '#1E3A8A', marginTop: 16 },
+  subtitle: { fontSize: 14, color: '#64748B', marginTop: 8 },
+  form: { gap: 16 },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -197,11 +147,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
   },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1E293B',
-  },
+  input: { flex: 1, fontSize: 16, color: '#1E293B' },
   button: {
     backgroundColor: '#1E3A8A',
     borderRadius: 12,
@@ -209,18 +155,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
   },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  switchButton: {
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  switchText: {
-    color: '#1E3A8A',
-    fontSize: 14,
-    fontWeight: '500',
-  },
+  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  switchButton: { alignItems: 'center', marginTop: 16 },
+  switchText: { color: '#1E3A8A', fontSize: 14, fontWeight: '500' },
 });
