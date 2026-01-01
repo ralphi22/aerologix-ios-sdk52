@@ -71,7 +71,13 @@ export default function SignupScreen() {
         Alert.alert(t('coming_soon'), 'Authentication service is being configured.');
       }
     } catch (error: any) {
-      const message = error?.response?.data?.detail || error?.message || t('error_generic');
+      // Protection défensive contre erreurs Axios incomplètes
+      let message: string;
+      try {
+        message = error?.response?.data?.detail || error?.message || t('error_generic');
+      } catch {
+        message = t('error_generic');
+      }
       Alert.alert('Error', message);
     } finally {
       setIsLoading(false);
