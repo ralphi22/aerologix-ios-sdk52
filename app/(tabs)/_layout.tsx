@@ -1,7 +1,6 @@
 /**
- * Tab layout - SIMPLE (comme ancien projet)
- * Pas de providers ici - ils seront dans les écrans qui en ont besoin
- * Pas de screen index caché
+ * Tab layout - STRUCTURE SIMPLE comme ancien projet
+ * Tabs = fichiers simples, pas de dossiers
  */
 
 import { Tabs } from 'expo-router';
@@ -36,7 +35,7 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="aircraft"
+        name="index"
         options={{
           title: 'Aéronefs',
           tabBarIcon: ({ color, size }) => (
