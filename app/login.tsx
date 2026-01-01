@@ -48,8 +48,11 @@ export default function LoginScreen() {
         await authService.login({ email, password });
       }
       
-      console.log('Auth successful, navigating...');
-      router.replace('/(tabs)');
+      console.log('Auth successful, navigating with delay...');
+      // Délai pour éviter crash react-native-screens sur iOS
+      setTimeout(() => {
+        router.replace('/(tabs)');
+      }, 150);
       
     } catch (error: any) {
       console.error('Auth error:', error);
