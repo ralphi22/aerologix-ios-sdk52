@@ -157,14 +157,25 @@ export function EltProvider({ children }: { children: ReactNode }) {
 
   const getBatteryProgress = () => {
     if (!eltData.batteryExpiryDate || !eltData.lastBatteryDate) {
-      return { percent: 0, daysRemaining: 0, status: 'expired' as EltStatus };
+      return { percent: 0, daysRemaining: 0, status: 'operational' as EltStatus };
     }
     
     const expiry = new Date(eltData.batteryExpiryDate);
     const now = new Date();
     const last = new Date(eltData.lastBatteryDate);
     
+    // Handle invalid dates
+    if (isNaN(expiry.getTime()) || isNaN(last.getTime())) {
+      return { percent: 0, daysRemaining: 0, status: 'operational' as EltStatus };
+    }
+    
     const totalDays = (expiry.getTime() - last.getTime()) / (1000 * 60 * 60 * 24);
+    
+    // Prevent division by zero
+    if (totalDays <= 0) {
+      return { percent: 100, daysRemaining: 0, status: 'expired' as EltStatus };
+    }
+    
     const elapsedDays = (now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24);
     const daysRemaining = Math.round((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     const percent = Math.min(Math.round((elapsedDays / totalDays) * 100), 100);
