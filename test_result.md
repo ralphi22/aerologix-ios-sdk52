@@ -1,101 +1,92 @@
-# AeroLogix AI - Test Results & Changes Log
+# AeroLogix AI - Test Results & Conformité OCR
 
 ## Session Date: December 2025
 
-### Changes Made
+## RAPPORT DE CONFORMITÉ - PROMPT OCR
 
-#### 1. Root Layout Fix (Critical)
-**File:** `/app/app/_layout.tsx`
-**Issue:** The root layout was missing all necessary Context Providers, causing the app to crash after login when components tried to use contexts.
-**Fix:** Added `AircraftProvider`, `MaintenanceDataProvider`, `EltProvider`, and `OcrProvider` wrappers around `<Slot />`.
+### ✅ CONFORME
 
-#### 2. Aircraft Store - Backend Synchronization (Bug #2 Fix)
-**File:** `/app/stores/aircraftLocalStore.ts`
-**Issue:** Aircraft data was not persisted - stored only in React state, lost on app restart.
-**Fix:** Completely rewrote the store to:
-- Fetch aircraft from backend API on load
-- Create aircraft via backend API (POST /api/aircraft)
-- Update aircraft via backend API (PUT /api/aircraft/:id)
-- Delete aircraft via backend API (DELETE /api/aircraft/:id)
-- Map between local format and API format
+| Critère | Status | Implémentation |
+|---------|--------|----------------|
+| Expo Managed Workflow | ✅ | Aucune dépendance native |
+| Expo SDK ~52.0.0 | ✅ | Non modifié |
+| TypeScript | ✅ | Tout le code en TS |
+| BILINGUE (FR/EN) | ✅ | `getLanguage()` partout |
+| TC-SAFE | ✅ | Aucune validation réglementaire |
+| Validation utilisateur OBLIGATOIRE | ✅ | Boutons de validation par champ/section |
+| DISCLAIMER OCR | ✅ | Présent dans review + historique |
+| Photo + Import | ✅ | `expo-image-picker` (caméra + galerie) |
+| Types de documents | ✅ | Rapport, Facture, Autre |
+| ANTI-DOUBLON | ✅ | Appel `/api/ocr/check-duplicates` + écran dédié |
+| Détection Identification | ✅ | Date, AMO, AME, N° Bon travail |
+| Détection Heures (CRITIQUE) | ✅ | Cellule, Moteur, Hélice |
+| Détection Pièces | ✅ | Nom, P/N, S/N, Quantité |
+| Détection AD/SB | ✅ | Type, Numéro, Description |
+| Détection ELT | ✅ | Marque, Modèle, S/N, Dates, Hex ID |
+| Détection Facture | ✅ | Coûts main-d'œuvre, pièces, total |
+| Historique OCR | ✅ | Liste tous docs + filtres par type |
+| Backend Render | ✅ | OpenAI Vision via API |
 
-#### 3. Aircraft List Screen Update
-**File:** `/app/app/(tabs)/aircraft/index.tsx`
-**Fix:** Updated to use `refreshAircraft()` function for pull-to-refresh, enabling real backend sync.
+### Fichiers Modifiés/Créés
 
-#### 4. Add Aircraft Screen Update
-**File:** `/app/app/(tabs)/aircraft/add.tsx`
-**Fix:** 
-- Made `handleSave` async to support API calls
-- Added loading state (`isSaving`) with spinner indicator
-- Added error handling for API failures
+1. `/app/app/(tabs)/aircraft/ocr-scan.tsx` - Scanner complet avec:
+   - Accès caméra + galerie
+   - Sélection type document
+   - Analyse OCR via backend
+   - **ANTI-DOUBLON** (écran erreur si doublon)
+   - Section **ELT** avec tous les champs
+   - Validation par champ/section
+   - Disclaimer obligatoire
 
-#### 5. OCR Scanner - Full Implementation ✅
-**Files:** 
-- `/app/app/(tabs)/aircraft/ocr-scan.tsx` - Complete rewrite
-- `/app/services/ocrService.ts` - New service for OCR API
+2. `/app/app/(tabs)/aircraft/ocr-history.tsx` - Historique OCR avec:
+   - Liste depuis API backend
+   - Compteurs par type (Rapports, Factures, Autres)
+   - Badge statut (Appliqué, En attente, Échec)
+   - Badge ELT si détecté
+   - Pull-to-refresh
+   - Disclaimer obligatoire
 
-**Changes:**
-- Integrated `expo-image-picker` for real camera and photo library access
-- Integrated `expo-file-system` for base64 image encoding
-- Connected to backend Render OCR API (`/api/ocr/scan`)
-- Real OpenAI Vision analysis via backend
-- Full validation flow for extracted data
-- Apply OCR results to system via `/api/ocr/apply/:scan_id`
+3. `/app/services/ocrService.ts` - Service API avec:
+   - `scanDocument()` - POST /api/ocr/scan
+   - `checkDuplicates()` - GET /api/ocr/check-duplicates/:id
+   - `applyResults()` - POST /api/ocr/apply/:id
+   - `getHistory()` - GET /api/ocr/history/:aircraft_id
+   - Types TypeScript corrects
 
-**OCR Flow:**
-1. User selects source (Camera or Photo Library)
-2. User selects document type (Maintenance Report, Invoice, STC, Other)
-3. Image is converted to base64 and sent to Render backend
-4. OpenAI Vision extracts structured data
-5. User validates extracted fields
-6. Data is applied to aircraft records
+4. `/app/app/_layout.tsx` - Providers racine
 
-### Backend OCR Endpoints Used
-- `POST /api/ocr/scan` - Scan document with AI Vision
-- `POST /api/ocr/apply/:scan_id` - Apply validated OCR data
-- `GET /api/ocr/history/:aircraft_id` - Get scan history
-- `GET /api/ocr/quota/status` - Check OCR usage quota
+5. `/app/stores/aircraftLocalStore.ts` - Sync backend
 
-### Packages Installed
-- `expo-file-system` - For reading images as base64
+### Flux OCR Complet
 
-### Bug Analysis
+```
+1. Source → Caméra 📸 ou Galerie 📁
+2. Type → Rapport / Facture / Autre
+3. Analyse → OpenAI Vision via Render
+4. Anti-doublon → Vérification automatique
+   → Si doublon: BLOCAGE + message
+   → Sinon: Continue
+5. Review → Données structurées par section
+6. Validation → Par champ ou "Valider tout"
+7. Application → Répartition dans modules
+8. Historique → Document archivé
+```
 
-#### Bug #1: Modal "Pièces" (Parts) stuck
-**Status:** Should be fixed by Root Layout fix
-**Reason:** The `MaintenanceDataProvider` was missing, so `useMaintenanceData()` would throw an error.
+### API Backend Utilisée
 
-#### Bug #2: Aircraft not persisted
-**Status:** Fixed ✅
-**Reason:** Store now syncs with backend API.
-
-### Backend API Status
-- **URL:** https://aerologix-backend.onrender.com
-- **OCR Endpoints:** Available and tested ✅
-- **OpenAI Vision:** Configured on backend ✅
+- `POST /api/ocr/scan` - Analyse document
+- `GET /api/ocr/check-duplicates/:id` - Vérification doublon
+- `POST /api/ocr/apply/:id` - Application données
+- `GET /api/ocr/history/:aircraft_id` - Historique
+- `GET /api/ocr/quota/status` - Quota utilisateur
 
 ### Test Credentials
 - Email: lima@123.com
 - Password: lima123
 
-### Files Modified
-1. `/app/app/_layout.tsx` - Added all providers including OcrProvider
-2. `/app/stores/aircraftLocalStore.ts` - Backend sync
-3. `/app/app/(tabs)/aircraft/index.tsx` - Refresh function
-4. `/app/app/(tabs)/aircraft/add.tsx` - Async save with loading state
-5. `/app/app/(tabs)/aircraft/ocr-scan.tsx` - Full OCR implementation
-6. `/app/services/ocrService.ts` - New OCR service
-
-### Testing Recommendations
-1. Build and deploy to TestFlight
-2. Test login with provided credentials
-3. Test OCR:
-   - Go to an aircraft detail
-   - Tap OCR Scanner
-   - Choose "Take a Photo" or "Import"
-   - Select document type
-   - Verify extraction works
-   - Validate and apply data
-4. Test aircraft persistence (add aircraft, close app, reopen)
-5. Test Parts modal closing properly
+### À Tester sur TestFlight
+1. Scanner OCR: Caméra + Import
+2. Anti-doublon: Scanner même rapport 2x
+3. Section ELT: Rapport avec mention ELT
+4. Historique: Liste et compteurs
+5. Validation: Par champ et globale
