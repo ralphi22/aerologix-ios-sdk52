@@ -3,7 +3,7 @@
  * TC-SAFE: OCR data must be validated by user before application
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,16 +14,16 @@ import {
   TextInput,
   ActivityIndicator,
   Image,
-  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { getLanguage } from '@/i18n';
-import { useOcr, OcrDocumentType, OcrMaintenanceReportData, OcrInvoiceData } from '@/stores/ocrStore';
-import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
-import { useMaintenanceData } from '@/stores/maintenanceDataStore';
-import ocrService from '@/services/ocrService';
+import ocrService, { 
+  OCRScanResponse, 
+  ExtractedMaintenanceData,
+  DocumentType,
+} from '@/services/ocrService';
 
 const COLORS = {
   primary: '#0033A0',
@@ -42,15 +42,11 @@ const COLORS = {
   orangeLight: '#FFF3E0',
   red: '#E53935',
   redLight: '#FFEBEE',
-  purple: '#7C4DFF',
-  purpleLight: '#EDE7F6',
-  teal: '#00897B',
-  tealLight: '#E0F2F1',
 };
 
-type ScanStep = 'source' | 'type' | 'scanning' | 'review' | 'apply';
+type ScanStep = 'source' | 'type' | 'scanning' | 'review';
 
-const DOC_TYPES: { value: OcrDocumentType; labelFr: string; labelEn: string; icon: string; descFr: string; descEn: string }[] = [
+const DOC_TYPES: { value: DocumentType; labelFr: string; labelEn: string; icon: string; descFr: string; descEn: string }[] = [
   { 
     value: 'maintenance_report', 
     labelFr: 'Rapport de maintenance', 
@@ -68,6 +64,14 @@ const DOC_TYPES: { value: OcrDocumentType; labelFr: string; labelEn: string; ico
     descEn: 'Financial storage only',
   },
   { 
+    value: 'stc', 
+    labelFr: 'STC', 
+    labelEn: 'STC', 
+    icon: '📜',
+    descFr: 'Supplemental Type Certificate',
+    descEn: 'Supplemental Type Certificate',
+  },
+  { 
     value: 'other', 
     labelFr: 'Autre document', 
     labelEn: 'Other Document', 
@@ -77,75 +81,19 @@ const DOC_TYPES: { value: OcrDocumentType; labelFr: string; labelEn: string; ico
   },
 ];
 
-interface ValidationFieldProps {
-  label: string;
-  value: string | number | undefined;
-  confidence?: number;
-  isValidated: boolean;
-  onValidate: () => void;
-  onEdit?: (value: string) => void;
-  editable?: boolean;
-}
-
-function ValidationField({ label, value, confidence, isValidated, onValidate, onEdit, editable }: ValidationFieldProps) {
-  const displayValue = value?.toString() || '—';
-  
-  return (
-    <View style={styles.validationField}>
-      <View style={styles.validationHeader}>
-        <Text style={styles.validationLabel}>{label}</Text>
-        {confidence !== undefined && (
-          <View style={[styles.confidenceBadge, { backgroundColor: confidence >= 80 ? COLORS.greenLight : confidence >= 60 ? COLORS.orangeLight : COLORS.redLight }]}>
-            <Text style={[styles.confidenceText, { color: confidence >= 80 ? COLORS.green : confidence >= 60 ? COLORS.orange : COLORS.red }]}>
-              {confidence}%
-            </Text>
-          </View>
-        )}
-      </View>
-      <View style={styles.validationInputRow}>
-        {editable && onEdit ? (
-          <TextInput
-            style={[styles.validationInput, isValidated && styles.validationInputValidated]}
-            value={displayValue}
-            onChangeText={onEdit}
-          />
-        ) : (
-          <Text style={[styles.validationValue, isValidated && styles.validationValueValidated]}>
-            {displayValue}
-          </Text>
-        )}
-        {!isValidated ? (
-          <TouchableOpacity style={styles.validateButton} onPress={onValidate}>
-            <Text style={styles.validateButtonText}>✓</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.validatedBadge}>
-            <Text style={styles.validatedText}>✓</Text>
-          </View>
-        )}
-      </View>
-    </View>
-  );
-}
-
 export default function OcrScannerScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
-  const { addDocument, checkDuplicate } = useOcr();
-  const { updateAircraft, getAircraftById } = useAircraftLocalStore();
-  const { addPart, addAdSb } = useMaintenanceData();
 
   const [step, setStep] = useState<ScanStep>('source');
   const [sourceType, setSourceType] = useState<'photo' | 'import' | null>(null);
-  const [docType, setDocType] = useState<OcrDocumentType | null>(null);
-  const [detectedData, setDetectedData] = useState<OcrMaintenanceReportData | OcrInvoiceData | null>(null);
-  const [validatedFields, setValidatedFields] = useState<Set<string>>(new Set());
-  const [otherTags, setOtherTags] = useState('');
-  const [duplicateError, setDuplicateError] = useState(false);
+  const [docType, setDocType] = useState<DocumentType | null>(null);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [scanResult, setScanResult] = useState<OCRScanResponse | null>(null);
+  const [validatedFields, setValidatedFields] = useState<Set<string>>(new Set());
+  const [isApplying, setIsApplying] = useState(false);
 
   // Request camera permissions
   const requestCameraPermission = async (): Promise<boolean> => {
@@ -233,12 +181,17 @@ export default function OcrScannerScreen() {
     }
   };
 
-  // Convert image to base64 and analyze
+  // Analyze image with OCR API
   const analyzeImage = async () => {
-    if (!imageUri || !docType) return;
+    if (!imageUri || !docType || !aircraftId) {
+      Alert.alert(
+        lang === 'fr' ? 'Erreur' : 'Error',
+        lang === 'fr' ? 'Informations manquantes.' : 'Missing information.'
+      );
+      return;
+    }
 
     setIsAnalyzing(true);
-    setAnalysisError(null);
     setStep('scanning');
 
     try {
@@ -248,56 +201,38 @@ export default function OcrScannerScreen() {
       });
 
       // Call OCR API
-      const response = await ocrService.analyzeDocument(
-        base64,
-        docType,
-        registration || undefined
-      );
+      const response = await ocrService.scanDocument({
+        aircraft_id: aircraftId,
+        document_type: docType,
+        image_base64: base64,
+      });
 
-      if (response.success) {
-        if (docType === 'maintenance_report' && response.maintenance_data) {
-          setDetectedData(response.maintenance_data);
-          
-          // Check for duplicate
-          const data = response.maintenance_data;
-          if (data.registration && data.reportDate && data.amo) {
-            const isDuplicate = checkDuplicate(data.registration, data.reportDate, data.amo);
-            if (isDuplicate) {
-              setDuplicateError(true);
-            }
-          }
-        } else if (docType === 'invoice' && response.invoice_data) {
-          setDetectedData(response.invoice_data);
-        } else {
-          // For 'other' type, just proceed to review
-          setDetectedData(null);
-        }
-        
+      setScanResult(response);
+
+      if (response.status === 'COMPLETED' || response.status === 'PENDING') {
         setStep('review');
-      } else {
-        setAnalysisError(response.error || 'OCR analysis failed');
-        setStep('type');
+      } else if (response.status === 'FAILED') {
         Alert.alert(
           lang === 'fr' ? 'Erreur d\'analyse' : 'Analysis Error',
-          response.error || (lang === 'fr' ? 'L\'analyse OCR a échoué.' : 'OCR analysis failed.')
+          response.error_message || (lang === 'fr' ? 'L\'analyse OCR a échoué.' : 'OCR analysis failed.'),
+          [{ text: 'OK', onPress: () => setStep('type') }]
         );
       }
     } catch (error: any) {
       console.log('OCR error:', error);
-      setAnalysisError(error.message);
-      setStep('type');
       Alert.alert(
         lang === 'fr' ? 'Erreur' : 'Error',
-        lang === 'fr' 
-          ? 'Une erreur est survenue lors de l\'analyse. Veuillez réessayer.'
-          : 'An error occurred during analysis. Please try again.'
+        error.response?.data?.detail || error.message || (lang === 'fr' 
+          ? 'Une erreur est survenue lors de l\'analyse.'
+          : 'An error occurred during analysis.'),
+        [{ text: 'OK', onPress: () => setStep('type') }]
       );
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const handleTypeSelect = (type: OcrDocumentType) => {
+  const handleTypeSelect = (type: DocumentType) => {
     setDocType(type);
   };
 
@@ -311,100 +246,40 @@ export default function OcrScannerScreen() {
   };
 
   const handleValidateAll = () => {
-    if (docType === 'maintenance_report' && detectedData) {
-      const fields = ['registration', 'reportDate', 'amo', 'description', 'airframeHours', 'engineHours', 'parts', 'adSbs'];
-      setValidatedFields(new Set(fields));
-    } else if (docType === 'invoice' && detectedData) {
-      const fields = ['supplier', 'date', 'partsAmount', 'laborAmount', 'totalAmount'];
+    if (scanResult?.extracted_data) {
+      const fields = [
+        'date', 'amo_name', 'description', 
+        'airframe_hours', 'engine_hours', 'propeller_hours',
+        'parts', 'adSbs', 'costs'
+      ];
       setValidatedFields(new Set(fields));
     }
   };
 
   const handleApplyData = async () => {
-    if (!docType || duplicateError) return;
+    if (!scanResult?.id) return;
 
-    const appliedModules: string[] = [];
-
+    setIsApplying(true);
     try {
-      if (docType === 'maintenance_report' && detectedData) {
-        const data = detectedData as OcrMaintenanceReportData;
-        
-        // Update aircraft hours if validated
-        if (validatedFields.has('airframeHours') || validatedFields.has('engineHours')) {
-          const aircraft = getAircraftById(aircraftId || '');
-          if (aircraft && data.hours) {
-            await updateAircraft(aircraft.id, {
-              airframeHours: data.hours.airframeHours || aircraft.airframeHours,
-              engineHours: data.hours.engineHours || aircraft.engineHours,
-              propellerHours: data.hours.propellerHours || aircraft.propellerHours,
-            });
-            appliedModules.push('aircraft');
-          }
-        }
-
-        // Add parts if validated
-        if (validatedFields.has('parts') && data.parts) {
-          data.parts.forEach((part) => {
-            addPart({
-              name: part.name,
-              partNumber: part.partNumber,
-              quantity: part.quantity,
-              installedDate: data.reportDate || new Date().toISOString().split('T')[0],
-              aircraftId: aircraftId || '',
-            });
-          });
-          appliedModules.push('parts');
-        }
-
-        // Add AD/SBs if validated
-        if (validatedFields.has('adSbs') && data.adSbs) {
-          data.adSbs.forEach((adSb) => {
-            addAdSb({
-              type: adSb.type,
-              number: adSb.number,
-              description: adSb.description,
-              dateAdded: data.reportDate || new Date().toISOString().split('T')[0],
-              aircraftId: aircraftId || '',
-            });
-          });
-          appliedModules.push('ad-sb');
-        }
-      }
-
-      if (docType === 'invoice') {
-        appliedModules.push('invoices');
-      }
-
-      // Save document to OCR history
-      addDocument({
-        type: docType,
-        aircraftId: aircraftId || '',
-        registration: registration || '',
-        scanDate: new Date().toISOString().split('T')[0],
-        documentDate: docType === 'maintenance_report' 
-          ? (detectedData as OcrMaintenanceReportData)?.reportDate 
-          : (detectedData as OcrInvoiceData)?.invoice?.date,
-        sourceType: sourceType || 'photo',
-        imageUri: imageUri || undefined,
-        maintenanceData: docType === 'maintenance_report' ? detectedData as OcrMaintenanceReportData : undefined,
-        invoiceData: docType === 'invoice' ? detectedData as OcrInvoiceData : undefined,
-        validated: true,
-        appliedToModules: appliedModules,
-        tags: docType === 'other' ? otherTags.split(',').map(t => t.trim()).filter(t => t) : undefined,
-      });
+      // Apply the OCR results
+      await ocrService.applyResults(scanResult.id, validatedFields.has('airframe_hours') || validatedFields.has('engine_hours'));
 
       Alert.alert(
-        lang === 'fr' ? 'Données appliquées' : 'Data Applied',
+        lang === 'fr' ? 'Succès' : 'Success',
         lang === 'fr'
-          ? `${validatedFields.size} champ(s) validé(s) et appliqué(s) aux modules: ${appliedModules.join(', ') || 'historique'}`
-          : `${validatedFields.size} field(s) validated and applied to modules: ${appliedModules.join(', ') || 'history'}`,
+          ? 'Les données OCR ont été appliquées avec succès.'
+          : 'OCR data has been applied successfully.',
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (error: any) {
       Alert.alert(
         lang === 'fr' ? 'Erreur' : 'Error',
-        error.message || (lang === 'fr' ? 'Échec de l\'application des données.' : 'Failed to apply data.')
+        error.response?.data?.detail || error.message || (lang === 'fr' 
+          ? 'Échec de l\'application des données.'
+          : 'Failed to apply data.')
       );
+    } finally {
+      setIsApplying(false);
     }
   };
 
@@ -422,10 +297,7 @@ export default function OcrScannerScreen() {
       </View>
 
       <View style={styles.sourceOptions}>
-        <TouchableOpacity
-          style={styles.sourceCard}
-          onPress={takePhoto}
-        >
+        <TouchableOpacity style={styles.sourceCard} onPress={takePhoto}>
           <Text style={styles.sourceIcon}>📸</Text>
           <Text style={styles.sourceTitle}>
             {lang === 'fr' ? 'Prendre une photo' : 'Take a Photo'}
@@ -435,25 +307,22 @@ export default function OcrScannerScreen() {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.sourceCard}
-          onPress={pickImage}
-        >
+        <TouchableOpacity style={styles.sourceCard} onPress={pickImage}>
           <Text style={styles.sourceIcon}>📁</Text>
           <Text style={styles.sourceTitle}>
             {lang === 'fr' ? 'Importer un fichier' : 'Import a File'}
           </Text>
           <Text style={styles.sourceDesc}>
-            {lang === 'fr' ? 'Image ou PDF' : 'Image or PDF'}
+            {lang === 'fr' ? 'Galerie photos' : 'Photo library'}
           </Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 
-  // Render type selection with image preview
+  // Render type selection
   const renderTypeStep = () => (
-    <View style={styles.stepContainer}>
+    <ScrollView style={styles.stepContainer} showsVerticalScrollIndicator={false}>
       <View style={styles.stepHeader}>
         <Text style={styles.stepIcon}>📑</Text>
         <Text style={styles.stepTitle}>
@@ -516,7 +385,9 @@ export default function OcrScannerScreen() {
           🔍 {lang === 'fr' ? 'Analyser le document' : 'Analyze Document'}
         </Text>
       </TouchableOpacity>
-    </View>
+
+      <View style={{ height: 40 }} />
+    </ScrollView>
   );
 
   // Render scanning animation
@@ -532,359 +403,296 @@ export default function OcrScannerScreen() {
         {lang === 'fr' ? 'Extraction des données avec OpenAI Vision' : 'Extracting data with OpenAI Vision'}
       </Text>
       
-      {/* Show image being analyzed */}
       {imageUri && (
         <Image source={{ uri: imageUri }} style={styles.scanningImage} resizeMode="contain" />
       )}
     </View>
   );
 
-  // Render review step for maintenance report
-  const renderMaintenanceReview = () => {
-    const data = detectedData as OcrMaintenanceReportData;
-    if (!data) return null;
-
+  // Render validation field
+  const renderValidationField = (
+    label: string, 
+    value: string | number | undefined | null, 
+    fieldKey: string
+  ) => {
+    const displayValue = value?.toString() || '—';
+    const isValidated = validatedFields.has(fieldKey);
+    
     return (
-      <ScrollView style={styles.reviewScroll} showsVerticalScrollIndicator={false}>
-        {/* Duplicate Error */}
-        {duplicateError && (
-          <View style={styles.duplicateError}>
-            <Text style={styles.duplicateIcon}>⚠️</Text>
-            <Text style={styles.duplicateText}>
-              {lang === 'fr' ? 'Rapport déjà importé' : 'Report already imported'}
-            </Text>
-            <Text style={styles.duplicateSubtext}>
-              {lang === 'fr' 
-                ? 'Un rapport avec cette date, cet AMO et cette immatriculation existe déjà.'
-                : 'A report with this date, AMO and registration already exists.'}
-            </Text>
-          </View>
-        )}
-
-        {/* Success Banner */}
-        <View style={styles.successBanner}>
-          <Text style={styles.successIcon}>✅</Text>
-          <Text style={styles.successText}>
-            {lang === 'fr' ? 'Document analysé avec succès' : 'Document analyzed successfully'}
-          </Text>
+      <View style={styles.validationField} key={fieldKey}>
+        <View style={styles.validationHeader}>
+          <Text style={styles.validationLabel}>{label}</Text>
         </View>
-
-        {/* Validate All Button */}
-        <TouchableOpacity style={styles.validateAllButton} onPress={handleValidateAll}>
-          <Text style={styles.validateAllText}>
-            {lang === 'fr' ? 'Valider tous les champs' : 'Validate all fields'}
+        <View style={styles.validationInputRow}>
+          <Text style={[styles.validationValue, isValidated && styles.validationValueValidated]}>
+            {displayValue}
           </Text>
-        </TouchableOpacity>
-
-        {/* Identification Section */}
-        <Text style={styles.sectionLabel}>
-          {lang === 'fr' ? 'Identification' : 'Identification'}
-        </Text>
-        <View style={styles.reviewCard}>
-          <ValidationField
-            label={lang === 'fr' ? 'Immatriculation' : 'Registration'}
-            value={data.registration}
-            confidence={data.confidence?.registration}
-            isValidated={validatedFields.has('registration')}
-            onValidate={() => handleValidateField('registration')}
-          />
-          <ValidationField
-            label={lang === 'fr' ? 'Date du rapport' : 'Report Date'}
-            value={data.reportDate}
-            confidence={data.confidence?.reportDate}
-            isValidated={validatedFields.has('reportDate')}
-            onValidate={() => handleValidateField('reportDate')}
-          />
-          <ValidationField
-            label="AMO"
-            value={data.amo}
-            confidence={data.confidence?.amo}
-            isValidated={validatedFields.has('amo')}
-            onValidate={() => handleValidateField('amo')}
-          />
-        </View>
-
-        {/* Hours Section (Critical) */}
-        <Text style={styles.sectionLabel}>
-          ⚠️ {lang === 'fr' ? 'Heures détectées (CRITIQUE)' : 'Detected Hours (CRITICAL)'}
-        </Text>
-        <View style={[styles.reviewCard, styles.criticalCard]}>
-          <ValidationField
-            label={lang === 'fr' ? 'Heures cellule' : 'Airframe Hours'}
-            value={data.hours?.airframeHours}
-            confidence={data.confidence?.airframeHours}
-            isValidated={validatedFields.has('airframeHours')}
-            onValidate={() => handleValidateField('airframeHours')}
-          />
-          <ValidationField
-            label={lang === 'fr' ? 'Heures moteur' : 'Engine Hours'}
-            value={data.hours?.engineHours}
-            confidence={data.confidence?.engineHours}
-            isValidated={validatedFields.has('engineHours')}
-            onValidate={() => handleValidateField('engineHours')}
-          />
-          {data.hours?.propellerHours && (
-            <ValidationField
-              label={lang === 'fr' ? 'Heures hélice' : 'Propeller Hours'}
-              value={data.hours.propellerHours}
-              isValidated={validatedFields.has('propellerHours')}
-              onValidate={() => handleValidateField('propellerHours')}
-            />
+          {!isValidated ? (
+            <TouchableOpacity style={styles.validateButton} onPress={() => handleValidateField(fieldKey)}>
+              <Text style={styles.validateButtonText}>✓</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.validatedBadge}>
+              <Text style={styles.validatedText}>✓</Text>
+            </View>
           )}
         </View>
-
-        {/* Parts Section */}
-        {data.parts && data.parts.length > 0 && (
-          <>
-            <Text style={styles.sectionLabel}>
-              {lang === 'fr' ? `Pièces détectées (${data.parts.length})` : `Detected Parts (${data.parts.length})`}
-            </Text>
-            <View style={styles.reviewCard}>
-              {data.parts.map((part, index) => (
-                <View key={index} style={styles.partRow}>
-                  <View style={styles.partInfo}>
-                    <Text style={styles.partName}>{part.name}</Text>
-                    <Text style={styles.partDetails}>P/N: {part.partNumber} | Qty: {part.quantity}</Text>
-                  </View>
-                  <View style={styles.partAction}>
-                    <Text style={styles.partActionText}>{part.action}</Text>
-                  </View>
-                </View>
-              ))}
-              <TouchableOpacity
-                style={[styles.validateSectionButton, validatedFields.has('parts') && styles.validateSectionButtonDone]}
-                onPress={() => handleValidateField('parts')}
-              >
-                <Text style={[styles.validateSectionText, validatedFields.has('parts') && styles.validateSectionTextDone]}>
-                  {validatedFields.has('parts')
-                    ? (lang === 'fr' ? '✓ Pièces validées' : '✓ Parts validated')
-                    : (lang === 'fr' ? 'Valider les pièces' : 'Validate parts')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
-
-        {/* AD/SB Section */}
-        {data.adSbs && data.adSbs.length > 0 && (
-          <>
-            <Text style={styles.sectionLabel}>
-              {lang === 'fr' ? `AD/SB détectés (${data.adSbs.length})` : `Detected AD/SB (${data.adSbs.length})`}
-            </Text>
-            <View style={styles.reviewCard}>
-              {data.adSbs.map((adSb, index) => (
-                <View key={index} style={styles.adsbRow}>
-                  <View style={[styles.adsbBadge, adSb.type === 'AD' ? styles.adBadge : styles.sbBadge]}>
-                    <Text style={styles.adsbBadgeText}>{adSb.type}</Text>
-                  </View>
-                  <View style={styles.adsbInfo}>
-                    <Text style={styles.adsbNumber}>{adSb.number}</Text>
-                    <Text style={styles.adsbDesc}>{adSb.description}</Text>
-                  </View>
-                </View>
-              ))}
-              <TouchableOpacity
-                style={[styles.validateSectionButton, validatedFields.has('adSbs') && styles.validateSectionButtonDone]}
-                onPress={() => handleValidateField('adSbs')}
-              >
-                <Text style={[styles.validateSectionText, validatedFields.has('adSbs') && styles.validateSectionTextDone]}>
-                  {validatedFields.has('adSbs')
-                    ? (lang === 'fr' ? '✓ AD/SB validés' : '✓ AD/SB validated')
-                    : (lang === 'fr' ? 'Valider les AD/SB' : 'Validate AD/SB')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
-
-        {/* ELT Section */}
-        {data.elt && (data.elt.testMentioned || data.elt.removalMentioned || data.elt.installationMentioned) && (
-          <>
-            <Text style={styles.sectionLabel}>
-              {lang === 'fr' ? 'ELT détecté' : 'ELT Detected'}
-            </Text>
-            <View style={styles.reviewCard}>
-              {data.elt.testMentioned && (
-                <Text style={styles.eltInfo}>🔔 {lang === 'fr' ? 'Test ELT mentionné' : 'ELT test mentioned'}</Text>
-              )}
-              {data.elt.removalMentioned && (
-                <Text style={styles.eltInfo}>📤 {lang === 'fr' ? 'Retrait ELT mentionné' : 'ELT removal mentioned'}</Text>
-              )}
-              {data.elt.installationMentioned && (
-                <Text style={styles.eltInfo}>📥 {lang === 'fr' ? 'Installation ELT mentionnée' : 'ELT installation mentioned'}</Text>
-              )}
-            </View>
-          </>
-        )}
-
-        {/* Disclaimer */}
-        <View style={styles.disclaimer}>
-          <Text style={styles.disclaimerIcon}>⚠️</Text>
-          <Text style={styles.disclaimerText}>
-            {lang === 'fr'
-              ? 'Données extraites par OCR à titre informatif. Toute information doit être validée par l\'utilisateur. Ne remplace pas un AME, un AMO ni un registre officiel.'
-              : 'OCR-extracted data provided for information purposes only. User validation is required. Does not replace an AME, AMO, or official record.'}
-          </Text>
-        </View>
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
+      </View>
     );
   };
-
-  // Render review step for invoice
-  const renderInvoiceReview = () => {
-    const data = detectedData as OcrInvoiceData;
-    if (!data) return null;
-
-    return (
-      <ScrollView style={styles.reviewScroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.successBanner}>
-          <Text style={styles.successIcon}>✅</Text>
-          <Text style={styles.successText}>
-            {lang === 'fr' ? 'Facture analysée avec succès' : 'Invoice analyzed successfully'}
-          </Text>
-        </View>
-
-        <TouchableOpacity style={styles.validateAllButton} onPress={handleValidateAll}>
-          <Text style={styles.validateAllText}>
-            {lang === 'fr' ? 'Valider tous les champs' : 'Validate all fields'}
-          </Text>
-        </TouchableOpacity>
-
-        <Text style={styles.sectionLabel}>
-          {lang === 'fr' ? 'Informations facture' : 'Invoice Information'}
-        </Text>
-        <View style={styles.reviewCard}>
-          <ValidationField
-            label={lang === 'fr' ? 'Fournisseur' : 'Supplier'}
-            value={data.invoice?.supplier}
-            confidence={data.confidence?.supplier}
-            isValidated={validatedFields.has('supplier')}
-            onValidate={() => handleValidateField('supplier')}
-          />
-          <ValidationField
-            label="Date"
-            value={data.invoice?.date}
-            confidence={data.confidence?.date}
-            isValidated={validatedFields.has('date')}
-            onValidate={() => handleValidateField('date')}
-          />
-          <ValidationField
-            label={lang === 'fr' ? 'Pièces ($)' : 'Parts ($)'}
-            value={data.invoice?.partsAmount ? `$${data.invoice.partsAmount.toFixed(2)}` : undefined}
-            confidence={data.confidence?.partsAmount}
-            isValidated={validatedFields.has('partsAmount')}
-            onValidate={() => handleValidateField('partsAmount')}
-          />
-          <ValidationField
-            label={lang === 'fr' ? 'Main-d\'œuvre ($)' : 'Labor ($)'}
-            value={data.invoice?.laborAmount ? `$${data.invoice.laborAmount.toFixed(2)}` : undefined}
-            confidence={data.confidence?.laborAmount}
-            isValidated={validatedFields.has('laborAmount')}
-            onValidate={() => handleValidateField('laborAmount')}
-          />
-          <ValidationField
-            label={lang === 'fr' ? 'Total ($)' : 'Total ($)'}
-            value={data.invoice?.totalAmount ? `$${data.invoice.totalAmount.toFixed(2)}` : undefined}
-            confidence={data.confidence?.totalAmount}
-            isValidated={validatedFields.has('totalAmount')}
-            onValidate={() => handleValidateField('totalAmount')}
-          />
-        </View>
-
-        <View style={styles.disclaimer}>
-          <Text style={styles.disclaimerIcon}>⚠️</Text>
-          <Text style={styles.disclaimerText}>
-            {lang === 'fr'
-              ? 'Données extraites par OCR à titre informatif. Toute information doit être validée par l\'utilisateur. Ne remplace pas un AME, un AMO ni un registre officiel.'
-              : 'OCR-extracted data provided for information purposes only. User validation is required. Does not replace an AME, AMO, or official record.'}
-          </Text>
-        </View>
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
-    );
-  };
-
-  // Render other document type
-  const renderOtherReview = () => (
-    <ScrollView style={styles.reviewScroll} showsVerticalScrollIndicator={false}>
-      <View style={styles.successBanner}>
-        <Text style={styles.successIcon}>📄</Text>
-        <Text style={styles.successText}>
-          {lang === 'fr' ? 'Document prêt à archiver' : 'Document ready to archive'}
-        </Text>
-      </View>
-
-      {/* Image Preview */}
-      {imageUri && (
-        <Image source={{ uri: imageUri }} style={styles.reviewImage} resizeMode="contain" />
-      )}
-
-      <Text style={styles.sectionLabel}>
-        {lang === 'fr' ? 'Tags (optionnel)' : 'Tags (optional)'}
-      </Text>
-      <View style={styles.reviewCard}>
-        <TextInput
-          style={styles.tagsInput}
-          placeholder={lang === 'fr' ? 'manuel, STC, photo... (séparés par virgules)' : 'manual, STC, photo... (comma separated)'}
-          placeholderTextColor={COLORS.textMuted}
-          value={otherTags}
-          onChangeText={setOtherTags}
-        />
-      </View>
-
-      <View style={styles.disclaimer}>
-        <Text style={styles.disclaimerIcon}>ℹ️</Text>
-        <Text style={styles.disclaimerText}>
-          {lang === 'fr'
-            ? 'Ce document sera stocké dans l\'historique OCR pour référence.'
-            : 'This document will be stored in OCR history for reference.'}
-        </Text>
-      </View>
-
-      <View style={{ height: 100 }} />
-    </ScrollView>
-  );
 
   // Render review step
-  const renderReviewStep = () => (
-    <View style={styles.reviewContainer}>
-      <View style={styles.reviewHeader}>
-        <Text style={styles.reviewTitle}>
-          {lang === 'fr' ? 'Résultats OCR' : 'OCR Results'}
-        </Text>
-        <Text style={styles.reviewSubtitle}>{registration}</Text>
-      </View>
-
-      {docType === 'maintenance_report' && renderMaintenanceReview()}
-      {docType === 'invoice' && renderInvoiceReview()}
-      {docType === 'other' && renderOtherReview()}
-
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
-          <Text style={styles.cancelButtonText}>{lang === 'fr' ? 'Annuler' : 'Cancel'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.applyButton,
-            ((docType !== 'other' && validatedFields.size === 0) || duplicateError) && styles.applyButtonDisabled,
-          ]}
-          onPress={handleApplyData}
-          disabled={(docType !== 'other' && validatedFields.size === 0) || duplicateError}
-        >
-          <Text style={styles.applyButtonText}>
-            {docType === 'other' 
-              ? (lang === 'fr' ? 'Archiver' : 'Archive')
-              : `${lang === 'fr' ? 'Appliquer' : 'Apply'} (${validatedFields.size})`
-            }
+  const renderReviewStep = () => {
+    const data = scanResult?.extracted_data;
+    
+    return (
+      <View style={styles.reviewContainer}>
+        <View style={styles.reviewHeader}>
+          <Text style={styles.reviewTitle}>
+            {lang === 'fr' ? 'Résultats OCR' : 'OCR Results'}
           </Text>
-        </TouchableOpacity>
+          <Text style={styles.reviewSubtitle}>{registration}</Text>
+        </View>
+
+        <ScrollView style={styles.reviewScroll} showsVerticalScrollIndicator={false}>
+          {/* Success Banner */}
+          <View style={styles.successBanner}>
+            <Text style={styles.successIcon}>✅</Text>
+            <Text style={styles.successText}>
+              {lang === 'fr' ? 'Document analysé avec succès' : 'Document analyzed successfully'}
+            </Text>
+          </View>
+
+          {/* Validate All Button */}
+          <TouchableOpacity style={styles.validateAllButton} onPress={handleValidateAll}>
+            <Text style={styles.validateAllText}>
+              {lang === 'fr' ? 'Valider tous les champs' : 'Validate all fields'}
+            </Text>
+          </TouchableOpacity>
+
+          {data && (
+            <>
+              {/* Identification Section */}
+              <Text style={styles.sectionLabel}>
+                {lang === 'fr' ? 'Identification' : 'Identification'}
+              </Text>
+              <View style={styles.reviewCard}>
+                {renderValidationField(
+                  lang === 'fr' ? 'Date du rapport' : 'Report Date',
+                  data.date,
+                  'date'
+                )}
+                {renderValidationField(
+                  'AMO',
+                  data.amo_name,
+                  'amo_name'
+                )}
+                {renderValidationField(
+                  'AME',
+                  data.ame_name,
+                  'ame_name'
+                )}
+                {data.work_order_number && renderValidationField(
+                  lang === 'fr' ? 'N° Bon de travail' : 'Work Order #',
+                  data.work_order_number,
+                  'work_order'
+                )}
+              </View>
+
+              {/* Hours Section */}
+              {(data.airframe_hours || data.engine_hours || data.propeller_hours) && (
+                <>
+                  <Text style={styles.sectionLabel}>
+                    ⚠️ {lang === 'fr' ? 'Heures détectées (CRITIQUE)' : 'Detected Hours (CRITICAL)'}
+                  </Text>
+                  <View style={[styles.reviewCard, styles.criticalCard]}>
+                    {data.airframe_hours && renderValidationField(
+                      lang === 'fr' ? 'Heures cellule' : 'Airframe Hours',
+                      data.airframe_hours,
+                      'airframe_hours'
+                    )}
+                    {data.engine_hours && renderValidationField(
+                      lang === 'fr' ? 'Heures moteur' : 'Engine Hours',
+                      data.engine_hours,
+                      'engine_hours'
+                    )}
+                    {data.propeller_hours && renderValidationField(
+                      lang === 'fr' ? 'Heures hélice' : 'Propeller Hours',
+                      data.propeller_hours,
+                      'propeller_hours'
+                    )}
+                  </View>
+                </>
+              )}
+
+              {/* Description */}
+              {data.description && (
+                <>
+                  <Text style={styles.sectionLabel}>
+                    {lang === 'fr' ? 'Description' : 'Description'}
+                  </Text>
+                  <View style={styles.reviewCard}>
+                    <Text style={styles.descriptionText}>{data.description}</Text>
+                    <TouchableOpacity
+                      style={[styles.validateSectionButton, validatedFields.has('description') && styles.validateSectionButtonDone]}
+                      onPress={() => handleValidateField('description')}
+                    >
+                      <Text style={[styles.validateSectionText, validatedFields.has('description') && styles.validateSectionTextDone]}>
+                        {validatedFields.has('description')
+                          ? '✓ ' + (lang === 'fr' ? 'Validé' : 'Validated')
+                          : (lang === 'fr' ? 'Valider' : 'Validate')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+
+              {/* Parts Section */}
+              {data.parts_replaced && data.parts_replaced.length > 0 && (
+                <>
+                  <Text style={styles.sectionLabel}>
+                    {lang === 'fr' ? `Pièces détectées (${data.parts_replaced.length})` : `Detected Parts (${data.parts_replaced.length})`}
+                  </Text>
+                  <View style={styles.reviewCard}>
+                    {data.parts_replaced.map((part, index) => (
+                      <View key={index} style={styles.partRow}>
+                        <View style={styles.partInfo}>
+                          <Text style={styles.partName}>{part.name}</Text>
+                          <Text style={styles.partDetails}>
+                            {part.part_number ? `P/N: ${part.part_number}` : ''} 
+                            {part.quantity ? ` | Qty: ${part.quantity}` : ''}
+                          </Text>
+                        </View>
+                        {part.action && (
+                          <View style={styles.partAction}>
+                            <Text style={styles.partActionText}>{part.action}</Text>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                    <TouchableOpacity
+                      style={[styles.validateSectionButton, validatedFields.has('parts') && styles.validateSectionButtonDone]}
+                      onPress={() => handleValidateField('parts')}
+                    >
+                      <Text style={[styles.validateSectionText, validatedFields.has('parts') && styles.validateSectionTextDone]}>
+                        {validatedFields.has('parts')
+                          ? '✓ ' + (lang === 'fr' ? 'Pièces validées' : 'Parts validated')
+                          : (lang === 'fr' ? 'Valider les pièces' : 'Validate parts')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+
+              {/* AD/SB Section */}
+              {data.ad_sb_references && data.ad_sb_references.length > 0 && (
+                <>
+                  <Text style={styles.sectionLabel}>
+                    {lang === 'fr' ? `AD/SB détectés (${data.ad_sb_references.length})` : `Detected AD/SB (${data.ad_sb_references.length})`}
+                  </Text>
+                  <View style={styles.reviewCard}>
+                    {data.ad_sb_references.map((adSb, index) => (
+                      <View key={index} style={styles.adsbRow}>
+                        <View style={[styles.adsbBadge, adSb.type === 'AD' ? styles.adBadge : styles.sbBadge]}>
+                          <Text style={styles.adsbBadgeText}>{adSb.type}</Text>
+                        </View>
+                        <View style={styles.adsbInfo}>
+                          <Text style={styles.adsbNumber}>{adSb.number}</Text>
+                          {adSb.description && (
+                            <Text style={styles.adsbDesc}>{adSb.description}</Text>
+                          )}
+                        </View>
+                      </View>
+                    ))}
+                    <TouchableOpacity
+                      style={[styles.validateSectionButton, validatedFields.has('adSbs') && styles.validateSectionButtonDone]}
+                      onPress={() => handleValidateField('adSbs')}
+                    >
+                      <Text style={[styles.validateSectionText, validatedFields.has('adSbs') && styles.validateSectionTextDone]}>
+                        {validatedFields.has('adSbs')
+                          ? '✓ ' + (lang === 'fr' ? 'AD/SB validés' : 'AD/SB validated')
+                          : (lang === 'fr' ? 'Valider les AD/SB' : 'Validate AD/SB')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+
+              {/* Costs Section */}
+              {(data.labor_cost || data.parts_cost || data.total_cost) && (
+                <>
+                  <Text style={styles.sectionLabel}>
+                    {lang === 'fr' ? 'Coûts' : 'Costs'}
+                  </Text>
+                  <View style={styles.reviewCard}>
+                    {data.labor_cost && renderValidationField(
+                      lang === 'fr' ? 'Main-d\'œuvre' : 'Labor',
+                      `$${data.labor_cost.toFixed(2)}`,
+                      'labor_cost'
+                    )}
+                    {data.parts_cost && renderValidationField(
+                      lang === 'fr' ? 'Pièces' : 'Parts',
+                      `$${data.parts_cost.toFixed(2)}`,
+                      'parts_cost'
+                    )}
+                    {data.total_cost && renderValidationField(
+                      'Total',
+                      `$${data.total_cost.toFixed(2)}`,
+                      'total_cost'
+                    )}
+                  </View>
+                </>
+              )}
+            </>
+          )}
+
+          {/* Raw Text (if no structured data) */}
+          {!data && scanResult?.raw_text && (
+            <>
+              <Text style={styles.sectionLabel}>
+                {lang === 'fr' ? 'Texte extrait' : 'Extracted Text'}
+              </Text>
+              <View style={styles.reviewCard}>
+                <Text style={styles.rawText}>{scanResult.raw_text}</Text>
+              </View>
+            </>
+          )}
+
+          {/* Disclaimer */}
+          <View style={styles.disclaimer}>
+            <Text style={styles.disclaimerIcon}>⚠️</Text>
+            <Text style={styles.disclaimerText}>
+              {lang === 'fr'
+                ? 'Données extraites par OCR à titre informatif. Validation utilisateur requise. Ne remplace pas un AME/AMO.'
+                : 'OCR-extracted data for information only. User validation required. Does not replace AME/AMO.'}
+            </Text>
+          </View>
+
+          <View style={{ height: 100 }} />
+        </ScrollView>
+
+        {/* Action Buttons */}
+        <View style={styles.actionButtons}>
+          <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
+            <Text style={styles.cancelButtonText}>{lang === 'fr' ? 'Annuler' : 'Cancel'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.applyButton, (validatedFields.size === 0 || isApplying) && styles.applyButtonDisabled]}
+            onPress={handleApplyData}
+            disabled={validatedFields.size === 0 || isApplying}
+          >
+            {isApplying ? (
+              <ActivityIndicator color={COLORS.white} size="small" />
+            ) : (
+              <Text style={styles.applyButtonText}>
+                {lang === 'fr' ? 'Appliquer' : 'Apply'} ({validatedFields.size})
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -976,12 +784,6 @@ const styles = StyleSheet.create({
   reviewTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textDark },
   reviewSubtitle: { fontSize: 14, color: COLORS.textMuted, marginTop: 2 },
   reviewScroll: { flex: 1, padding: 16 },
-  reviewImage: { width: '100%', height: 200, borderRadius: 12, marginBottom: 16 },
-  // Duplicate Error
-  duplicateError: { backgroundColor: COLORS.redLight, borderRadius: 12, padding: 16, marginBottom: 16, alignItems: 'center' },
-  duplicateIcon: { fontSize: 32, marginBottom: 8 },
-  duplicateText: { fontSize: 16, fontWeight: '700', color: COLORS.red, marginBottom: 4 },
-  duplicateSubtext: { fontSize: 12, color: COLORS.red, textAlign: 'center' },
   // Success Banner
   successBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.greenLight, borderRadius: 12, padding: 14, marginBottom: 16 },
   successIcon: { fontSize: 24, marginRight: 12 },
@@ -997,16 +799,9 @@ const styles = StyleSheet.create({
   validationField: { marginBottom: 12 },
   validationHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   validationLabel: { flex: 1, fontSize: 12, color: COLORS.textMuted },
-  confidenceBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  confidenceText: { fontSize: 10, fontWeight: '600' },
   validationInputRow: { flexDirection: 'row', alignItems: 'center' },
   validationValue: { flex: 1, fontSize: 16, fontWeight: '600', color: COLORS.textDark, paddingVertical: 8 },
   validationValueValidated: { color: COLORS.green },
-  validationInput: {
-    flex: 1, backgroundColor: COLORS.background, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12,
-    fontSize: 16, fontWeight: '600', color: COLORS.textDark,
-  },
-  validationInputValidated: { borderWidth: 1, borderColor: COLORS.green },
   validateButton: {
     marginLeft: 8, width: 40, height: 40, borderRadius: 10, backgroundColor: COLORS.green,
     justifyContent: 'center', alignItems: 'center',
@@ -1017,6 +812,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   validatedText: { color: COLORS.green, fontSize: 18, fontWeight: '600' },
+  // Description
+  descriptionText: { fontSize: 14, color: COLORS.textDark, lineHeight: 20 },
   // Parts
   partRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.background },
   partInfo: { flex: 1 },
@@ -1038,10 +835,8 @@ const styles = StyleSheet.create({
   validateSectionButtonDone: { backgroundColor: COLORS.greenLight },
   validateSectionText: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
   validateSectionTextDone: { color: COLORS.green },
-  // ELT
-  eltInfo: { fontSize: 14, color: COLORS.textDark, paddingVertical: 6 },
-  // Tags
-  tagsInput: { backgroundColor: COLORS.background, borderRadius: 10, padding: 12, fontSize: 14, color: COLORS.textDark },
+  // Raw Text
+  rawText: { fontSize: 13, color: COLORS.textDark, lineHeight: 18 },
   // Disclaimer
   disclaimer: { flexDirection: 'row', marginTop: 16, padding: 16, backgroundColor: COLORS.yellow, borderRadius: 12, borderWidth: 1, borderColor: COLORS.yellowBorder },
   disclaimerIcon: { fontSize: 14, marginRight: 8 },
