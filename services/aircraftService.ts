@@ -2,6 +2,7 @@ import api from './api';
 
 export interface Aircraft {
   _id: string;
+  id?: number; // Backend also returns numeric id
   registration: string;
   aircraft_type?: string;
   manufacturer?: string;
