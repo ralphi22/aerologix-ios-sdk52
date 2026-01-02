@@ -7,13 +7,16 @@ import { Slot } from 'expo-router';
 import { AircraftProvider } from '@/stores/aircraftLocalStore';
 import { MaintenanceDataProvider } from '@/stores/maintenanceDataStore';
 import { EltProvider } from '@/stores/eltStore';
+import { OcrProvider } from '@/stores/ocrStore';
 
 export default function RootLayout() {
   return (
     <AircraftProvider>
       <MaintenanceDataProvider>
         <EltProvider>
-          <Slot />
+          <OcrProvider>
+            <Slot />
+          </OcrProvider>
         </EltProvider>
       </MaintenanceDataProvider>
     </AircraftProvider>
