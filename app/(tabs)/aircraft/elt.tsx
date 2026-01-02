@@ -163,13 +163,6 @@ export default function EltScreen() {
     setIsEditing(false);
   };
 
-  const navigateToOcr = () => {
-    router.push({
-      pathname: '/(tabs)/aircraft/elt-ocr',
-      params: { aircraftId, registration },
-    });
-  };
-
   const openBeaconRegistry = async () => {
     try {
       const supported = await Linking.canOpenURL(BEACON_REGISTRY_URL);
