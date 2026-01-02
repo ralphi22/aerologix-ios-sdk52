@@ -1,19 +1,21 @@
 /**
- * OCR History Screen - View all scanned documents
+ * OCR History Screen - View all scanned documents from backend
  * TC-SAFE: Read-only access to scanned documents
  */
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { getLanguage } from '@/i18n';
-import { useOcr, OcrDocument } from '@/stores/ocrStore';
+import ocrService, { OCRScanResponse, DocumentType } from '@/services/ocrService';
 
 const COLORS = {
   primary: '#0033A0',
@@ -36,7 +38,7 @@ const COLORS = {
   tealLight: '#E0F2F1',
 };
 
-const getDocTypeConfig = (type: string, lang: string) => {
+const getDocTypeConfig = (type: DocumentType, lang: string) => {
   switch (type) {
     case 'maintenance_report':
       return {
@@ -52,6 +54,13 @@ const getDocTypeConfig = (type: string, lang: string) => {
         color: COLORS.purple,
         bgColor: COLORS.purpleLight,
       };
+    case 'stc':
+      return {
+        icon: '📜',
+        label: 'STC',
+        color: COLORS.orange,
+        bgColor: COLORS.orangeLight,
+      };
     default:
       return {
         icon: '📄',
@@ -62,14 +71,29 @@ const getDocTypeConfig = (type: string, lang: string) => {
   }
 };
 
+const getStatusBadge = (status: string, lang: string) => {
+  switch (status) {
+    case 'APPLIED':
+      return { label: lang === 'fr' ? 'Appliqué' : 'Applied', color: COLORS.green, bgColor: COLORS.greenLight };
+    case 'COMPLETED':
+      return { label: lang === 'fr' ? 'En attente' : 'Pending', color: COLORS.orange, bgColor: COLORS.orangeLight };
+    case 'FAILED':
+      return { label: lang === 'fr' ? 'Échec' : 'Failed', color: COLORS.red, bgColor: COLORS.redLight };
+    default:
+      return { label: status, color: COLORS.textMuted, bgColor: COLORS.background };
+  }
+};
+
 interface DocumentCardProps {
-  document: OcrDocument;
+  document: OCRScanResponse;
   lang: string;
   onPress: () => void;
 }
 
 function DocumentCard({ document, lang, onPress }: DocumentCardProps) {
-  const config = getDocTypeConfig(document.type, lang);
+  const config = getDocTypeConfig(document.document_type, lang);
+  const statusBadge = getStatusBadge(document.status, lang);
+  const data = document.extracted_data;
   
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
@@ -79,85 +103,71 @@ function DocumentCard({ document, lang, onPress }: DocumentCardProps) {
         </View>
         <View style={styles.cardInfo}>
           <Text style={styles.cardTitle}>{config.label}</Text>
-          <Text style={styles.cardRegistration}>{document.registration}</Text>
+          <Text style={styles.cardDate}>{data?.date || document.created_at.split('T')[0]}</Text>
         </View>
-        <View style={styles.cardDateContainer}>
-          <Text style={styles.cardDate}>{document.documentDate || document.scanDate}</Text>
-          {document.validated && (
-            <View style={styles.validatedBadge}>
-              <Text style={styles.validatedText}>✓</Text>
-            </View>
-          )}
+        <View style={[styles.statusBadge, { backgroundColor: statusBadge.bgColor }]}>
+          <Text style={[styles.statusText, { color: statusBadge.color }]}>{statusBadge.label}</Text>
         </View>
       </View>
 
       {/* Document details based on type */}
-      {document.type === 'maintenance_report' && document.maintenanceData && (
+      {document.document_type === 'maintenance_report' && data && (
         <View style={styles.cardDetails}>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>AMO:</Text>
-            <Text style={styles.detailValue}>{document.maintenanceData.amo || '—'}</Text>
-          </View>
-          {document.maintenanceData.hours && (
+          {data.amo_name && (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>AMO:</Text>
+              <Text style={styles.detailValue}>{data.amo_name}</Text>
+            </View>
+          )}
+          {(data.airframe_hours || data.engine_hours) && (
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>{lang === 'fr' ? 'Heures:' : 'Hours:'}</Text>
               <Text style={styles.detailValue}>
-                {document.maintenanceData.hours.airframeHours?.toFixed(1) || '—'} / {document.maintenanceData.hours.engineHours?.toFixed(1) || '—'}
+                {data.airframe_hours?.toFixed(1) || '—'} / {data.engine_hours?.toFixed(1) || '—'}
               </Text>
             </View>
           )}
-          {document.maintenanceData.parts && document.maintenanceData.parts.length > 0 && (
-            <View style={styles.badgesRow}>
-              <View style={[styles.miniPadge, { backgroundColor: COLORS.blue }]}>
+          <View style={styles.badgesRow}>
+            {data.parts_replaced && data.parts_replaced.length > 0 && (
+              <View style={[styles.miniBadge, { backgroundColor: COLORS.blue }]}>
                 <Text style={[styles.miniBadgeText, { color: COLORS.primary }]}>
-                  {document.maintenanceData.parts.length} {lang === 'fr' ? 'pièces' : 'parts'}
+                  {data.parts_replaced.length} {lang === 'fr' ? 'pièces' : 'parts'}
                 </Text>
               </View>
-              {document.maintenanceData.adSbs && document.maintenanceData.adSbs.length > 0 && (
-                <View style={[styles.miniPadge, { backgroundColor: COLORS.orangeLight }]}>
-                  <Text style={[styles.miniBadgeText, { color: COLORS.orange }]}>
-                    {document.maintenanceData.adSbs.length} AD/SB
-                  </Text>
-                </View>
-              )}
+            )}
+            {data.ad_sb_references && data.ad_sb_references.length > 0 && (
+              <View style={[styles.miniBadge, { backgroundColor: COLORS.orangeLight }]}>
+                <Text style={[styles.miniBadgeText, { color: COLORS.orange }]}>
+                  {data.ad_sb_references.length} AD/SB
+                </Text>
+              </View>
+            )}
+            {data.elt_data?.detected && (
+              <View style={[styles.miniBadge, { backgroundColor: COLORS.tealLight }]}>
+                <Text style={[styles.miniBadgeText, { color: COLORS.teal }]}>ELT</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+
+      {document.document_type === 'invoice' && data && (
+        <View style={styles.cardDetails}>
+          {data.total_cost && (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Total:</Text>
+              <Text style={[styles.detailValue, styles.totalValue]}>
+                ${data.total_cost.toFixed(2)}
+              </Text>
             </View>
           )}
-        </View>
-      )}
-
-      {document.type === 'invoice' && document.invoiceData && (
-        <View style={styles.cardDetails}>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>{lang === 'fr' ? 'Fournisseur:' : 'Supplier:'}</Text>
-            <Text style={styles.detailValue}>{document.invoiceData.invoice.supplier}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Total:</Text>
-            <Text style={[styles.detailValue, styles.totalValue]}>
-              ${document.invoiceData.invoice.totalAmount.toFixed(2)}
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* Applied modules */}
-      {document.appliedToModules.length > 0 && (
-        <View style={styles.appliedRow}>
-          <Text style={styles.appliedLabel}>
-            {lang === 'fr' ? 'Appliqué à:' : 'Applied to:'}
-          </Text>
-          <View style={styles.appliedModules}>
-            {document.appliedToModules.map((mod, index) => (
-              <Text key={index} style={styles.appliedModule}>{mod}</Text>
-            ))}
-          </View>
         </View>
       )}
 
       {/* Scan info */}
       <View style={styles.cardFooter}>
         <Text style={styles.scanInfo}>
-          {document.sourceType === 'photo' ? '📸' : '📁'} {lang === 'fr' ? 'Scanné le' : 'Scanned on'} {document.scanDate}
+          {lang === 'fr' ? 'Scanné le' : 'Scanned on'} {document.created_at.split('T')[0]}
         </Text>
         <Text style={styles.cardArrow}>›</Text>
       </View>
@@ -169,25 +179,54 @@ export default function OcrHistoryScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
-  const { documents, getDocumentsByAircraft } = useOcr();
 
-  const aircraftDocuments = getDocumentsByAircraft(aircraftId || '');
+  const [documents, setDocuments] = useState<OCRScanResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Group by type
-  const reportDocs = aircraftDocuments.filter((d) => d.type === 'maintenance_report');
-  const invoiceDocs = aircraftDocuments.filter((d) => d.type === 'invoice');
-  const otherDocs = aircraftDocuments.filter((d) => d.type === 'other');
-
-  const handleDocumentPress = (doc: OcrDocument) => {
-    // In real app, navigate to document detail
-    // For now, show alert with info
-    const info = doc.type === 'maintenance_report' && doc.maintenanceData
-      ? `AMO: ${doc.maintenanceData.amo}\n${lang === 'fr' ? 'Description' : 'Description'}: ${doc.maintenanceData.description?.substring(0, 100)}...`
-      : doc.type === 'invoice' && doc.invoiceData
-      ? `${lang === 'fr' ? 'Fournisseur' : 'Supplier'}: ${doc.invoiceData.invoice.supplier}\nTotal: $${doc.invoiceData.invoice.totalAmount.toFixed(2)}`
-      : lang === 'fr' ? 'Document archivé' : 'Archived document';
+  const loadHistory = useCallback(async () => {
+    if (!aircraftId) return;
     
-    // Just visual feedback for now
+    try {
+      setError(null);
+      const history = await ocrService.getHistory(aircraftId, 50);
+      setDocuments(history);
+    } catch (err: any) {
+      console.log('Error loading OCR history:', err);
+      setError(err.message || 'Failed to load history');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [aircraftId]);
+
+  // Load on mount
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
+
+  // Reload when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadHistory();
+    }, [loadHistory])
+  );
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    loadHistory();
+  };
+
+  // Count by type
+  const reportDocs = documents.filter((d) => d.document_type === 'maintenance_report');
+  const invoiceDocs = documents.filter((d) => d.document_type === 'invoice');
+  const otherDocs = documents.filter((d) => d.document_type === 'other' || d.document_type === 'stc');
+
+  const handleDocumentPress = (doc: OCRScanResponse) => {
+    // Navigate to detail or show info
+    // For now just log
+    console.log('Document pressed:', doc.id);
   };
 
   const navigateToScanner = () => {
@@ -213,82 +252,105 @@ export default function OcrHistoryScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Summary */}
-        <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, { backgroundColor: COLORS.tealLight }]}>
-            <Text style={styles.summaryIcon}>📋</Text>
-            <Text style={[styles.summaryValue, { color: COLORS.teal }]}>{reportDocs.length}</Text>
-            <Text style={styles.summaryLabel}>{lang === 'fr' ? 'Rapports' : 'Reports'}</Text>
-          </View>
-          <View style={[styles.summaryCard, { backgroundColor: COLORS.purpleLight }]}>
-            <Text style={styles.summaryIcon}>🧾</Text>
-            <Text style={[styles.summaryValue, { color: COLORS.purple }]}>{invoiceDocs.length}</Text>
-            <Text style={styles.summaryLabel}>{lang === 'fr' ? 'Factures' : 'Invoices'}</Text>
-          </View>
-          <View style={[styles.summaryCard, { backgroundColor: COLORS.background }]}>
-            <Text style={styles.summaryIcon}>📄</Text>
-            <Text style={[styles.summaryValue, { color: COLORS.textMuted }]}>{otherDocs.length}</Text>
-            <Text style={styles.summaryLabel}>{lang === 'fr' ? 'Autres' : 'Others'}</Text>
-          </View>
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>
+            {lang === 'fr' ? 'Chargement...' : 'Loading...'}
+          </Text>
         </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadHistory}>
+            <Text style={styles.retryText}>{lang === 'fr' ? 'Réessayer' : 'Retry'}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <ScrollView 
+          style={styles.scrollView} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+          }
+        >
+          {/* Summary */}
+          <View style={styles.summaryRow}>
+            <View style={[styles.summaryCard, { backgroundColor: COLORS.tealLight }]}>
+              <Text style={styles.summaryIcon}>📋</Text>
+              <Text style={[styles.summaryValue, { color: COLORS.teal }]}>{reportDocs.length}</Text>
+              <Text style={styles.summaryLabel}>{lang === 'fr' ? 'Rapports' : 'Reports'}</Text>
+            </View>
+            <View style={[styles.summaryCard, { backgroundColor: COLORS.purpleLight }]}>
+              <Text style={styles.summaryIcon}>🧾</Text>
+              <Text style={[styles.summaryValue, { color: COLORS.purple }]}>{invoiceDocs.length}</Text>
+              <Text style={styles.summaryLabel}>{lang === 'fr' ? 'Factures' : 'Invoices'}</Text>
+            </View>
+            <View style={[styles.summaryCard, { backgroundColor: COLORS.background }]}>
+              <Text style={styles.summaryIcon}>📄</Text>
+              <Text style={[styles.summaryValue, { color: COLORS.textMuted }]}>{otherDocs.length}</Text>
+              <Text style={styles.summaryLabel}>{lang === 'fr' ? 'Autres' : 'Others'}</Text>
+            </View>
+          </View>
 
-        {/* Documents List */}
-        {aircraftDocuments.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📄</Text>
-            <Text style={styles.emptyTitle}>
-              {lang === 'fr' ? 'Aucun document scanné' : 'No scanned documents'}
-            </Text>
-            <Text style={styles.emptyText}>
-              {lang === 'fr'
-                ? 'Scannez vos rapports de maintenance pour faire vivre votre avion'
-                : 'Scan your maintenance reports to bring your aircraft to life'}
-            </Text>
-            <TouchableOpacity style={styles.scanButton} onPress={navigateToScanner}>
-              <Text style={styles.scanButtonText}>
-                📷 {lang === 'fr' ? 'Scanner un document' : 'Scan a document'}
+          {/* Documents List */}
+          {documents.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>📄</Text>
+              <Text style={styles.emptyTitle}>
+                {lang === 'fr' ? 'Aucun document scanné' : 'No scanned documents'}
               </Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.documentsList}>
-            <Text style={styles.listTitle}>
-              {lang === 'fr' ? `Tous les documents (${aircraftDocuments.length})` : `All documents (${aircraftDocuments.length})`}
+              <Text style={styles.emptyText}>
+                {lang === 'fr'
+                  ? 'Scannez vos rapports de maintenance pour faire vivre votre avion'
+                  : 'Scan your maintenance reports to bring your aircraft to life'}
+              </Text>
+              <TouchableOpacity style={styles.scanButton} onPress={navigateToScanner}>
+                <Text style={styles.scanButtonText}>
+                  📷 {lang === 'fr' ? 'Scanner un document' : 'Scan a document'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.documentsList}>
+              <Text style={styles.listTitle}>
+                {lang === 'fr' ? `Tous les documents (${documents.length})` : `All documents (${documents.length})`}
+              </Text>
+              {documents.map((doc) => (
+                <DocumentCard
+                  key={doc.id}
+                  document={doc}
+                  lang={lang}
+                  onPress={() => handleDocumentPress(doc)}
+                />
+              ))}
+            </View>
+          )}
+
+          {/* Info Notice */}
+          <View style={styles.infoNotice}>
+            <Text style={styles.infoIcon}>ℹ️</Text>
+            <Text style={styles.infoText}>
+              {lang === 'fr'
+                ? 'Les rapports de maintenance sont la source principale pour mettre à jour les compteurs de votre avion. Importez-les du plus ancien au plus récent pour un suivi optimal.'
+                : 'Maintenance reports are the primary source for updating your aircraft counters. Import them from oldest to newest for optimal tracking.'}
             </Text>
-            {aircraftDocuments.map((doc) => (
-              <DocumentCard
-                key={doc.id}
-                document={doc}
-                lang={lang}
-                onPress={() => handleDocumentPress(doc)}
-              />
-            ))}
           </View>
-        )}
 
-        {/* Info Notice */}
-        <View style={styles.infoNotice}>
-          <Text style={styles.infoIcon}>ℹ️</Text>
-          <Text style={styles.infoText}>
-            {lang === 'fr'
-              ? 'Les rapports de maintenance sont la source principale pour mettre à jour les compteurs de votre avion. Importez-les du plus ancien au plus récent pour un suivi optimal.'
-              : 'Maintenance reports are the primary source for updating your aircraft counters. Import them from oldest to newest for optimal tracking.'}
-          </Text>
-        </View>
+          {/* Disclaimer */}
+          <View style={styles.disclaimer}>
+            <Text style={styles.disclaimerIcon}>⚠️</Text>
+            <Text style={styles.disclaimerText}>
+              {lang === 'fr'
+                ? 'Données extraites par OCR à titre informatif. Toute information doit être validée par l\'utilisateur. Ne remplace pas un AME, un AMO ni un registre officiel.'
+                : 'OCR-extracted data provided for information purposes only. User validation is required. Does not replace an AME, AMO, or official record.'}
+            </Text>
+          </View>
 
-        {/* Disclaimer */}
-        <View style={styles.disclaimer}>
-          <Text style={styles.disclaimerIcon}>⚠️</Text>
-          <Text style={styles.disclaimerText}>
-            {lang === 'fr'
-              ? 'Données extraites par OCR à titre informatif. Toute information doit être validée par l\'utilisateur. Ne remplace pas un AME, un AMO ni un registre officiel.'
-              : 'OCR-extracted data provided for information purposes only. User validation is required. Does not replace an AME, AMO, or official record.'}
-          </Text>
-        </View>
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -307,6 +369,15 @@ const styles = StyleSheet.create({
   headerAdd: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 18 },
   headerAddText: { color: COLORS.white, fontSize: 22, fontWeight: '600' },
   scrollView: { flex: 1 },
+  // Loading
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 12, fontSize: 14, color: COLORS.textMuted },
+  // Error
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  errorIcon: { fontSize: 48, marginBottom: 16 },
+  errorText: { fontSize: 14, color: COLORS.red, textAlign: 'center', marginBottom: 16 },
+  retryButton: { backgroundColor: COLORS.primary, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 },
+  retryText: { color: COLORS.white, fontSize: 14, fontWeight: '600' },
   // Summary
   summaryRow: { flexDirection: 'row', padding: 16, gap: 12 },
   summaryCard: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center' },
@@ -330,25 +401,18 @@ const styles = StyleSheet.create({
   cardIcon: { fontSize: 22 },
   cardInfo: { flex: 1 },
   cardTitle: { fontSize: 15, fontWeight: '600', color: COLORS.textDark },
-  cardRegistration: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  cardDateContainer: { alignItems: 'flex-end' },
-  cardDate: { fontSize: 12, color: COLORS.textMuted },
-  validatedBadge: { marginTop: 4, width: 20, height: 20, borderRadius: 10, backgroundColor: COLORS.greenLight, justifyContent: 'center', alignItems: 'center' },
-  validatedText: { fontSize: 12, color: COLORS.green, fontWeight: '600' },
+  cardDate: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  statusText: { fontSize: 10, fontWeight: '600' },
   // Card Details
   cardDetails: { paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.background },
   detailRow: { flexDirection: 'row', marginBottom: 6 },
   detailLabel: { fontSize: 12, color: COLORS.textMuted, width: 80 },
   detailValue: { flex: 1, fontSize: 12, fontWeight: '500', color: COLORS.textDark },
   totalValue: { color: COLORS.green, fontWeight: '700' },
-  badgesRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  miniPadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  badgesRow: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
+  miniBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   miniBadgeText: { fontSize: 10, fontWeight: '600' },
-  // Applied
-  appliedRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: COLORS.background },
-  appliedLabel: { fontSize: 11, color: COLORS.textMuted, marginRight: 8 },
-  appliedModules: { flexDirection: 'row', gap: 6 },
-  appliedModule: { fontSize: 10, color: COLORS.primary, backgroundColor: COLORS.blue, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   // Footer
   cardFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: COLORS.background },
   scanInfo: { flex: 1, fontSize: 11, color: COLORS.textMuted },
