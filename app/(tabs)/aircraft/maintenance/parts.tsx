@@ -13,6 +13,8 @@ import {
   Modal,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
@@ -166,41 +168,57 @@ export default function PartsScreen() {
 
       {/* Add Part Modal */}
       <Modal visible={showAddModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView 
+          style={styles.modalOverlay} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
+        >
+          <TouchableOpacity 
+            style={styles.modalBackdrop} 
+            activeOpacity={1} 
+            onPress={() => setShowAddModal(false)} 
+          />
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>
               {lang === 'fr' ? 'Ajouter une pièce' : 'Add Part'}
             </Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder={lang === 'fr' ? 'Nom de la pièce' : 'Part name'}
-              placeholderTextColor={COLORS.textMuted}
-              value={newPartName}
-              onChangeText={setNewPartName}
-            />
-            <TextInput
-              style={styles.modalInput}
-              placeholder="P/N (Part Number)"
-              placeholderTextColor={COLORS.textMuted}
-              value={newPartNumber}
-              onChangeText={setNewPartNumber}
-              autoCapitalize="characters"
-            />
-            <TextInput
-              style={styles.modalInput}
-              placeholder={lang === 'fr' ? 'Quantité' : 'Quantity'}
-              placeholderTextColor={COLORS.textMuted}
-              value={newPartQty}
-              onChangeText={setNewPartQty}
-              keyboardType="numeric"
-            />
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Date (YYYY-MM-DD)"
-              placeholderTextColor={COLORS.textMuted}
-              value={newPartDate}
-              onChangeText={setNewPartDate}
-            />
+            <ScrollView 
+              style={styles.modalScroll} 
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <TextInput
+                style={styles.modalInput}
+                placeholder={lang === 'fr' ? 'Nom de la pièce' : 'Part name'}
+                placeholderTextColor={COLORS.textMuted}
+                value={newPartName}
+                onChangeText={setNewPartName}
+              />
+              <TextInput
+                style={styles.modalInput}
+                placeholder="P/N (Part Number)"
+                placeholderTextColor={COLORS.textMuted}
+                value={newPartNumber}
+                onChangeText={setNewPartNumber}
+                autoCapitalize="characters"
+              />
+              <TextInput
+                style={styles.modalInput}
+                placeholder={lang === 'fr' ? 'Quantité' : 'Quantity'}
+                placeholderTextColor={COLORS.textMuted}
+                value={newPartQty}
+                onChangeText={setNewPartQty}
+                keyboardType="numeric"
+              />
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Date (YYYY-MM-DD)"
+                placeholderTextColor={COLORS.textMuted}
+                value={newPartDate}
+                onChangeText={setNewPartDate}
+              />
+            </ScrollView>
             <View style={styles.modalButtons}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setShowAddModal(false)}>
                 <Text style={styles.modalCancelText}>{lang === 'fr' ? 'Annuler' : 'Cancel'}</Text>
@@ -210,7 +228,7 @@ export default function PartsScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -257,10 +275,13 @@ const styles = StyleSheet.create({
   disclaimerText: { flex: 1, fontSize: 12, color: '#5D4037', lineHeight: 18 },
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textDark, marginBottom: 20, textAlign: 'center' },
+  modalBackdrop: { flex: 1 },
+  modalContent: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, maxHeight: '80%' },
+  modalHandle: { width: 40, height: 4, backgroundColor: COLORS.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textDark, marginBottom: 16, textAlign: 'center' },
+  modalScroll: { maxHeight: 280 },
   modalInput: { backgroundColor: COLORS.background, borderRadius: 12, padding: 16, fontSize: 16, color: COLORS.textDark, marginBottom: 12 },
-  modalButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  modalButtons: { flexDirection: 'row', gap: 12, marginTop: 16 },
   modalCancel: { flex: 1, paddingVertical: 16, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' },
   modalCancelText: { fontSize: 16, color: COLORS.textMuted, fontWeight: '600' },
   modalSave: { flex: 1, paddingVertical: 16, borderRadius: 12, backgroundColor: COLORS.primary, alignItems: 'center' },

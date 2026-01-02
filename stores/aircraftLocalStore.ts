@@ -45,8 +45,9 @@ interface AircraftContextType {
 }
 
 // Map API aircraft to local format
+// Note: Backend uses 'id' (numeric) not '_id' (MongoDB ObjectId)
 const mapApiToLocal = (apiAircraft: ApiAircraft): Aircraft => ({
-  id: apiAircraft._id,
+  id: (apiAircraft as any).id?.toString() || apiAircraft._id,
   registration: apiAircraft.registration,
   commonName: apiAircraft.aircraft_type || '',
   model: apiAircraft.model || '',

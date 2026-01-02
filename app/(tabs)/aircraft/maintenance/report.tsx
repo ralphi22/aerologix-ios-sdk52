@@ -16,7 +16,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
 import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
 import { useReportSettings } from '@/stores/reportSettingsStore';
-import { useElt } from '@/stores/eltStore';
+import { useElt, ELT_FIXED_LIMITS } from '@/stores/eltStore';
 
 const COLORS = {
   primary: '#0033A0',
@@ -378,9 +378,9 @@ export default function ReportScreen() {
             iconBg={eltProgress.status === 'exceeded' ? COLORS.redLight : COLORS.greenLight}
             title="ELT"
             subtitle="Date"
-            currentValue={`Test: ${eltData.lastTestDate}`}
+            currentValue={`Test: ${eltData.lastTestDate || 'N/A'}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
-            limitValue={`${eltLimits.TEST_MONTHS}m / Batt ${eltLimits.BATTERY_MIN_MONTHS}-${eltLimits.BATTERY_MAX_MONTHS}m`}
+            limitValue={`${ELT_FIXED_LIMITS.TEST_MONTHS}m / Batt ${ELT_FIXED_LIMITS.BATTERY_MIN_MONTHS}-${ELT_FIXED_LIMITS.BATTERY_MAX_MONTHS}m`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={eltProgress.percent}
             status={eltProgress.status}
