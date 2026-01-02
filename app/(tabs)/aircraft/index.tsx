@@ -73,7 +73,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 
 export default function AircraftListScreen() {
   const router = useRouter();
-  const { aircraft } = useAircraftLocalStore();
+  const { aircraft, isLoading, refreshAircraft } = useAircraftLocalStore();
   const [refreshing, setRefreshing] = React.useState(false);
 
   const handleAddAircraft = () => {
@@ -84,11 +84,14 @@ export default function AircraftListScreen() {
     router.push(`/(tabs)/aircraft/${aircraftId}`);
   };
 
-  const onRefresh = React.useCallback(() => {
+  const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
-    // Simuler un refresh (données locales)
-    setTimeout(() => setRefreshing(false), 500);
-  }, []);
+    try {
+      await refreshAircraft();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshAircraft]);
 
   return (
     <View style={styles.container}>
