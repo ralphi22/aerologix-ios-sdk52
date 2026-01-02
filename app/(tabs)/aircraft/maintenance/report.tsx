@@ -309,7 +309,7 @@ export default function ReportScreen() {
             subtitle="Date"
             currentValue={`${lang === 'fr' ? 'Dernière' : 'Last'}: ${settings.heliceDate}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
-            limitValue={`${fixedLimits.HELICE_YEARS} ${lang === 'fr' ? 'ans max' : 'years max'}`}
+            limitValue={`${limits.heliceYears} ${lang === 'fr' ? 'ans max' : 'years max'}`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={heliceProgress.percent}
             status={heliceProgress.status}
@@ -323,7 +323,7 @@ export default function ReportScreen() {
             subtitle="Date"
             currentValue={`${lang === 'fr' ? 'Dernière' : 'Last'}: ${settings.celluleDate}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
-            limitValue={`${fixedLimits.CELLULE_YEARS} ${lang === 'fr' ? 'ans max' : 'years max'}`}
+            limitValue={`${limits.celluleYears} ${lang === 'fr' ? 'ans max' : 'years max'}`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={celluleProgress.percent}
             status={celluleProgress.status}
@@ -337,7 +337,7 @@ export default function ReportScreen() {
             subtitle="Date"
             currentValue={`${lang === 'fr' ? 'Dernière' : 'Last'}: ${settings.avioniqueDate}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
-            limitValue={`${fixedLimits.AVIONIQUE_MONTHS} ${lang === 'fr' ? 'mois' : 'months'}`}
+            limitValue={`${limits.avioniqueMonths} ${lang === 'fr' ? 'mois' : 'months'}`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={avioniqueProgress.percent}
             status={avioniqueProgress.status}
@@ -349,9 +349,9 @@ export default function ReportScreen() {
             iconBg={COLORS.greenLight}
             title={lang === 'fr' ? 'Magnétos' : 'Magnetos'}
             subtitle={lang === 'fr' ? 'Heures' : 'Hours'}
-            currentValue={`${settings.magnetosHours.toFixed(1)} h ${lang === 'fr' ? 'depuis inspe...' : 'since insp...'}`}
+            currentValue={`${settings.magnetosHoursUsed.toFixed(1)} h ${lang === 'fr' ? 'depuis inspe...' : 'since insp...'}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
-            limitValue={`${fixedLimits.MAGNETOS_HOURS} h`}
+            limitValue={`${limits.magnetosHours} h`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={magnetosProgress.percent}
             status={magnetosProgress.status}
@@ -363,9 +363,9 @@ export default function ReportScreen() {
             iconBg={COLORS.greenLight}
             title={lang === 'fr' ? 'Pompe à vide' : 'Vacuum Pump'}
             subtitle={lang === 'fr' ? 'Heures' : 'Hours'}
-            currentValue={`${settings.pompeVideHours.toFixed(1)} h ${lang === 'fr' ? 'depuis rempl...' : 'since repl...'}`}
+            currentValue={`${settings.pompeVideHoursUsed.toFixed(1)} h ${lang === 'fr' ? 'depuis rempl...' : 'since repl...'}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
-            limitValue={`${fixedLimits.POMPE_VIDE_HOURS} h`}
+            limitValue={`${limits.pompeVideHours} h`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={pompeProgress.percent}
             status={pompeProgress.status}
