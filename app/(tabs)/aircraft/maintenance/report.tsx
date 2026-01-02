@@ -45,6 +45,11 @@ function calculateHoursProgress(current: number, limit: number): { percent: numb
 
 // Calculate date progress (months remaining)
 function calculateDateProgress(lastDate: string, limitMonths: number): { percent: number; status: 'ok' | 'warning' | 'exceeded'; daysRemaining: number } {
+  // Handle empty or invalid dates
+  if (!lastDate || lastDate === '' || isNaN(new Date(lastDate).getTime())) {
+    return { percent: 0, daysRemaining: 0, status: 'ok' };
+  }
+  
   const last = new Date(lastDate);
   const expiry = new Date(last);
   expiry.setMonth(expiry.getMonth() + limitMonths);
@@ -52,6 +57,12 @@ function calculateDateProgress(lastDate: string, limitMonths: number): { percent
   const totalDays = (expiry.getTime() - last.getTime()) / (1000 * 60 * 60 * 24);
   const elapsedDays = (now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24);
   const daysRemaining = Math.round((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Prevent division by zero
+  if (totalDays <= 0) {
+    return { percent: 100, daysRemaining: 0, status: 'exceeded' };
+  }
+  
   const percent = Math.round((elapsedDays / totalDays) * 100);
   
   if (daysRemaining <= 0) return { percent: 100, status: 'exceeded', daysRemaining };
