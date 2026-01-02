@@ -1,6 +1,6 @@
 /**
  * Edit Aircraft Screen
- * Reuses add form in edit mode
+ * Includes photo selection for aircraft image
  */
 
 import React, { useState, useEffect } from 'react';
@@ -15,8 +15,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { t, getLanguage } from '@/i18n';
 import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
 
@@ -28,6 +30,9 @@ const COLORS = {
   textMuted: '#6C757D',
   border: '#E0E0E0',
   hint: '#9E9E9E',
+  blue: '#E3F2FD',
+  green: '#4CAF50',
+  red: '#E53935',
 };
 
 interface FormFieldProps {
@@ -103,6 +108,7 @@ export default function EditAircraftScreen() {
   const [airframeHours, setAirframeHours] = useState('');
   const [engineHours, setEngineHours] = useState('');
   const [propellerHours, setPropellerHours] = useState('');
+  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
 
   // Load aircraft data
   useEffect(() => {
@@ -127,8 +133,110 @@ export default function EditAircraftScreen() {
       setAirframeHours(aircraft.airframeHours.toString());
       setEngineHours(aircraft.engineHours.toString());
       setPropellerHours(aircraft.propellerHours.toString());
+      setPhotoUri(aircraft.photoUri);
     }
   }, [aircraft]);
+
+  // Request media library permissions
+  const requestMediaPermission = async (): Promise<boolean> => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        lang === 'fr' ? 'Permission requise' : 'Permission Required',
+        lang === 'fr' 
+          ? 'L\'accès aux photos est nécessaire pour sélectionner une image.'
+          : 'Photo library access is required to select an image.',
+        [{ text: 'OK' }]
+      );
+      return false;
+    }
+    return true;
+  };
+
+  // Request camera permissions
+  const requestCameraPermission = async (): Promise<boolean> => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        lang === 'fr' ? 'Permission requise' : 'Permission Required',
+        lang === 'fr' 
+          ? 'L\'accès à la caméra est nécessaire pour prendre une photo.'
+          : 'Camera access is required to take a photo.',
+        [{ text: 'OK' }]
+      );
+      return false;
+    }
+    return true;
+  };
+
+  // Take photo with camera
+  const takePhoto = async () => {
+    const hasPermission = await requestCameraPermission();
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setPhotoUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.log('Camera error:', error);
+    }
+  };
+
+  // Pick image from library
+  const pickImage = async () => {
+    const hasPermission = await requestMediaPermission();
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setPhotoUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.log('Image picker error:', error);
+    }
+  };
+
+  // Show photo options
+  const handlePhotoPress = () => {
+    Alert.alert(
+      lang === 'fr' ? 'Photo de l\'avion' : 'Aircraft Photo',
+      lang === 'fr' ? 'Choisir une source' : 'Choose a source',
+      [
+        {
+          text: lang === 'fr' ? 'Prendre une photo' : 'Take Photo',
+          onPress: takePhoto,
+        },
+        {
+          text: lang === 'fr' ? 'Choisir une image' : 'Choose Image',
+          onPress: pickImage,
+        },
+        ...(photoUri ? [{
+          text: lang === 'fr' ? 'Supprimer' : 'Remove',
+          style: 'destructive' as const,
+          onPress: () => setPhotoUri(undefined),
+        }] : []),
+        {
+          text: lang === 'fr' ? 'Annuler' : 'Cancel',
+          style: 'cancel' as const,
+        },
+      ]
+    );
+  };
 
   if (!aircraft) {
     return (
@@ -169,6 +277,7 @@ export default function EditAircraftScreen() {
       airframeHours: parseFloat(airframeHours) || 0,
       engineHours: parseFloat(engineHours) || 0,
       propellerHours: parseFloat(propellerHours) || 0,
+      photoUri,
     });
 
     router.back();
@@ -197,6 +306,29 @@ export default function EditAircraftScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* SECTION: Photo */}
+          <SectionHeader title={lang === 'fr' ? 'Photo' : 'Photo'} />
+          <View style={styles.photoSection}>
+            <TouchableOpacity style={styles.photoContainer} onPress={handlePhotoPress}>
+              {photoUri ? (
+                <Image source={{ uri: photoUri }} style={styles.photoImage} resizeMode="cover" />
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <Text style={styles.photoIcon}>📷</Text>
+                  <Text style={styles.photoText}>
+                    {lang === 'fr' ? 'Ajouter une photo' : 'Add a photo'}
+                  </Text>
+                  <Text style={styles.photoHint}>
+                    {lang === 'fr' ? 'Visible en filigrane sur la carte' : 'Visible as watermark on card'}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.photoEditBadge}>
+                <Text style={styles.photoEditText}>✏️</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
           {/* SECTION: Identity */}
           <SectionHeader title={t('section_identity')} />
           <View style={styles.section}>
@@ -382,6 +514,65 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 40,
   },
+  // Photo Section
+  photoSection: {
+    backgroundColor: COLORS.white,
+    padding: 16,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: COLORS.border,
+  },
+  photoContainer: {
+    width: '100%',
+    height: 180,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: COLORS.blue,
+    position: 'relative',
+  },
+  photoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  photoPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoIcon: {
+    fontSize: 40,
+    marginBottom: 8,
+  },
+  photoText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  photoHint: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
+  photoEditBadge: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  photoEditText: {
+    fontSize: 16,
+  },
+  // Section
   sectionHeader: {
     paddingHorizontal: 16,
     paddingTop: 24,
@@ -445,7 +636,7 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     marginHorizontal: 16,
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.green,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
