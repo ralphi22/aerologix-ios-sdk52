@@ -134,11 +134,12 @@ export default function OcrScannerScreen() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 0.8,
-        base64: false,
+        base64: true, // Get base64 directly
       });
 
       if (!result.canceled && result.assets[0]) {
         setImageUri(result.assets[0].uri);
+        setImageBase64(result.assets[0].base64 || null);
         setSourceType('photo');
         setStep('type');
       }
@@ -161,11 +162,12 @@ export default function OcrScannerScreen() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 0.8,
-        base64: false,
+        base64: true, // Get base64 directly
       });
 
       if (!result.canceled && result.assets[0]) {
         setImageUri(result.assets[0].uri);
+        setImageBase64(result.assets[0].base64 || null);
         setSourceType('import');
         setStep('type');
       }
