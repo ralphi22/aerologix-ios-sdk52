@@ -154,21 +154,21 @@ export default function ReportScreen() {
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
   const { getAircraftById } = useAircraftLocalStore();
-  const { settings, fixedLimits } = useReportSettings();
-  const { getTestProgress: getEltTestProgress, fixedLimits: eltLimits, eltData } = useElt();
+  const { settings, limits } = useReportSettings();
+  const { getTestProgress: getEltTestProgress, eltData } = useElt();
 
   const aircraft = getAircraftById(aircraftId || '');
   const engineHours = aircraft?.engineHours || 0;
   const propellerHours = aircraft?.propellerHours || 0;
   const airframeHours = aircraft?.airframeHours || 0;
 
-  // Calculate all statuses using FIXED_LIMITS constants
+  // Calculate all statuses using editable limits
   const motorProgress = calculateHoursProgress(engineHours, settings.motorTbo);
-  const heliceProgress = calculateDateProgress(settings.heliceDate, fixedLimits.HELICE_YEARS * 12);
-  const celluleProgress = calculateDateProgress(settings.celluleDate, fixedLimits.CELLULE_YEARS * 12);
-  const avioniqueProgress = calculateDateProgress(settings.avioniqueDate, fixedLimits.AVIONIQUE_MONTHS);
-  const magnetosProgress = calculateHoursProgress(settings.magnetosHours, fixedLimits.MAGNETOS_HOURS);
-  const pompeProgress = calculateHoursProgress(settings.pompeVideHours, fixedLimits.POMPE_VIDE_HOURS);
+  const heliceProgress = calculateDateProgress(settings.heliceDate, limits.heliceYears * 12);
+  const celluleProgress = calculateDateProgress(settings.celluleDate, limits.celluleYears * 12);
+  const avioniqueProgress = calculateDateProgress(settings.avioniqueDate, limits.avioniqueMonths);
+  const magnetosProgress = calculateHoursProgress(settings.magnetosHoursUsed, limits.magnetosHours);
+  const pompeProgress = calculateHoursProgress(settings.pompeVideHoursUsed, limits.pompeVideHours);
   
   // ELT progress from ELT store (read-only)
   const eltTestProgressData = getEltTestProgress();
