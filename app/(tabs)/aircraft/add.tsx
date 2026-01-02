@@ -78,6 +78,7 @@ function SectionHeader({ title }: { title: string }) {
 export default function AddAircraftScreen() {
   const router = useRouter();
   const { addAircraft } = useAircraftLocalStore();
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form state
   const [registration, setRegistration] = useState('');
@@ -101,37 +102,47 @@ export default function AddAircraftScreen() {
   const [engineHours, setEngineHours] = useState('');
   const [propellerHours, setPropellerHours] = useState('');
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Basic validation
     if (!registration.trim()) {
       Alert.alert('Error', 'Registration is required / L\'immatriculation est requise');
       return;
     }
 
-    addAircraft({
-      registration: registration.toUpperCase(),
-      commonName,
-      model,
-      serialNumber,
-      category,
-      engineType,
-      maxWeight,
-      baseOperations,
-      manufacturer,
-      countryManufacture,
-      yearManufacture,
-      registrationType,
-      ownerSince,
-      addressLine1,
-      addressLine2,
-      city,
-      country,
-      airframeHours: parseFloat(airframeHours) || 0,
-      engineHours: parseFloat(engineHours) || 0,
-      propellerHours: parseFloat(propellerHours) || 0,
-    });
+    setIsSaving(true);
+    try {
+      await addAircraft({
+        registration: registration.toUpperCase(),
+        commonName,
+        model,
+        serialNumber,
+        category,
+        engineType,
+        maxWeight,
+        baseOperations,
+        manufacturer,
+        countryManufacture,
+        yearManufacture,
+        registrationType,
+        ownerSince,
+        addressLine1,
+        addressLine2,
+        city,
+        country,
+        airframeHours: parseFloat(airframeHours) || 0,
+        engineHours: parseFloat(engineHours) || 0,
+        propellerHours: parseFloat(propellerHours) || 0,
+      });
 
-    router.back();
+      router.back();
+    } catch (error: any) {
+      Alert.alert(
+        'Erreur', 
+        error.response?.data?.detail || error.message || 'Échec de la sauvegarde'
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
