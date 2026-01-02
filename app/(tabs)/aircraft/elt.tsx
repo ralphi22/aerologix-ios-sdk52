@@ -218,32 +218,6 @@ export default function EltScreen() {
           <StatusIndicator status={eltStatus} />
         </View>
 
-        {/* OCR Scan Button */}
-        <View style={styles.ocrSection}>
-          <TouchableOpacity style={styles.ocrButton} onPress={navigateToOcr}>
-            <View style={styles.ocrIconContainer}>
-              <Text style={styles.ocrIcon}>📷</Text>
-            </View>
-            <View style={styles.ocrContent}>
-              <Text style={styles.ocrTitle}>
-                {lang === 'fr' ? 'Scanner un document ELT' : 'Scan ELT Document'}
-              </Text>
-              <Text style={styles.ocrSubtitle}>
-                {lang === 'fr'
-                  ? 'Extraire les données via OCR'
-                  : 'Extract data via OCR'}
-              </Text>
-            </View>
-            <Text style={styles.ocrArrow}>›</Text>
-          </TouchableOpacity>
-          
-          {eltData.lastOcrScanDate && (
-            <Text style={styles.lastScanText}>
-              {lang === 'fr' ? 'Dernier scan:' : 'Last scan:'} {eltData.lastOcrScanDate}
-            </Text>
-          )}
-        </View>
-
         {/* Progress Cards */}
         <View style={styles.progressSection}>
           {/* Test Progress */}
