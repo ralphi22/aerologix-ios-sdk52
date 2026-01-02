@@ -736,23 +736,23 @@ export default function OcrScannerScreen() {
               )}
 
               {/* Costs Section */}
-              {(data.labor_cost || data.parts_cost || data.total_cost) && (
+              {(data.labor_cost != null || data.parts_cost != null || data.total_cost != null) && (
                 <>
                   <Text style={styles.sectionLabel}>
                     {lang === 'fr' ? 'Coûts' : 'Costs'}
                   </Text>
                   <View style={styles.reviewCard}>
-                    {data.labor_cost !== undefined && renderValidationField(
+                    {data.labor_cost != null && renderValidationField(
                       lang === 'fr' ? 'Main-d\'œuvre' : 'Labor',
                       `$${data.labor_cost.toFixed(2)}`,
                       'labor_cost'
                     )}
-                    {data.parts_cost !== undefined && renderValidationField(
+                    {data.parts_cost != null && renderValidationField(
                       lang === 'fr' ? 'Pièces' : 'Parts',
                       `$${data.parts_cost.toFixed(2)}`,
                       'parts_cost'
                     )}
-                    {data.total_cost !== undefined && renderValidationField(
+                    {data.total_cost != null && renderValidationField(
                       'Total',
                       `$${data.total_cost.toFixed(2)}`,
                       'total_cost'
