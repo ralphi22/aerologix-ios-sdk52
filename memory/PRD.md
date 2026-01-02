@@ -37,13 +37,17 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
 - Editable maintenance report settings
 - ELT tracking screen
 
-### ✅ Bug Fixes (This Session)
+### ✅ Bug Fixes (Session 1)
 1. **Crash on Report screen** - Fixed missing `ELT_FIXED_LIMITS` import
 2. **Parts modal keyboard issue** - Added `KeyboardAvoidingView` for mobile keyboard handling
 3. **Aircraft ID mapping** - Improved to support both `id` and `_id` formats
 
-### ⚠️ Known Issues
-1. **OCR Backend Error** - The OCR scan returns 404 from OpenAI API. This is a backend configuration issue on Render, not a frontend problem.
+### ✅ Bug Fixes (Session 2 - January 2, 2025)
+1. **Crash "Cannot read property 'toFixed' of null"** - Fixed null checks before toFixed() calls
+2. **Report screen crash** - Added missing `ReportSettingsProvider` to root layout
+3. **calculateDateProgress crash** - Added validation for empty/invalid dates
+4. **calculateHoursProgress crash** - Added validation for null values and division by zero
+5. **Missing redLight color** - Added to COLORS constant in ocr-history.tsx
 
 ## File Structure
 ```
@@ -51,11 +55,13 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
 ├── app/                  # Expo Router routes
 │   ├── (tabs)/          # Main app screens
 │   │   ├── aircraft/    # Aircraft features
+│   │   │   ├── ocr-history.tsx    # Fixed: toFixed null check
+│   │   │   ├── ocr-scan.tsx       # Fixed: toFixed null check
 │   │   │   └── maintenance/
-│   │   │       ├── report.tsx      # Fixed: ELT limits
+│   │   │       ├── report.tsx      # Fixed: date/hours validation
 │   │   │       ├── parts.tsx       # Fixed: keyboard handling
 │   │   │       └── report-settings.tsx
-│   ├── _layout.tsx
+│   ├── _layout.tsx      # Fixed: Added ReportSettingsProvider
 │   └── login.tsx
 ├── components/          # Reusable UI
 ├── services/            # API services
@@ -63,9 +69,13 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
 │   ├── aircraftService.ts
 │   └── ocrService.ts
 └── stores/              # State management
-    ├── aircraftLocalStore.ts  # Fixed: ID mapping
-    └── eltStore.ts
+    ├── aircraftLocalStore.ts
+    ├── eltStore.ts
+    └── reportSettingsStore.ts
 ```
+
+## Known Issues
+1. **OCR Backend Error** - 500 Internal Server Error from Render. The backend tries to call OpenAI Vision API but receives a 404. This is a backend configuration issue, not a frontend problem.
 
 ## Test Credentials
 - Email: lima@123.com
@@ -73,6 +83,8 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
 
 ## Backlog / Future Tasks
 - Investigate and fix backend OCR integration with OpenAI
+- Add navigation to OCR scan detail view (currently just logs)
+- Implement delete functionality for OCR scans
 - Add more document types for OCR
 - Implement offline mode
 - Add push notifications for maintenance reminders
