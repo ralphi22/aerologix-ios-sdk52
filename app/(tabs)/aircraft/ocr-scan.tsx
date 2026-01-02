@@ -1,9 +1,10 @@
 /**
  * OCR Scanner Screen - Real document scanning with OpenAI Vision
  * TC-SAFE: OCR data must be validated by user before application
+ * ANTI-DOUBLON: Vérifie les doublons avant application
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +12,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  TextInput,
   ActivityIndicator,
   Image,
 } from 'react-native';
@@ -23,6 +23,7 @@ import ocrService, {
   OCRScanResponse, 
   ExtractedMaintenanceData,
   DocumentType,
+  DuplicateCheckResponse,
 } from '@/services/ocrService';
 
 const COLORS = {
@@ -35,16 +36,19 @@ const COLORS = {
   yellow: '#FFF8E1',
   yellowBorder: '#FFE082',
   blue: '#E3F2FD',
-  blueBorder: '#90CAF9',
   green: '#4CAF50',
   greenLight: '#E8F5E9',
   orange: '#FF9800',
   orangeLight: '#FFF3E0',
   red: '#E53935',
   redLight: '#FFEBEE',
+  purple: '#7C4DFF',
+  purpleLight: '#EDE7F6',
+  teal: '#00897B',
+  tealLight: '#E0F2F1',
 };
 
-type ScanStep = 'source' | 'type' | 'scanning' | 'review';
+type ScanStep = 'source' | 'type' | 'scanning' | 'review' | 'duplicate_error';
 
 const DOC_TYPES: { value: DocumentType; labelFr: string; labelEn: string; icon: string; descFr: string; descEn: string }[] = [
   { 
@@ -52,8 +56,8 @@ const DOC_TYPES: { value: DocumentType; labelFr: string; labelEn: string; icon: 
     labelFr: 'Rapport de maintenance', 
     labelEn: 'Maintenance Report', 
     icon: '📋',
-    descFr: 'Met à jour heures, pièces, AD/SB',
-    descEn: 'Updates hours, parts, AD/SB',
+    descFr: 'Met à jour heures, pièces, AD/SB, ELT',
+    descEn: 'Updates hours, parts, AD/SB, ELT',
   },
   { 
     value: 'invoice', 
@@ -62,14 +66,6 @@ const DOC_TYPES: { value: DocumentType; labelFr: string; labelEn: string; icon: 
     icon: '🧾',
     descFr: 'Stockage financier uniquement',
     descEn: 'Financial storage only',
-  },
-  { 
-    value: 'stc', 
-    labelFr: 'STC', 
-    labelEn: 'STC', 
-    icon: '📜',
-    descFr: 'Supplemental Type Certificate',
-    descEn: 'Supplemental Type Certificate',
   },
   { 
     value: 'other', 
@@ -94,6 +90,7 @@ export default function OcrScannerScreen() {
   const [scanResult, setScanResult] = useState<OCRScanResponse | null>(null);
   const [validatedFields, setValidatedFields] = useState<Set<string>>(new Set());
   const [isApplying, setIsApplying] = useState(false);
+  const [duplicateInfo, setDuplicateInfo] = useState<DuplicateCheckResponse | null>(null);
 
   // Request camera permissions
   const requestCameraPermission = async (): Promise<boolean> => {
@@ -210,6 +207,19 @@ export default function OcrScannerScreen() {
       setScanResult(response);
 
       if (response.status === 'COMPLETED' || response.status === 'PENDING') {
+        // Check for duplicates (ANTI-DOUBLON)
+        try {
+          const duplicates = await ocrService.checkDuplicates(response.id);
+          if (duplicates.has_duplicates) {
+            setDuplicateInfo(duplicates);
+            setStep('duplicate_error');
+            return;
+          }
+        } catch (dupError) {
+          // If duplicate check fails, continue to review
+          console.log('Duplicate check failed, continuing:', dupError);
+        }
+        
         setStep('review');
       } else if (response.status === 'FAILED') {
         Alert.alert(
@@ -250,7 +260,7 @@ export default function OcrScannerScreen() {
       const fields = [
         'date', 'amo_name', 'description', 
         'airframe_hours', 'engine_hours', 'propeller_hours',
-        'parts', 'adSbs', 'costs'
+        'parts', 'adSbs', 'costs', 'elt'
       ];
       setValidatedFields(new Set(fields));
     }
@@ -262,7 +272,8 @@ export default function OcrScannerScreen() {
     setIsApplying(true);
     try {
       // Apply the OCR results
-      await ocrService.applyResults(scanResult.id, validatedFields.has('airframe_hours') || validatedFields.has('engine_hours'));
+      const shouldUpdateHours = validatedFields.has('airframe_hours') || validatedFields.has('engine_hours');
+      await ocrService.applyResults(scanResult.id, shouldUpdateHours);
 
       Alert.alert(
         lang === 'fr' ? 'Succès' : 'Success',
@@ -409,6 +420,60 @@ export default function OcrScannerScreen() {
     </View>
   );
 
+  // Render duplicate error screen (ANTI-DOUBLON)
+  const renderDuplicateError = () => (
+    <View style={styles.duplicateContainer}>
+      <View style={styles.duplicateIconContainer}>
+        <Text style={styles.duplicateIcon}>⚠️</Text>
+      </View>
+      <Text style={styles.duplicateTitle}>
+        {lang === 'fr' ? 'Rapport déjà importé' : 'Report already imported'}
+      </Text>
+      <Text style={styles.duplicateText}>
+        {lang === 'fr' 
+          ? 'Un document avec les mêmes informations (date, AMO, immatriculation) existe déjà dans le système.'
+          : 'A document with the same information (date, AMO, registration) already exists in the system.'}
+      </Text>
+      
+      {duplicateInfo && duplicateInfo.duplicates.length > 0 && (
+        <View style={styles.duplicateDetails}>
+          <Text style={styles.duplicateDetailsTitle}>
+            {lang === 'fr' ? 'Détails du doublon:' : 'Duplicate details:'}
+          </Text>
+          {duplicateInfo.duplicates.map((dup, index) => (
+            <Text key={index} style={styles.duplicateDetailItem}>
+              • {dup.type}: {dup.match_reason}
+            </Text>
+          ))}
+        </View>
+      )}
+
+      <View style={styles.duplicateActions}>
+        <TouchableOpacity 
+          style={styles.duplicateCancelButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.duplicateCancelText}>
+            {lang === 'fr' ? 'Annuler' : 'Cancel'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.duplicateNewButton}
+          onPress={() => {
+            setImageUri(null);
+            setScanResult(null);
+            setDuplicateInfo(null);
+            setStep('source');
+          }}
+        >
+          <Text style={styles.duplicateNewText}>
+            {lang === 'fr' ? 'Scanner autre document' : 'Scan another document'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   // Render validation field
   const renderValidationField = (
     label: string, 
@@ -487,7 +552,7 @@ export default function OcrScannerScreen() {
                   data.amo_name,
                   'amo_name'
                 )}
-                {renderValidationField(
+                {data.ame_name && renderValidationField(
                   'AME',
                   data.ame_name,
                   'ame_name'
@@ -499,24 +564,24 @@ export default function OcrScannerScreen() {
                 )}
               </View>
 
-              {/* Hours Section */}
+              {/* Hours Section (CRITICAL) */}
               {(data.airframe_hours || data.engine_hours || data.propeller_hours) && (
                 <>
                   <Text style={styles.sectionLabel}>
                     ⚠️ {lang === 'fr' ? 'Heures détectées (CRITIQUE)' : 'Detected Hours (CRITICAL)'}
                   </Text>
                   <View style={[styles.reviewCard, styles.criticalCard]}>
-                    {data.airframe_hours && renderValidationField(
+                    {data.airframe_hours !== undefined && renderValidationField(
                       lang === 'fr' ? 'Heures cellule' : 'Airframe Hours',
                       data.airframe_hours,
                       'airframe_hours'
                     )}
-                    {data.engine_hours && renderValidationField(
+                    {data.engine_hours !== undefined && renderValidationField(
                       lang === 'fr' ? 'Heures moteur' : 'Engine Hours',
                       data.engine_hours,
                       'engine_hours'
                     )}
-                    {data.propeller_hours && renderValidationField(
+                    {data.propeller_hours !== undefined && renderValidationField(
                       lang === 'fr' ? 'Heures hélice' : 'Propeller Hours',
                       data.propeller_hours,
                       'propeller_hours'
@@ -557,17 +622,13 @@ export default function OcrScannerScreen() {
                     {data.parts_replaced.map((part, index) => (
                       <View key={index} style={styles.partRow}>
                         <View style={styles.partInfo}>
-                          <Text style={styles.partName}>{part.name}</Text>
+                          <Text style={styles.partName}>{part.name || part.part_number}</Text>
                           <Text style={styles.partDetails}>
-                            {part.part_number ? `P/N: ${part.part_number}` : ''} 
+                            P/N: {part.part_number}
                             {part.quantity ? ` | Qty: ${part.quantity}` : ''}
+                            {part.serial_number ? ` | S/N: ${part.serial_number}` : ''}
                           </Text>
                         </View>
-                        {part.action && (
-                          <View style={styles.partAction}>
-                            <Text style={styles.partActionText}>{part.action}</Text>
-                          </View>
-                        )}
                       </View>
                     ))}
                     <TouchableOpacity
@@ -593,11 +654,11 @@ export default function OcrScannerScreen() {
                   <View style={styles.reviewCard}>
                     {data.ad_sb_references.map((adSb, index) => (
                       <View key={index} style={styles.adsbRow}>
-                        <View style={[styles.adsbBadge, adSb.type === 'AD' ? styles.adBadge : styles.sbBadge]}>
-                          <Text style={styles.adsbBadgeText}>{adSb.type}</Text>
+                        <View style={[styles.adsbBadge, adSb.adsb_type === 'AD' ? styles.adBadge : styles.sbBadge]}>
+                          <Text style={styles.adsbBadgeText}>{adSb.adsb_type}</Text>
                         </View>
                         <View style={styles.adsbInfo}>
-                          <Text style={styles.adsbNumber}>{adSb.number}</Text>
+                          <Text style={styles.adsbNumber}>{adSb.reference_number}</Text>
                           {adSb.description && (
                             <Text style={styles.adsbDesc}>{adSb.description}</Text>
                           )}
@@ -618,6 +679,63 @@ export default function OcrScannerScreen() {
                 </>
               )}
 
+              {/* ELT Section */}
+              {data.elt_data && data.elt_data.detected && (
+                <>
+                  <Text style={styles.sectionLabel}>
+                    🔔 {lang === 'fr' ? 'ELT détecté' : 'ELT Detected'}
+                  </Text>
+                  <View style={[styles.reviewCard, styles.eltCard]}>
+                    {data.elt_data.brand && (
+                      <View style={styles.eltRow}>
+                        <Text style={styles.eltLabel}>{lang === 'fr' ? 'Marque' : 'Brand'}:</Text>
+                        <Text style={styles.eltValue}>{data.elt_data.brand}</Text>
+                      </View>
+                    )}
+                    {data.elt_data.model && (
+                      <View style={styles.eltRow}>
+                        <Text style={styles.eltLabel}>{lang === 'fr' ? 'Modèle' : 'Model'}:</Text>
+                        <Text style={styles.eltValue}>{data.elt_data.model}</Text>
+                      </View>
+                    )}
+                    {data.elt_data.serial_number && (
+                      <View style={styles.eltRow}>
+                        <Text style={styles.eltLabel}>S/N:</Text>
+                        <Text style={styles.eltValue}>{data.elt_data.serial_number}</Text>
+                      </View>
+                    )}
+                    {data.elt_data.installation_date && (
+                      <View style={styles.eltRow}>
+                        <Text style={styles.eltLabel}>{lang === 'fr' ? 'Date installation' : 'Installation Date'}:</Text>
+                        <Text style={styles.eltValue}>{data.elt_data.installation_date}</Text>
+                      </View>
+                    )}
+                    {data.elt_data.battery_expiry_date && (
+                      <View style={styles.eltRow}>
+                        <Text style={styles.eltLabel}>{lang === 'fr' ? 'Expiration batterie' : 'Battery Expiry'}:</Text>
+                        <Text style={styles.eltValue}>{data.elt_data.battery_expiry_date}</Text>
+                      </View>
+                    )}
+                    {data.elt_data.beacon_hex_id && (
+                      <View style={styles.eltRow}>
+                        <Text style={styles.eltLabel}>Hex ID:</Text>
+                        <Text style={styles.eltValue}>{data.elt_data.beacon_hex_id}</Text>
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      style={[styles.validateSectionButton, validatedFields.has('elt') && styles.validateSectionButtonDone]}
+                      onPress={() => handleValidateField('elt')}
+                    >
+                      <Text style={[styles.validateSectionText, validatedFields.has('elt') && styles.validateSectionTextDone]}>
+                        {validatedFields.has('elt')
+                          ? '✓ ' + (lang === 'fr' ? 'ELT validé' : 'ELT validated')
+                          : (lang === 'fr' ? 'Valider ELT' : 'Validate ELT')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+
               {/* Costs Section */}
               {(data.labor_cost || data.parts_cost || data.total_cost) && (
                 <>
@@ -625,17 +743,17 @@ export default function OcrScannerScreen() {
                     {lang === 'fr' ? 'Coûts' : 'Costs'}
                   </Text>
                   <View style={styles.reviewCard}>
-                    {data.labor_cost && renderValidationField(
+                    {data.labor_cost !== undefined && renderValidationField(
                       lang === 'fr' ? 'Main-d\'œuvre' : 'Labor',
                       `$${data.labor_cost.toFixed(2)}`,
                       'labor_cost'
                     )}
-                    {data.parts_cost && renderValidationField(
+                    {data.parts_cost !== undefined && renderValidationField(
                       lang === 'fr' ? 'Pièces' : 'Parts',
                       `$${data.parts_cost.toFixed(2)}`,
                       'parts_cost'
                     )}
-                    {data.total_cost && renderValidationField(
+                    {data.total_cost !== undefined && renderValidationField(
                       'Total',
                       `$${data.total_cost.toFixed(2)}`,
                       'total_cost'
@@ -663,8 +781,8 @@ export default function OcrScannerScreen() {
             <Text style={styles.disclaimerIcon}>⚠️</Text>
             <Text style={styles.disclaimerText}>
               {lang === 'fr'
-                ? 'Données extraites par OCR à titre informatif. Validation utilisateur requise. Ne remplace pas un AME/AMO.'
-                : 'OCR-extracted data for information only. User validation required. Does not replace AME/AMO.'}
+                ? 'Données extraites par OCR à titre informatif. Toute information doit être validée par l\'utilisateur. Ne remplace pas un AME, un AMO ni un registre officiel.'
+                : 'OCR-extracted data provided for information purposes only. User validation is required. Does not replace an AME, AMO, or official record.'}
             </Text>
           </View>
 
@@ -711,6 +829,7 @@ export default function OcrScannerScreen() {
       {step === 'source' && renderSourceStep()}
       {step === 'type' && renderTypeStep()}
       {step === 'scanning' && renderScanningStep()}
+      {step === 'duplicate_error' && renderDuplicateError()}
       {step === 'review' && renderReviewStep()}
     </View>
   );
@@ -778,6 +897,20 @@ const styles = StyleSheet.create({
   scanningTitle: { fontSize: 20, fontWeight: '600', color: COLORS.textDark, marginBottom: 8 },
   scanningSubtitle: { fontSize: 14, color: COLORS.textMuted, marginBottom: 20 },
   scanningImage: { width: 200, height: 150, borderRadius: 12, marginTop: 20 },
+  // Duplicate Error (ANTI-DOUBLON)
+  duplicateContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  duplicateIconContainer: { width: 100, height: 100, borderRadius: 50, backgroundColor: COLORS.redLight, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+  duplicateIcon: { fontSize: 48 },
+  duplicateTitle: { fontSize: 22, fontWeight: '700', color: COLORS.red, marginBottom: 12, textAlign: 'center' },
+  duplicateText: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: 20 },
+  duplicateDetails: { backgroundColor: COLORS.white, padding: 16, borderRadius: 12, width: '100%', marginBottom: 24 },
+  duplicateDetailsTitle: { fontSize: 14, fontWeight: '600', color: COLORS.textDark, marginBottom: 8 },
+  duplicateDetailItem: { fontSize: 13, color: COLORS.textMuted, marginBottom: 4 },
+  duplicateActions: { flexDirection: 'row', gap: 12, width: '100%' },
+  duplicateCancelButton: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' },
+  duplicateCancelText: { fontSize: 16, color: COLORS.textMuted, fontWeight: '600' },
+  duplicateNewButton: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: COLORS.primary, alignItems: 'center' },
+  duplicateNewText: { fontSize: 16, color: COLORS.white, fontWeight: '600' },
   // Review
   reviewContainer: { flex: 1 },
   reviewHeader: { padding: 16, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
@@ -795,6 +928,7 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 14, fontWeight: '600', color: COLORS.primary, marginBottom: 8, marginTop: 8 },
   reviewCard: { backgroundColor: COLORS.white, borderRadius: 12, padding: 16, marginBottom: 12 },
   criticalCard: { borderWidth: 2, borderColor: COLORS.orange },
+  eltCard: { borderWidth: 2, borderColor: COLORS.teal },
   // Validation Field
   validationField: { marginBottom: 12 },
   validationHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
@@ -819,8 +953,6 @@ const styles = StyleSheet.create({
   partInfo: { flex: 1 },
   partName: { fontSize: 14, fontWeight: '600', color: COLORS.textDark },
   partDetails: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
-  partAction: { backgroundColor: COLORS.blue, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  partActionText: { fontSize: 10, color: COLORS.primary, fontWeight: '600' },
   // AD/SB
   adsbRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.background },
   adsbBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginRight: 10 },
@@ -830,6 +962,10 @@ const styles = StyleSheet.create({
   adsbInfo: { flex: 1 },
   adsbNumber: { fontSize: 14, fontWeight: '600', color: COLORS.textDark },
   adsbDesc: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  // ELT
+  eltRow: { flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: COLORS.background },
+  eltLabel: { width: 120, fontSize: 12, color: COLORS.textMuted },
+  eltValue: { flex: 1, fontSize: 14, fontWeight: '500', color: COLORS.textDark },
   // Validate Section
   validateSectionButton: { marginTop: 12, backgroundColor: COLORS.blue, borderRadius: 8, padding: 10, alignItems: 'center' },
   validateSectionButtonDone: { backgroundColor: COLORS.greenLight },
