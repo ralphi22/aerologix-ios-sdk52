@@ -596,11 +596,4 @@ const styles = StyleSheet.create({
   },
   registryNoticeIcon: { fontSize: 14, marginRight: 8 },
   registryNoticeText: { flex: 1, fontSize: 12, color: COLORS.primary, lineHeight: 18 },
-  // Disclaimer
-  disclaimer: {
-    flexDirection: 'row', margin: 16, padding: 16, backgroundColor: COLORS.yellow,
-    borderRadius: 12, borderWidth: 1, borderColor: COLORS.yellowBorder,
-  },
-  disclaimerIcon: { fontSize: 16, marginRight: 8 },
-  disclaimerText: { flex: 1, fontSize: 12, color: '#5D4037', lineHeight: 18 },
 });
