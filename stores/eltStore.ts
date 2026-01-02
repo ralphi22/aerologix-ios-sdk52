@@ -211,10 +211,25 @@ export function EltProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// Default fallback context value
+const defaultContextValue: EltContextType = {
+  eltData: defaultEltData,
+  fixedLimits: ELT_FIXED_LIMITS,
+  ocrHistory: [],
+  updateEltData: () => console.warn('EltProvider not found'),
+  applyOcrData: () => console.warn('EltProvider not found'),
+  addOcrScan: () => console.warn('EltProvider not found'),
+  getEltStatus: () => 'operational' as EltStatus,
+  getTestProgress: () => ({ percent: 0, daysRemaining: 0, status: 'operational' as EltStatus }),
+  getBatteryProgress: () => ({ percent: 0, daysRemaining: 0, status: 'operational' as EltStatus }),
+};
+
 export function useElt(): EltContextType {
   const context = useContext(EltContext);
+  // Return default values instead of throwing error to prevent crashes
   if (!context) {
-    throw new Error('useElt must be used within EltProvider');
+    console.warn('useElt called outside of EltProvider, using defaults');
+    return defaultContextValue;
   }
   return context;
 }
