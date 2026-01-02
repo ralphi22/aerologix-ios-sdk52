@@ -13,19 +13,24 @@ export type OCRStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'APP
 
 // Extracted AD/SB from OCR
 export interface ExtractedADSB {
-  type: 'AD' | 'SB';
-  number: string;
-  description?: string;
+  adsb_type: string;  // 'AD' or 'SB'
+  reference_number: string;
+  status?: string;
   compliance_date?: string;
+  airframe_hours?: number;
+  engine_hours?: number;
+  propeller_hours?: number;
+  description?: string;
 }
 
 // Extracted Part from OCR
 export interface ExtractedPart {
-  name: string;
-  part_number?: string;
+  part_number: string;
+  name?: string;
   serial_number?: string;
   quantity?: number;
-  action?: string;
+  price?: number;
+  supplier?: string;
 }
 
 // Extracted STC from OCR
@@ -37,12 +42,16 @@ export interface ExtractedSTC {
 
 // Extracted ELT Data from OCR
 export interface ExtractedELTData {
-  test_mentioned?: boolean;
-  test_date?: string;
-  removal_mentioned?: boolean;
-  installation_mentioned?: boolean;
+  detected?: boolean;
+  brand?: string;
   model?: string;
   serial_number?: string;
+  installation_date?: string;
+  certification_date?: string;
+  battery_expiry_date?: string;
+  battery_install_date?: string;
+  battery_interval_months?: number;
+  beacon_hex_id?: string;
 }
 
 // Main extracted data structure
@@ -84,6 +93,16 @@ export interface OCRScanResponse {
   created_at: string;
 }
 
+// Duplicate Check Response
+export interface DuplicateCheckResponse {
+  has_duplicates: boolean;
+  duplicates: {
+    type: string;
+    existing_id: string;
+    match_reason: string;
+  }[];
+}
+
 // Quota Status
 export interface QuotaStatus {
   limit: number;
@@ -122,6 +141,15 @@ class OcrService {
   }
 
   /**
+   * Check for duplicates before applying
+   * GET /api/ocr/check-duplicates/:scan_id
+   */
+  async checkDuplicates(scanId: string): Promise<DuplicateCheckResponse> {
+    const response = await api.get(`/api/ocr/check-duplicates/${scanId}`);
+    return response.data;
+  }
+
+  /**
    * Apply OCR results to the system
    * POST /api/ocr/apply/:scan_id
    */
@@ -129,15 +157,6 @@ class OcrService {
     const response = await api.post(`/api/ocr/apply/${scanId}`, null, {
       params: { update_aircraft_hours: updateAircraftHours },
     });
-    return response.data;
-  }
-
-  /**
-   * Check for duplicates before applying
-   * GET /api/ocr/check-duplicates/:scan_id
-   */
-  async checkDuplicates(scanId: string): Promise<any> {
-    const response = await api.get(`/api/ocr/check-duplicates/${scanId}`);
     return response.data;
   }
 
