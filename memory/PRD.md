@@ -1,298 +1,78 @@
 # AeroLogix AI - Product Requirements Document
 
-## Project Overview
-**App Name**: AeroLogix AI  
-**Platform**: iOS (React Native with Expo SDK 52)  
-**Purpose**: Aviation maintenance tracking application for aircraft owners/operators  
-**Languages**: Bilingual (English / French)  
+## Original Problem Statement
+Build a mobile application for aircraft maintenance tracking with OCR capability for scanning maintenance documents. The app communicates with an external FastAPI backend hosted on Render.
 
-## Core Principles
-- **TC-SAFE**: All screens must display disclaimers that the app is informational only and does not replace official AME/TEA records
-- **Offline-First**: Most features operate with local state (React Context) until backend integration is explicitly requested
-- **Locked Environment**: No SDK upgrades or new package installations allowed
+## User Persona
+- Private aircraft owners and operators
+- Language: French (primary)
 
-## Tech Stack (Locked)
-- Framework: React Native + Expo (Managed Workflow, SDK ~52)
-- Navigation: Expo Router (file-system based)
-- State Management: React Context API
-- Storage: expo-secure-store (for persistent flags)
-- HTTP Client: axios
-- i18n: Custom utility (no dependencies)
+## Core Requirements
+1. Aircraft management (CRUD operations)
+2. Maintenance tracking with visual progress indicators
+3. OCR document scanning for maintenance reports, invoices, etc.
+4. ELT (Emergency Locator Transmitter) tracking
+5. Parts inventory management
+6. Aircraft photo upload and display
 
----
+## Tech Stack
+- **Frontend**: React Native, Expo SDK 52, Expo Router
+- **Backend**: External FastAPI API on Render (https://aerologix-backend.onrender.com)
+- **State Management**: Zustand (auth), React Context (features)
+- **Image Handling**: expo-image-picker with base64
 
-## Implemented Features
+## Key API Endpoints
+- `POST /api/auth/login` - Authentication (form-urlencoded: username, password)
+- `GET /api/aircraft` - List aircraft
+- `POST /api/ocr/scan` - OCR document analysis
+- `GET /api/ocr/history/:aircraft_id` - OCR scan history
 
-### Phase 1: Auth & Legal (Completed)
-- [x] Disclaimer gate with persistent acceptance (SecureStore)
-- [x] Login screen (backend-connected via /api/auth/login)
-- [x] Sign Up screen (UI only, no backend)
-- [x] Bilingual support (EN/FR)
+## Current Status (January 2025)
 
-### Phase 2: Core Navigation (Completed)
-- [x] 3-tab layout: Aircraft | EKO (AI Assistant) | Profile
-- [x] Tab icons and labels with i18n
+### ✅ Completed Features
+- Application restored from backup
+- Aircraft persistence with backend sync
+- OCR system implementation (frontend)
+- Aircraft photo upload and watermark display
+- Editable maintenance report settings
+- ELT tracking screen
 
-### Phase 3: Aircraft Module (Completed)
-- [x] Aircraft list screen
-- [x] Add aircraft modal
-- [x] Aircraft detail screen
-- [x] Edit aircraft screen
-- [x] Delete aircraft functionality
-- [x] Local CRUD via aircraftLocalStore
+### ✅ Bug Fixes (This Session)
+1. **Crash on Report screen** - Fixed missing `ELT_FIXED_LIMITS` import
+2. **Parts modal keyboard issue** - Added `KeyboardAvoidingView` for mobile keyboard handling
+3. **Aircraft ID mapping** - Improved to support both `id` and `_id` formats
 
-### Phase 4: Maintenance Module (Completed)
-- [x] Maintenance main menu (5 sub-modules)
-- [x] Report dashboard with progress bars
-- [x] Report settings screen
-- [x] **Parts screen** - visual storage with CRUD, OCR mock, TC-Safe disclaimer
-- [x] **AD/SB screen** - AD and SB list with type badges, CRUD, OCR mock, TC-Safe disclaimer
-- [x] **STC screen** - STC list with CRUD, OCR mock, TC-Safe disclaimer
-- [x] **Invoices screen** - Full financial tracking module:
-  - Invoice list with supplier, date, amounts
-  - Financial analysis section (total annual, hourly cost)
-  - Add invoice modal with parts/labor/hours breakdown
-  - Invoice detail screen with OCR data display
-  - Manual correction capability for OCR values
-  - Visual badges (parts, labor, hours)
-  - TC-Safe financial disclaimers
-- [x] MaintenanceDataProvider integrated in root layout
-
-### Phase 5: ELT Module (Completed)
-- [x] **ELT Screen** - Full Emergency Locator Transmitter tracking:
-  - Visual status indicator (green/orange/red)
-  - Progress bars for test cycle (12 months) and battery (24-72 months)
-  - Editable key dates (activation, service, test, battery change, expiry)
-  - ELT identification fields (manufacturer, model, serial, hex code)
-  - **ELT Type selector** (121.5 MHz, 406 MHz, 406 MHz + GPS)
-  - Canadian ELT Beacon Registry link (external)
-  - TC-Safe disclaimers (bilingual)
-- [x] **ELT OCR Scanner** - Document extraction with user validation:
-  - Document type selection (maintenance report, ELT certificate, battery label, registration)
-  - Mock OCR detection with confidence levels
-  - Field-by-field validation (user must confirm each field)
-  - Support for all ELT fields via OCR
-  - OCR disclaimer (data must be validated by user)
-- [x] EltProvider integrated in root layout
-- [x] Report module consumes ELT data (read-only)
-- [x] Aircraft detail screen shows dynamic ELT status
-
-### Phase 6: Central OCR Module (Completed)
-- [x] **OCR Scanner Screen** - Central document scanning:
-  - Source selection (photo / import file)
-  - Document type selection (Maintenance Report, Invoice, Other)
-  - Mock OCR analysis with confidence levels
-  - User validation required for all fields
-  - Anti-duplicate detection for maintenance reports
-  - Data distribution to appropriate modules after validation
-- [x] **OCR History Screen** - Document archive:
-  - List of all scanned documents
-  - Summary cards (reports, invoices, other)
-  - Document details and applied modules
-  - Access to scan new documents
-- [x] **Maintenance Report OCR**:
-  - Identification (registration, date, AMO, description)
-  - Hours (airframe, engine, propeller) - CRITICAL
-  - Parts detection (name, P/N, quantity, action)
-  - AD/SB detection (number, description)
-  - ELT mentions detection
-  - Updates aircraft counters after validation
-- [x] **Invoice OCR**:
-  - Supplier, date, amounts
-  - Stored in Invoices module
-  - No counter updates
-- [x] OcrProvider integrated in root layout
-
----
-
-## Pending / Upcoming Tasks
-
-### P1 - Backend Integration
-- [ ] Connect Sign Up to backend API
-- [ ] Migrate aircraft data to backend persistence
-- [ ] Connect maintenance data to backend
-
-### P1 - Additional Modules
-- [ ] Log Book module
-- [ ] W/B (Weight & Balance) module
-
-### P2 - Advanced Features
-- [ ] Real OCR functionality (image scanning for documents)
-- [ ] Share with AME/AMO feature
-- [ ] EKO AI Assistant (LLM integration)
-- [ ] Subscription management
-
-### ELT Data
-```typescript
-type EltType = '121.5 MHz' | '406 MHz' | '406 MHz + GPS' | '';
-
-interface EltData {
-  manufacturer: string;
-  model: string;
-  serialNumber: string;
-  eltType: EltType;            // Type d'ELT
-  hexCode: string;             // 406 MHz hex code
-  activationDate: string;      // Date d'activation ELT
-  serviceDate: string;         // Date de mise en service
-  lastTestDate: string;        // Dernier test ELT (cycle 12 mois)
-  lastBatteryDate: string;     // Dernier changement batterie
-  batteryExpiryDate: string;   // Expiration batterie
-  aircraftId: string;
-  lastOcrScanDate: string;     // Date du dernier scan OCR
-  ocrValidated: boolean;       // User has validated OCR data
-}
-
-interface OcrScanRecord {
-  id: string;
-  documentType: 'maintenance_report' | 'elt_certificate' | 'battery_label' | 'registration' | 'other';
-  scanDate: string;
-  detectedData: OcrDetectedData;
-  validated: boolean;
-  aircraftId: string;
-}
-```
-
----
-
-## Data Models (Local State)
-
-### Aircraft
-```typescript
-interface Aircraft {
-  id: string;
-  registration: string;
-  commonName: string;
-  model: string;
-  serialNumber: string;
-  airframeHours: number;
-  engineHours: number;
-  propellerHours: number;
-  // ... additional fields
-}
-```
-
-### Part
-```typescript
-interface Part {
-  id: string;
-  name: string;
-  partNumber: string;
-  quantity: number;
-  installedDate: string;
-  aircraftId: string;
-}
-```
-
-### AD/SB
-```typescript
-interface AdSb {
-  id: string;
-  type: 'AD' | 'SB';
-  number: string;
-  description: string;
-  dateAdded: string;
-  aircraftId: string;
-}
-```
-
-### STC
-```typescript
-interface Stc {
-  id: string;
-  number: string;
-  reference: string;
-  description: string;
-  dateAdded: string;
-  aircraftId: string;
-}
-```
-
-### Invoice
-```typescript
-interface Invoice {
-  id: string;
-  supplier: string;
-  date: string;
-  partsAmount: number;
-  laborAmount: number;
-  hoursWorked: number;
-  totalAmount: number;
-  aircraftId: string;
-  notes: string;
-}
-```
-
----
-
-## API Endpoints (Current)
-- `POST /api/auth/login` - User authentication
-
----
+### ⚠️ Known Issues
+1. **OCR Backend Error** - The OCR scan returns 404 from OpenAI API. This is a backend configuration issue on Render, not a frontend problem.
 
 ## File Structure
 ```
 /app/
-├── app/
-│   ├── (tabs)/
-│   │   ├── aircraft/
-│   │   │   ├── maintenance/
-│   │   │   │   ├── index.tsx      # Maintenance menu
-│   │   │   │   ├── report.tsx     # Report dashboard
-│   │   │   │   ├── report-settings.tsx
-│   │   │   │   ├── parts.tsx      # Parts list
-│   │   │   │   ├── ad-sb.tsx      # AD/SB list
-│   │   │   │   ├── stc.tsx        # STC list
-│   │   │   │   └── invoices.tsx   # Invoices (placeholder)
-│   │   │   └── ...
-│   │   ├── eko/
-│   │   └── profile/
-│   ├── _layout.tsx      # Root with all providers
-│   ├── login.tsx
-│   └── signup.tsx
-├── stores/
-│   ├── aircraftLocalStore.ts
-│   ├── reportSettingsStore.ts
-│   └── maintenanceDataStore.ts
-├── components/
-│   └── disclaimer-gate.tsx
-├── services/
+├── app/                  # Expo Router routes
+│   ├── (tabs)/          # Main app screens
+│   │   ├── aircraft/    # Aircraft features
+│   │   │   └── maintenance/
+│   │   │       ├── report.tsx      # Fixed: ELT limits
+│   │   │       ├── parts.tsx       # Fixed: keyboard handling
+│   │   │       └── report-settings.tsx
+│   ├── _layout.tsx
+│   └── login.tsx
+├── components/          # Reusable UI
+├── services/            # API services
 │   ├── api.ts
-│   └── authService.ts
-└── i18n.ts
+│   ├── aircraftService.ts
+│   └── ocrService.ts
+└── stores/              # State management
+    ├── aircraftLocalStore.ts  # Fixed: ID mapping
+    └── eltStore.ts
 ```
 
----
+## Test Credentials
+- Email: lima@123.com
+- Password: lima123
 
-## Changelog
-
-### 2024-12-31
-- **Central OCR Module Complete**:
-  - OCR Scanner: photo/import, doc type selection, mock analysis, validation
-  - OCR History: document archive with summary and details
-  - Maintenance Report OCR: hours, parts, AD/SB, ELT detection
-  - Invoice OCR: supplier, amounts, stored in invoices
-  - Anti-duplicate check for maintenance reports
-  - Data distribution to modules after user validation
-- **ELT OCR Scanner**: Added document scanning with user validation:
-  - Document type selection (4 types)
-  - Mock OCR with confidence levels per field
-  - Field-by-field validation requirement
-  - No automatic data storage without user confirmation
-- **ELT Type Field**: Added ELT type selector (121.5 MHz, 406 MHz, 406 MHz + GPS)
-- **ELT Module Complete**: Full Emergency Locator Transmitter tracking:
-  - Visual status indicator (operational/attention/check required)
-  - Progress bars for test cycle and battery
-  - Editable dates and ELT identification
-  - Canadian ELT Beacon Registry link
-  - Report integration (read-only consumption)
-  - Aircraft detail dynamic status
-- **Invoices Module Complete**: Full financial tracking with:
-  - Invoice list with cards showing supplier, date, total, badges
-  - Financial analysis: annual total, hours flown, estimated hourly cost
-  - Invoice detail screen with OCR data and manual correction
-  - Add/delete invoice functionality
-  - Bilingual disclaimers (TC-Safe financial)
-- Verified and completed Parts, AD/SB, STC screens implementation
-- Added MaintenanceDataProvider to root layout
-- All screens include TC-Safe bilingual disclaimers
-- OCR functionality mocked with alert messages
+## Backlog / Future Tasks
+- Investigate and fix backend OCR integration with OpenAI
+- Add more document types for OCR
+- Implement offline mode
+- Add push notifications for maintenance reminders
