@@ -8,6 +8,7 @@ import { AircraftProvider } from '@/stores/aircraftLocalStore';
 import { MaintenanceDataProvider } from '@/stores/maintenanceDataStore';
 import { EltProvider } from '@/stores/eltStore';
 import { OcrProvider } from '@/stores/ocrStore';
+import { ReportSettingsProvider } from '@/stores/reportSettingsStore';
 
 export default function RootLayout() {
   return (
@@ -15,7 +16,9 @@ export default function RootLayout() {
       <MaintenanceDataProvider>
         <EltProvider>
           <OcrProvider>
-            <Slot />
+            <ReportSettingsProvider>
+              <Slot />
+            </ReportSettingsProvider>
           </OcrProvider>
         </EltProvider>
       </MaintenanceDataProvider>
