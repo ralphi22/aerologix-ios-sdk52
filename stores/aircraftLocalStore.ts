@@ -30,6 +30,7 @@ export interface Aircraft {
   engineHours: number;
   propellerHours: number;
   createdAt: string;
+  photoUri?: string; // Local photo URI for aircraft image
 }
 
 interface AircraftContextType {
