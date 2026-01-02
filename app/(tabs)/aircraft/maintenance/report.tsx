@@ -155,7 +155,7 @@ export default function ReportScreen() {
   const lang = getLanguage();
   const { getAircraftById } = useAircraftLocalStore();
   const { settings, limits } = useReportSettings();
-  const { getTestProgress: getEltTestProgress, eltData } = useElt();
+  const eltContext = useElt();
 
   const aircraft = getAircraftById(aircraftId || '');
   const engineHours = aircraft?.engineHours || 0;
@@ -170,10 +170,11 @@ export default function ReportScreen() {
   const magnetosProgress = calculateHoursProgress(settings.magnetosHoursUsed, limits.magnetosHours);
   const pompeProgress = calculateHoursProgress(settings.pompeVideHoursUsed, limits.pompeVideHours);
   
-  // ELT progress from ELT store (read-only)
-  const eltTestProgressData = getEltTestProgress();
+  // ELT progress from ELT store (with fallback)
+  const eltTestProgressData = eltContext?.getTestProgress?.() || { percent: 0, status: 'operational' };
+  const eltData = eltContext?.eltData || { lastTestDate: '' };
   const eltProgress = {
-    percent: eltTestProgressData.percent,
+    percent: eltTestProgressData.percent || 0,
     status: eltTestProgressData.status === 'operational' ? 'ok' as const : 
             eltTestProgressData.status === 'attention' ? 'warning' as const : 'exceeded' as const,
   };
