@@ -105,15 +105,27 @@ const EltContext = createContext<EltContextType | undefined>(undefined);
 // Calculate progress for date-based items
 function calculateDateProgress(lastDate: string, limitMonths: number): { percent: number; daysRemaining: number; status: EltStatus } {
   if (!lastDate) {
-    return { percent: 0, daysRemaining: 0, status: 'expired' };
+    return { percent: 0, daysRemaining: 0, status: 'operational' };
   }
   
   const last = new Date(lastDate);
+  
+  // Handle invalid date
+  if (isNaN(last.getTime())) {
+    return { percent: 0, daysRemaining: 0, status: 'operational' };
+  }
+  
   const expiry = new Date(last);
   expiry.setMonth(expiry.getMonth() + limitMonths);
   const now = new Date();
   
   const totalDays = (expiry.getTime() - last.getTime()) / (1000 * 60 * 60 * 24);
+  
+  // Prevent division by zero
+  if (totalDays <= 0) {
+    return { percent: 100, daysRemaining: 0, status: 'expired' };
+  }
+  
   const elapsedDays = (now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24);
   const daysRemaining = Math.round((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   const percent = Math.min(Math.round((elapsedDays / totalDays) * 100), 100);
