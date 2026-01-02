@@ -1,7 +1,6 @@
 /**
- * OCR Scanner Screen - Central document scanning and data extraction
+ * OCR Scanner Screen - Real document scanning with OpenAI Vision
  * TC-SAFE: OCR data must be validated by user before application
- * No automatic decisions, no regulatory validation
  */
 
 import React, { useState } from 'react';
@@ -13,12 +12,18 @@ import {
   TouchableOpacity,
   Alert,
   TextInput,
+  ActivityIndicator,
+  Image,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { getLanguage } from '@/i18n';
 import { useOcr, OcrDocumentType, OcrMaintenanceReportData, OcrInvoiceData } from '@/stores/ocrStore';
 import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
 import { useMaintenanceData } from '@/stores/maintenanceDataStore';
+import ocrService from '@/services/ocrService';
 
 const COLORS = {
   primary: '#0033A0',
@@ -72,70 +77,6 @@ const DOC_TYPES: { value: OcrDocumentType; labelFr: string; labelEn: string; ico
   },
 ];
 
-// Mock OCR detection for maintenance reports
-function mockDetectMaintenanceReport(): OcrMaintenanceReportData {
-  return {
-    registration: 'C-FKZY',
-    reportDate: '2025-10-28',
-    amo: 'Air Mechanic',
-    description: 'Annual Inspection per CAR 625 Appendix B and C done as per manufacturer recommendation.',
-    hours: {
-      airframeHours: 6344.6,
-      engineHours: 1281.8,
-      propellerHours: undefined,
-    },
-    parts: [
-      { name: 'Oil Filter', partNumber: 'CH48108-1', quantity: 1, action: 'replaced' },
-      { name: 'Oil (Aeroshell 15W50)', partNumber: '15W50', quantity: 6, action: 'installed' },
-      { name: 'Air Filter', partNumber: 'BA4108', quantity: 1, action: 'replaced' },
-      { name: 'Bellcrank Bearing', partNumber: 'S1866-3', quantity: 1, action: 'replaced' },
-    ],
-    adSbs: [
-      { type: 'AD', number: 'CF-90-03R2', description: 'Cabin heater inspected and found serviceable' },
-      { type: 'AD', number: '2011-10-09', description: 'Seat locking mechanism inspected' },
-      { type: 'AD', number: '72-03-03R3', description: 'Wing flap jack screw inspected' },
-      { type: 'AD', number: '80-11-04', description: 'Cracked nut plate inspected' },
-    ],
-    elt: {
-      testMentioned: false,
-      removalMentioned: true,
-      installationMentioned: false,
-    },
-    confidence: {
-      registration: 95,
-      reportDate: 92,
-      amo: 88,
-      description: 75,
-      airframeHours: 94,
-      engineHours: 93,
-      parts: 80,
-      adSbs: 78,
-    },
-  };
-}
-
-// Mock OCR detection for invoices
-function mockDetectInvoice(): OcrInvoiceData {
-  return {
-    invoice: {
-      supplier: 'AirMecanic Inc.',
-      date: '2025-11-11',
-      partsAmount: 2083.17,
-      laborAmount: 4150.00,
-      hoursWorked: 41.5,
-      totalAmount: 6994.15,
-    },
-    confidence: {
-      supplier: 90,
-      date: 95,
-      partsAmount: 85,
-      laborAmount: 88,
-      hoursWorked: 82,
-      totalAmount: 92,
-    },
-  };
-}
-
 interface ValidationFieldProps {
   label: string;
   value: string | number | undefined;
@@ -153,7 +94,7 @@ function ValidationField({ label, value, confidence, isValidated, onValidate, on
     <View style={styles.validationField}>
       <View style={styles.validationHeader}>
         <Text style={styles.validationLabel}>{label}</Text>
-        {confidence && (
+        {confidence !== undefined && (
           <View style={[styles.confidenceBadge, { backgroundColor: confidence >= 80 ? COLORS.greenLight : confidence >= 60 ? COLORS.orangeLight : COLORS.redLight }]}>
             <Text style={[styles.confidenceText, { color: confidence >= 80 ? COLORS.green : confidence >= 60 ? COLORS.orange : COLORS.red }]}>
               {confidence}%
@@ -191,7 +132,7 @@ export default function OcrScannerScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
-  const { addDocument, checkDuplicate, markAsApplied } = useOcr();
+  const { addDocument, checkDuplicate } = useOcr();
   const { updateAircraft, getAircraftById } = useAircraftLocalStore();
   const { addPart, addAdSb } = useMaintenanceData();
 
@@ -202,17 +143,158 @@ export default function OcrScannerScreen() {
   const [validatedFields, setValidatedFields] = useState<Set<string>>(new Set());
   const [otherTags, setOtherTags] = useState('');
   const [duplicateError, setDuplicateError] = useState(false);
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
-  const handleSourceSelect = (source: 'photo' | 'import') => {
-    setSourceType(source);
-    // In real app, this would open camera or file picker
-    Alert.alert(
-      lang === 'fr' ? 'Simulation' : 'Simulation',
-      lang === 'fr' 
-        ? `${source === 'photo' ? 'Caméra' : 'Sélecteur de fichiers'} - Simulation pour démo`
-        : `${source === 'photo' ? 'Camera' : 'File picker'} - Simulation for demo`,
-      [{ text: 'OK', onPress: () => setStep('type') }]
-    );
+  // Request camera permissions
+  const requestCameraPermission = async (): Promise<boolean> => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        lang === 'fr' ? 'Permission requise' : 'Permission Required',
+        lang === 'fr' 
+          ? 'L\'accès à la caméra est nécessaire pour scanner les documents.'
+          : 'Camera access is required to scan documents.',
+        [{ text: 'OK' }]
+      );
+      return false;
+    }
+    return true;
+  };
+
+  // Request media library permissions
+  const requestMediaPermission = async (): Promise<boolean> => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        lang === 'fr' ? 'Permission requise' : 'Permission Required',
+        lang === 'fr' 
+          ? 'L\'accès aux photos est nécessaire pour importer des documents.'
+          : 'Photo library access is required to import documents.',
+        [{ text: 'OK' }]
+      );
+      return false;
+    }
+    return true;
+  };
+
+  // Take photo with camera
+  const takePhoto = async () => {
+    const hasPermission = await requestCameraPermission();
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+        base64: false,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setImageUri(result.assets[0].uri);
+        setSourceType('photo');
+        setStep('type');
+      }
+    } catch (error: any) {
+      console.log('Camera error:', error);
+      Alert.alert(
+        lang === 'fr' ? 'Erreur' : 'Error',
+        lang === 'fr' ? 'Impossible d\'accéder à la caméra.' : 'Unable to access camera.'
+      );
+    }
+  };
+
+  // Pick image from library
+  const pickImage = async () => {
+    const hasPermission = await requestMediaPermission();
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+        base64: false,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setImageUri(result.assets[0].uri);
+        setSourceType('import');
+        setStep('type');
+      }
+    } catch (error: any) {
+      console.log('Image picker error:', error);
+      Alert.alert(
+        lang === 'fr' ? 'Erreur' : 'Error',
+        lang === 'fr' ? 'Impossible d\'accéder aux photos.' : 'Unable to access photos.'
+      );
+    }
+  };
+
+  // Convert image to base64 and analyze
+  const analyzeImage = async () => {
+    if (!imageUri || !docType) return;
+
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    setStep('scanning');
+
+    try {
+      // Read image as base64
+      const base64 = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Call OCR API
+      const response = await ocrService.analyzeDocument(
+        base64,
+        docType,
+        registration || undefined
+      );
+
+      if (response.success) {
+        if (docType === 'maintenance_report' && response.maintenance_data) {
+          setDetectedData(response.maintenance_data);
+          
+          // Check for duplicate
+          const data = response.maintenance_data;
+          if (data.registration && data.reportDate && data.amo) {
+            const isDuplicate = checkDuplicate(data.registration, data.reportDate, data.amo);
+            if (isDuplicate) {
+              setDuplicateError(true);
+            }
+          }
+        } else if (docType === 'invoice' && response.invoice_data) {
+          setDetectedData(response.invoice_data);
+        } else {
+          // For 'other' type, just proceed to review
+          setDetectedData(null);
+        }
+        
+        setStep('review');
+      } else {
+        setAnalysisError(response.error || 'OCR analysis failed');
+        setStep('type');
+        Alert.alert(
+          lang === 'fr' ? 'Erreur d\'analyse' : 'Analysis Error',
+          response.error || (lang === 'fr' ? 'L\'analyse OCR a échoué.' : 'OCR analysis failed.')
+        );
+      }
+    } catch (error: any) {
+      console.log('OCR error:', error);
+      setAnalysisError(error.message);
+      setStep('type');
+      Alert.alert(
+        lang === 'fr' ? 'Erreur' : 'Error',
+        lang === 'fr' 
+          ? 'Une erreur est survenue lors de l\'analyse. Veuillez réessayer.'
+          : 'An error occurred during analysis. Please try again.'
+      );
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleTypeSelect = (type: OcrDocumentType) => {
@@ -221,28 +303,7 @@ export default function OcrScannerScreen() {
 
   const handleStartScan = () => {
     if (!docType) return;
-    
-    setStep('scanning');
-    
-    // Simulate OCR processing
-    setTimeout(() => {
-      if (docType === 'maintenance_report') {
-        const data = mockDetectMaintenanceReport();
-        setDetectedData(data);
-        
-        // Check for duplicate
-        if (data.registration && data.reportDate && data.amo) {
-          const isDuplicate = checkDuplicate(data.registration, data.reportDate, data.amo);
-          if (isDuplicate) {
-            setDuplicateError(true);
-          }
-        }
-      } else if (docType === 'invoice') {
-        setDetectedData(mockDetectInvoice());
-      }
-      
-      setStep('review');
-    }, 2000);
+    analyzeImage();
   };
 
   const handleValidateField = (field: string) => {
@@ -259,84 +320,92 @@ export default function OcrScannerScreen() {
     }
   };
 
-  const handleApplyData = () => {
+  const handleApplyData = async () => {
     if (!docType || duplicateError) return;
 
     const appliedModules: string[] = [];
 
-    if (docType === 'maintenance_report' && detectedData) {
-      const data = detectedData as OcrMaintenanceReportData;
-      
-      // Update aircraft hours if validated
-      if (validatedFields.has('airframeHours') || validatedFields.has('engineHours')) {
-        const aircraft = getAircraftById(aircraftId || '');
-        if (aircraft && data.hours) {
-          updateAircraft(aircraft.id, {
-            airframeHours: data.hours.airframeHours || aircraft.airframeHours,
-            engineHours: data.hours.engineHours || aircraft.engineHours,
-            propellerHours: data.hours.propellerHours || aircraft.propellerHours,
+    try {
+      if (docType === 'maintenance_report' && detectedData) {
+        const data = detectedData as OcrMaintenanceReportData;
+        
+        // Update aircraft hours if validated
+        if (validatedFields.has('airframeHours') || validatedFields.has('engineHours')) {
+          const aircraft = getAircraftById(aircraftId || '');
+          if (aircraft && data.hours) {
+            await updateAircraft(aircraft.id, {
+              airframeHours: data.hours.airframeHours || aircraft.airframeHours,
+              engineHours: data.hours.engineHours || aircraft.engineHours,
+              propellerHours: data.hours.propellerHours || aircraft.propellerHours,
+            });
+            appliedModules.push('aircraft');
+          }
+        }
+
+        // Add parts if validated
+        if (validatedFields.has('parts') && data.parts) {
+          data.parts.forEach((part) => {
+            addPart({
+              name: part.name,
+              partNumber: part.partNumber,
+              quantity: part.quantity,
+              installedDate: data.reportDate || new Date().toISOString().split('T')[0],
+              aircraftId: aircraftId || '',
+            });
           });
-          appliedModules.push('aircraft');
+          appliedModules.push('parts');
+        }
+
+        // Add AD/SBs if validated
+        if (validatedFields.has('adSbs') && data.adSbs) {
+          data.adSbs.forEach((adSb) => {
+            addAdSb({
+              type: adSb.type,
+              number: adSb.number,
+              description: adSb.description,
+              dateAdded: data.reportDate || new Date().toISOString().split('T')[0],
+              aircraftId: aircraftId || '',
+            });
+          });
+          appliedModules.push('ad-sb');
         }
       }
 
-      // Add parts if validated
-      if (validatedFields.has('parts') && data.parts) {
-        data.parts.forEach((part) => {
-          addPart({
-            name: part.name,
-            partNumber: part.partNumber,
-            quantity: part.quantity,
-            installedDate: data.reportDate || new Date().toISOString().split('T')[0],
-            aircraftId: aircraftId || '',
-          });
-        });
-        appliedModules.push('parts');
+      if (docType === 'invoice') {
+        appliedModules.push('invoices');
       }
 
-      // Add AD/SBs if validated
-      if (validatedFields.has('adSbs') && data.adSbs) {
-        data.adSbs.forEach((adSb) => {
-          addAdSb({
-            type: adSb.type,
-            number: adSb.number,
-            description: adSb.description,
-            dateAdded: data.reportDate || new Date().toISOString().split('T')[0],
-            aircraftId: aircraftId || '',
-          });
-        });
-        appliedModules.push('ad-sb');
-      }
+      // Save document to OCR history
+      addDocument({
+        type: docType,
+        aircraftId: aircraftId || '',
+        registration: registration || '',
+        scanDate: new Date().toISOString().split('T')[0],
+        documentDate: docType === 'maintenance_report' 
+          ? (detectedData as OcrMaintenanceReportData)?.reportDate 
+          : (detectedData as OcrInvoiceData)?.invoice?.date,
+        sourceType: sourceType || 'photo',
+        imageUri: imageUri || undefined,
+        maintenanceData: docType === 'maintenance_report' ? detectedData as OcrMaintenanceReportData : undefined,
+        invoiceData: docType === 'invoice' ? detectedData as OcrInvoiceData : undefined,
+        validated: true,
+        appliedToModules: appliedModules,
+        tags: docType === 'other' ? otherTags.split(',').map(t => t.trim()).filter(t => t) : undefined,
+      });
+
+      Alert.alert(
+        lang === 'fr' ? 'Données appliquées' : 'Data Applied',
+        lang === 'fr'
+          ? `${validatedFields.size} champ(s) validé(s) et appliqué(s) aux modules: ${appliedModules.join(', ') || 'historique'}`
+          : `${validatedFields.size} field(s) validated and applied to modules: ${appliedModules.join(', ') || 'history'}`,
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    } catch (error: any) {
+      Alert.alert(
+        lang === 'fr' ? 'Erreur' : 'Error',
+        error.message || (lang === 'fr' ? 'Échec de l\'application des données.' : 'Failed to apply data.')
+      );
     }
-
-    if (docType === 'invoice') {
-      appliedModules.push('invoices');
-    }
-
-    // Save document to OCR history
-    const docId = addDocument({
-      type: docType,
-      aircraftId: aircraftId || '',
-      registration: registration || '',
-      scanDate: new Date().toISOString().split('T')[0],
-      documentDate: docType === 'maintenance_report' 
-        ? (detectedData as OcrMaintenanceReportData)?.reportDate 
-        : (detectedData as OcrInvoiceData)?.invoice?.date,
-      sourceType: sourceType || 'photo',
-      maintenanceData: docType === 'maintenance_report' ? detectedData as OcrMaintenanceReportData : undefined,
-      invoiceData: docType === 'invoice' ? detectedData as OcrInvoiceData : undefined,
-      validated: true,
-      appliedToModules: appliedModules,
-      tags: docType === 'other' ? otherTags.split(',').map(t => t.trim()) : undefined,
-    });
-
-    Alert.alert(
-      lang === 'fr' ? 'Données appliquées' : 'Data Applied',
-      lang === 'fr'
-        ? `${validatedFields.size} champ(s) validé(s) et appliqué(s) aux modules: ${appliedModules.join(', ')}`
-        : `${validatedFields.size} field(s) validated and applied to modules: ${appliedModules.join(', ')}`,
-      [{ text: 'OK', onPress: () => router.back() }]
-    );
   };
 
   // Render source selection
@@ -355,7 +424,7 @@ export default function OcrScannerScreen() {
       <View style={styles.sourceOptions}>
         <TouchableOpacity
           style={styles.sourceCard}
-          onPress={() => handleSourceSelect('photo')}
+          onPress={takePhoto}
         >
           <Text style={styles.sourceIcon}>📸</Text>
           <Text style={styles.sourceTitle}>
@@ -368,7 +437,7 @@ export default function OcrScannerScreen() {
 
         <TouchableOpacity
           style={styles.sourceCard}
-          onPress={() => handleSourceSelect('import')}
+          onPress={pickImage}
         >
           <Text style={styles.sourceIcon}>📁</Text>
           <Text style={styles.sourceTitle}>
@@ -382,7 +451,7 @@ export default function OcrScannerScreen() {
     </View>
   );
 
-  // Render type selection
+  // Render type selection with image preview
   const renderTypeStep = () => (
     <View style={styles.stepContainer}>
       <View style={styles.stepHeader}>
@@ -394,6 +463,24 @@ export default function OcrScannerScreen() {
           {lang === 'fr' ? 'Sélectionnez le type pour une meilleure extraction' : 'Select type for better extraction'}
         </Text>
       </View>
+
+      {/* Image Preview */}
+      {imageUri && (
+        <View style={styles.imagePreviewContainer}>
+          <Image source={{ uri: imageUri }} style={styles.imagePreview} resizeMode="contain" />
+          <TouchableOpacity 
+            style={styles.changeImageButton}
+            onPress={() => {
+              setImageUri(null);
+              setStep('source');
+            }}
+          >
+            <Text style={styles.changeImageText}>
+              {lang === 'fr' ? '🔄 Changer l\'image' : '🔄 Change image'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.typeList}>
         {DOC_TYPES.map((type) => (
@@ -436,14 +523,19 @@ export default function OcrScannerScreen() {
   const renderScanningStep = () => (
     <View style={styles.scanningContainer}>
       <View style={styles.scanningAnimation}>
-        <Text style={styles.scanningIcon}>🔍</Text>
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
       <Text style={styles.scanningTitle}>
         {lang === 'fr' ? 'Analyse OCR en cours...' : 'OCR Analysis in progress...'}
       </Text>
       <Text style={styles.scanningSubtitle}>
-        {lang === 'fr' ? 'Extraction des données' : 'Extracting data'}
+        {lang === 'fr' ? 'Extraction des données avec OpenAI Vision' : 'Extracting data with OpenAI Vision'}
       </Text>
+      
+      {/* Show image being analyzed */}
+      {imageUri && (
+        <Image source={{ uri: imageUri }} style={styles.scanningImage} resizeMode="contain" />
+      )}
     </View>
   );
 
@@ -492,21 +584,21 @@ export default function OcrScannerScreen() {
           <ValidationField
             label={lang === 'fr' ? 'Immatriculation' : 'Registration'}
             value={data.registration}
-            confidence={data.confidence.registration}
+            confidence={data.confidence?.registration}
             isValidated={validatedFields.has('registration')}
             onValidate={() => handleValidateField('registration')}
           />
           <ValidationField
             label={lang === 'fr' ? 'Date du rapport' : 'Report Date'}
             value={data.reportDate}
-            confidence={data.confidence.reportDate}
+            confidence={data.confidence?.reportDate}
             isValidated={validatedFields.has('reportDate')}
             onValidate={() => handleValidateField('reportDate')}
           />
           <ValidationField
             label="AMO"
             value={data.amo}
-            confidence={data.confidence.amo}
+            confidence={data.confidence?.amo}
             isValidated={validatedFields.has('amo')}
             onValidate={() => handleValidateField('amo')}
           />
@@ -520,14 +612,14 @@ export default function OcrScannerScreen() {
           <ValidationField
             label={lang === 'fr' ? 'Heures cellule' : 'Airframe Hours'}
             value={data.hours?.airframeHours}
-            confidence={data.confidence.airframeHours}
+            confidence={data.confidence?.airframeHours}
             isValidated={validatedFields.has('airframeHours')}
             onValidate={() => handleValidateField('airframeHours')}
           />
           <ValidationField
             label={lang === 'fr' ? 'Heures moteur' : 'Engine Hours'}
             value={data.hours?.engineHours}
-            confidence={data.confidence.engineHours}
+            confidence={data.confidence?.engineHours}
             isValidated={validatedFields.has('engineHours')}
             onValidate={() => handleValidateField('engineHours')}
           />
@@ -666,36 +758,36 @@ export default function OcrScannerScreen() {
         <View style={styles.reviewCard}>
           <ValidationField
             label={lang === 'fr' ? 'Fournisseur' : 'Supplier'}
-            value={data.invoice.supplier}
-            confidence={data.confidence.supplier}
+            value={data.invoice?.supplier}
+            confidence={data.confidence?.supplier}
             isValidated={validatedFields.has('supplier')}
             onValidate={() => handleValidateField('supplier')}
           />
           <ValidationField
             label="Date"
-            value={data.invoice.date}
-            confidence={data.confidence.date}
+            value={data.invoice?.date}
+            confidence={data.confidence?.date}
             isValidated={validatedFields.has('date')}
             onValidate={() => handleValidateField('date')}
           />
           <ValidationField
             label={lang === 'fr' ? 'Pièces ($)' : 'Parts ($)'}
-            value={`$${data.invoice.partsAmount.toFixed(2)}`}
-            confidence={data.confidence.partsAmount}
+            value={data.invoice?.partsAmount ? `$${data.invoice.partsAmount.toFixed(2)}` : undefined}
+            confidence={data.confidence?.partsAmount}
             isValidated={validatedFields.has('partsAmount')}
             onValidate={() => handleValidateField('partsAmount')}
           />
           <ValidationField
             label={lang === 'fr' ? 'Main-d\'œuvre ($)' : 'Labor ($)'}
-            value={`$${data.invoice.laborAmount.toFixed(2)}`}
-            confidence={data.confidence.laborAmount}
+            value={data.invoice?.laborAmount ? `$${data.invoice.laborAmount.toFixed(2)}` : undefined}
+            confidence={data.confidence?.laborAmount}
             isValidated={validatedFields.has('laborAmount')}
             onValidate={() => handleValidateField('laborAmount')}
           />
           <ValidationField
             label={lang === 'fr' ? 'Total ($)' : 'Total ($)'}
-            value={`$${data.invoice.totalAmount.toFixed(2)}`}
-            confidence={data.confidence.totalAmount}
+            value={data.invoice?.totalAmount ? `$${data.invoice.totalAmount.toFixed(2)}` : undefined}
+            confidence={data.confidence?.totalAmount}
             isValidated={validatedFields.has('totalAmount')}
             onValidate={() => handleValidateField('totalAmount')}
           />
@@ -724,6 +816,11 @@ export default function OcrScannerScreen() {
           {lang === 'fr' ? 'Document prêt à archiver' : 'Document ready to archive'}
         </Text>
       </View>
+
+      {/* Image Preview */}
+      {imageUri && (
+        <Image source={{ uri: imageUri }} style={styles.reviewImage} resizeMode="contain" />
+      )}
 
       <Text style={styles.sectionLabel}>
         {lang === 'fr' ? 'Tags (optionnel)' : 'Tags (optional)'}
@@ -773,13 +870,16 @@ export default function OcrScannerScreen() {
         <TouchableOpacity
           style={[
             styles.applyButton,
-            (validatedFields.size === 0 || duplicateError) && styles.applyButtonDisabled,
+            ((docType !== 'other' && validatedFields.size === 0) || duplicateError) && styles.applyButtonDisabled,
           ]}
           onPress={handleApplyData}
-          disabled={validatedFields.size === 0 || duplicateError}
+          disabled={(docType !== 'other' && validatedFields.size === 0) || duplicateError}
         >
           <Text style={styles.applyButtonText}>
-            {lang === 'fr' ? 'Appliquer' : 'Apply'} ({validatedFields.size})
+            {docType === 'other' 
+              ? (lang === 'fr' ? 'Archiver' : 'Archive')
+              : `${lang === 'fr' ? 'Appliquer' : 'Apply'} (${validatedFields.size})`
+            }
           </Text>
         </TouchableOpacity>
       </View>
@@ -835,6 +935,11 @@ const styles = StyleSheet.create({
   sourceIcon: { fontSize: 40, marginBottom: 12 },
   sourceTitle: { fontSize: 16, fontWeight: '600', color: COLORS.textDark, marginBottom: 4 },
   sourceDesc: { fontSize: 12, color: COLORS.textMuted },
+  // Image Preview
+  imagePreviewContainer: { alignItems: 'center', marginBottom: 20 },
+  imagePreview: { width: '100%', height: 150, borderRadius: 12, backgroundColor: COLORS.border },
+  changeImageButton: { marginTop: 8 },
+  changeImageText: { color: COLORS.primary, fontSize: 14, fontWeight: '600' },
   // Type List
   typeList: { gap: 12, marginBottom: 24 },
   typeCard: {
@@ -857,20 +962,21 @@ const styles = StyleSheet.create({
   scanButtonDisabled: { backgroundColor: COLORS.border },
   scanButtonText: { color: COLORS.white, fontSize: 16, fontWeight: '600' },
   // Scanning Animation
-  scanningContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  scanningContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   scanningAnimation: {
     width: 120, height: 120, borderRadius: 60, backgroundColor: COLORS.blue,
     justifyContent: 'center', alignItems: 'center', marginBottom: 24,
   },
-  scanningIcon: { fontSize: 48 },
   scanningTitle: { fontSize: 20, fontWeight: '600', color: COLORS.textDark, marginBottom: 8 },
-  scanningSubtitle: { fontSize: 14, color: COLORS.textMuted },
+  scanningSubtitle: { fontSize: 14, color: COLORS.textMuted, marginBottom: 20 },
+  scanningImage: { width: 200, height: 150, borderRadius: 12, marginTop: 20 },
   // Review
   reviewContainer: { flex: 1 },
   reviewHeader: { padding: 16, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   reviewTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textDark },
   reviewSubtitle: { fontSize: 14, color: COLORS.textMuted, marginTop: 2 },
   reviewScroll: { flex: 1, padding: 16 },
+  reviewImage: { width: '100%', height: 200, borderRadius: 12, marginBottom: 16 },
   // Duplicate Error
   duplicateError: { backgroundColor: COLORS.redLight, borderRadius: 12, padding: 16, marginBottom: 16, alignItems: 'center' },
   duplicateIcon: { fontSize: 32, marginBottom: 8 },
