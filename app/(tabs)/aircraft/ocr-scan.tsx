@@ -182,7 +182,7 @@ export default function OcrScannerScreen() {
 
   // Analyze image with OCR API
   const analyzeImage = async () => {
-    if (!imageUri || !docType || !aircraftId) {
+    if (!imageBase64 || !docType || !aircraftId) {
       Alert.alert(
         lang === 'fr' ? 'Erreur' : 'Error',
         lang === 'fr' ? 'Informations manquantes.' : 'Missing information.'
@@ -194,16 +194,11 @@ export default function OcrScannerScreen() {
     setStep('scanning');
 
     try {
-      // Read image as base64
-      const base64 = await FileSystem.readAsStringAsync(imageUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      // Call OCR API
+      // Call OCR API with base64 from image picker
       const response = await ocrService.scanDocument({
         aircraft_id: aircraftId,
         document_type: docType,
-        image_base64: base64,
+        image_base64: imageBase64,
       });
 
       setScanResult(response);
