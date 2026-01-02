@@ -106,10 +106,21 @@ export function ReportSettingsProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// Default context value for when provider is not available
+const defaultContextValue: ReportSettingsContextType = {
+  settings: defaultSettings,
+  limits: defaultLimits,
+  updateSettings: () => console.warn('ReportSettingsProvider not found'),
+  updateLimits: () => console.warn('ReportSettingsProvider not found'),
+  resetLimitsToDefault: () => console.warn('ReportSettingsProvider not found'),
+};
+
 export function useReportSettings(): ReportSettingsContextType {
   const context = useContext(ReportSettingsContext);
+  // Return default values instead of throwing error to prevent crashes
   if (!context) {
-    throw new Error('useReportSettings must be used within ReportSettingsProvider');
+    console.warn('useReportSettings called outside of ReportSettingsProvider, using defaults');
+    return defaultContextValue;
   }
   return context;
 }
