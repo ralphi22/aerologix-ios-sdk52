@@ -518,22 +518,6 @@ const styles = StyleSheet.create({
   statusTextContainer: {},
   statusValue: { fontSize: 22, fontWeight: '700' },
   statusLabel: { fontSize: 14, color: COLORS.textMuted, marginTop: 4 },
-  // OCR Section
-  ocrSection: { paddingHorizontal: 16, marginBottom: 8 },
-  ocrButton: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.purpleLight,
-    borderRadius: 12, padding: 14, borderWidth: 2, borderColor: COLORS.purple,
-  },
-  ocrIconContainer: {
-    width: 44, height: 44, borderRadius: 12, backgroundColor: COLORS.purple,
-    justifyContent: 'center', alignItems: 'center', marginRight: 12,
-  },
-  ocrIcon: { fontSize: 22 },
-  ocrContent: { flex: 1 },
-  ocrTitle: { fontSize: 15, fontWeight: '600', color: COLORS.purple },
-  ocrSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  ocrArrow: { fontSize: 24, color: COLORS.purple },
-  lastScanText: { fontSize: 11, color: COLORS.textMuted, marginTop: 6, textAlign: 'right' },
   // Progress Section
   progressSection: { paddingHorizontal: 16 },
   progressCard: {
