@@ -349,6 +349,7 @@ export default function OcrScannerScreen() {
             style={styles.changeImageButton}
             onPress={() => {
               setImageUri(null);
+              setImageBase64(null);
               setStep('source');
             }}
           >
