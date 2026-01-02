@@ -32,6 +32,7 @@ const COLORS = {
   orange: '#FF9800',
   orangeLight: '#FFF3E0',
   red: '#E53935',
+  redLight: '#FFEBEE',
   purple: '#7C4DFF',
   purpleLight: '#EDE7F6',
   teal: '#00897B',
@@ -119,11 +120,11 @@ function DocumentCard({ document, lang, onPress }: DocumentCardProps) {
               <Text style={styles.detailValue}>{data.amo_name}</Text>
             </View>
           )}
-          {(data.airframe_hours || data.engine_hours) && (
+          {(data.airframe_hours != null || data.engine_hours != null) && (
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>{lang === 'fr' ? 'Heures:' : 'Hours:'}</Text>
               <Text style={styles.detailValue}>
-                {data.airframe_hours?.toFixed(1) || '—'} / {data.engine_hours?.toFixed(1) || '—'}
+                {data.airframe_hours != null ? data.airframe_hours.toFixed(1) : '—'} / {data.engine_hours != null ? data.engine_hours.toFixed(1) : '—'}
               </Text>
             </View>
           )}
@@ -153,7 +154,7 @@ function DocumentCard({ document, lang, onPress }: DocumentCardProps) {
 
       {document.document_type === 'invoice' && data && (
         <View style={styles.cardDetails}>
-          {data.total_cost && (
+          {data.total_cost != null && (
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Total:</Text>
               <Text style={[styles.detailValue, styles.totalValue]}>
