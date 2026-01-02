@@ -37,6 +37,10 @@ const COLORS = {
 
 // Calculate progress percentage and status
 function calculateHoursProgress(current: number, limit: number): { percent: number; status: 'ok' | 'warning' | 'exceeded' } {
+  // Handle invalid values
+  if (current == null || limit == null || limit <= 0) {
+    return { percent: 0, status: 'ok' };
+  }
   const percent = Math.round((current / limit) * 100);
   if (percent >= 100) return { percent: Math.min(percent, 100), status: 'exceeded' };
   if (percent >= 80) return { percent, status: 'warning' };
