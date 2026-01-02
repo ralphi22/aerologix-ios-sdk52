@@ -1,6 +1,6 @@
 /**
  * Add Aircraft Screen - Complete form
- * OFFLINE MODE - No backend calls
+ * Syncs with backend on save
  */
 
 import React, { useState } from 'react';
@@ -15,6 +15,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { t } from '@/i18n';
