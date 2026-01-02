@@ -220,10 +220,24 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// Default fallback context value
+const defaultAircraftContextValue: AircraftContextType = {
+  aircraft: [],
+  isLoading: false,
+  error: null,
+  addAircraft: async () => { console.warn('AircraftProvider not found'); },
+  updateAircraft: async () => { console.warn('AircraftProvider not found'); },
+  deleteAircraft: async () => { console.warn('AircraftProvider not found'); },
+  getAircraftById: () => undefined,
+  refreshAircraft: async () => { console.warn('AircraftProvider not found'); },
+};
+
 export function useAircraftLocalStore(): AircraftContextType {
   const context = useContext(AircraftContext);
+  // Return default values instead of throwing error to prevent crashes
   if (!context) {
-    throw new Error('useAircraftLocalStore must be used within AircraftProvider');
+    console.warn('useAircraftLocalStore called outside of AircraftProvider, using defaults');
+    return defaultAircraftContextValue;
   }
   return context;
 }
