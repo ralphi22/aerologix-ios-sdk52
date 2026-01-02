@@ -486,16 +486,6 @@ export default function EltScreen() {
           </View>
         </View>
 
-        {/* Disclaimer */}
-        <View style={styles.disclaimer}>
-          <Text style={styles.disclaimerIcon}>⚠️</Text>
-          <Text style={styles.disclaimerText}>
-            {lang === 'fr'
-              ? 'Information seulement. Ce module ne remplace pas un AME, un organisme de maintenance ou un registre officiel.'
-              : 'Information only. This module does not replace an AME, a maintenance organization, or an official registry.'}
-          </Text>
-        </View>
-
         <View style={{ height: 40 }} />
       </ScrollView>
     </View>
