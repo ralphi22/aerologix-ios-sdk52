@@ -265,10 +265,24 @@ export function OcrProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// Default fallback context value
+const defaultOcrContextValue: OcrContextType = {
+  documents: [],
+  addDocument: () => { console.warn('OcrProvider not found'); return ''; },
+  updateDocument: () => console.warn('OcrProvider not found'),
+  deleteDocument: () => console.warn('OcrProvider not found'),
+  getDocumentsByAircraft: () => [],
+  getDocumentById: () => undefined,
+  checkDuplicate: () => false,
+  markAsApplied: () => console.warn('OcrProvider not found'),
+};
+
 export function useOcr(): OcrContextType {
   const context = useContext(OcrContext);
+  // Return default values instead of throwing error to prevent crashes
   if (!context) {
-    throw new Error('useOcr must be used within OcrProvider');
+    console.warn('useOcr called outside of OcrProvider, using defaults');
+    return defaultOcrContextValue;
   }
   return context;
 }

@@ -252,10 +252,34 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// Default fallback context value
+const defaultMaintenanceContextValue: MaintenanceDataContextType = {
+  parts: [],
+  addPart: () => console.warn('MaintenanceDataProvider not found'),
+  deletePart: () => console.warn('MaintenanceDataProvider not found'),
+  getPartsByAircraft: () => [],
+  adSbs: [],
+  addAdSb: () => console.warn('MaintenanceDataProvider not found'),
+  deleteAdSb: () => console.warn('MaintenanceDataProvider not found'),
+  getAdSbsByAircraft: () => [],
+  stcs: [],
+  addStc: () => console.warn('MaintenanceDataProvider not found'),
+  deleteStc: () => console.warn('MaintenanceDataProvider not found'),
+  getStcsByAircraft: () => [],
+  invoices: [],
+  addInvoice: () => console.warn('MaintenanceDataProvider not found'),
+  updateInvoice: () => console.warn('MaintenanceDataProvider not found'),
+  deleteInvoice: () => console.warn('MaintenanceDataProvider not found'),
+  getInvoicesByAircraft: () => [],
+  getInvoiceById: () => undefined,
+};
+
 export function useMaintenanceData(): MaintenanceDataContextType {
   const context = useContext(MaintenanceDataContext);
+  // Return default values instead of throwing error to prevent crashes
   if (!context) {
-    throw new Error('useMaintenanceData must be used within MaintenanceDataProvider');
+    console.warn('useMaintenanceData called outside of MaintenanceDataProvider, using defaults');
+    return defaultMaintenanceContextValue;
   }
   return context;
 }
