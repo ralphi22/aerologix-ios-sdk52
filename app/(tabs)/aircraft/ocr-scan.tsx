@@ -459,6 +459,7 @@ export default function OcrScannerScreen() {
           style={styles.duplicateNewButton}
           onPress={() => {
             setImageUri(null);
+            setImageBase64(null);
             setScanResult(null);
             setDuplicateInfo(null);
             setStep('source');
