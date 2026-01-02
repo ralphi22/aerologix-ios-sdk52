@@ -17,7 +17,6 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 import { getLanguage } from '@/i18n';
 import ocrService, { 
   OCRScanResponse, 
