@@ -114,10 +114,27 @@ class OcrService {
   /**
    * Scan a document image using OCR
    * POST /api/ocr/scan
+   * Note: Increased timeout for OpenAI Vision processing
    */
   async scanDocument(data: OCRScanCreate): Promise<OCRScanResponse> {
-    const response = await api.post('/api/ocr/scan', data);
-    return response.data;
+    try {
+      const response = await api.post('/api/ocr/scan', data, {
+        timeout: 120000, // 2 minutes for OCR processing
+      });
+      return response.data;
+    } catch (error: any) {
+      console.log('OCR scan error:', error.response?.status, error.message);
+      
+      // Handle specific errors
+      if (error.response?.status === 404) {
+        throw new Error('OCR service not available. Please try again later.');
+      }
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        throw new Error('Analysis took too long. Please try with a smaller image.');
+      }
+      
+      throw error;
+    }
   }
 
   /**
