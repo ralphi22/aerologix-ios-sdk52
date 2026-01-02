@@ -169,8 +169,25 @@ export default function ReportScreen() {
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
   const { getAircraftById } = useAircraftLocalStore();
-  const { settings, limits } = useReportSettings();
+  const reportContext = useReportSettings();
   const eltContext = useElt();
+
+  // Safe defaults for settings and limits
+  const settings = reportContext?.settings || {
+    motorTbo: 2000,
+    heliceDate: '',
+    celluleDate: '',
+    avioniqueDate: '',
+    magnetosHoursUsed: 0,
+    pompeVideHoursUsed: 0,
+  };
+  const limits = reportContext?.limits || {
+    heliceYears: 5,
+    celluleYears: 12,
+    avioniqueMonths: 24,
+    magnetosHours: 500,
+    pompeVideHours: 500,
+  };
 
   const aircraft = getAircraftById(aircraftId || '');
   const engineHours = aircraft?.engineHours || 0;
@@ -179,9 +196,9 @@ export default function ReportScreen() {
 
   // Calculate all statuses using editable limits
   const motorProgress = calculateHoursProgress(engineHours, settings.motorTbo);
-  const heliceProgress = calculateDateProgress(settings.heliceDate, limits.heliceYears * 12);
-  const celluleProgress = calculateDateProgress(settings.celluleDate, limits.celluleYears * 12);
-  const avioniqueProgress = calculateDateProgress(settings.avioniqueDate, limits.avioniqueMonths);
+  const heliceProgress = calculateDateProgress(settings.heliceDate || '', limits.heliceYears * 12);
+  const celluleProgress = calculateDateProgress(settings.celluleDate || '', limits.celluleYears * 12);
+  const avioniqueProgress = calculateDateProgress(settings.avioniqueDate || '', limits.avioniqueMonths);
   const magnetosProgress = calculateHoursProgress(settings.magnetosHoursUsed, limits.magnetosHours);
   const pompeProgress = calculateHoursProgress(settings.pompeVideHoursUsed, limits.pompeVideHours);
   
