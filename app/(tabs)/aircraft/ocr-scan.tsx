@@ -85,6 +85,7 @@ export default function OcrScannerScreen() {
   const [sourceType, setSourceType] = useState<'photo' | 'import' | null>(null);
   const [docType, setDocType] = useState<DocumentType | null>(null);
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageBase64, setImageBase64] = useState<string | null>(null); // Store base64 directly
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [scanResult, setScanResult] = useState<OCRScanResponse | null>(null);
   const [validatedFields, setValidatedFields] = useState<Set<string>>(new Set());
