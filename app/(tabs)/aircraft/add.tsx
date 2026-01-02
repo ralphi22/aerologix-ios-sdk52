@@ -342,8 +342,16 @@ export default function AddAircraftScreen() {
           </View>
 
           {/* Save Button */}
-          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveButtonText}>{t('save_aircraft')}</Text>
+          <TouchableOpacity 
+            style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} 
+            onPress={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <ActivityIndicator color={COLORS.white} />
+            ) : (
+              <Text style={styles.saveButtonText}>{t('save_aircraft')}</Text>
+            )}
           </TouchableOpacity>
 
           {/* Bottom spacing */}
