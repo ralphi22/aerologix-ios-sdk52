@@ -1,9 +1,15 @@
 /**
  * Maintenance Data Store - Local state for Parts, AD/SB, STC, Invoices
- * Visual storage only - no regulatory decisions
+ * Now syncs with backend via maintenanceService
  */
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import maintenanceService, { 
+  PartRecord, 
+  ADSBRecord, 
+  STCRecord, 
+  InvoiceRecord 
+} from '@/services/maintenanceService';
 
 // ============================================
 // TYPES
@@ -16,6 +22,9 @@ export interface Part {
   quantity: number;
   installedDate: string;
   aircraftId: string;
+  serialNumber?: string;
+  supplier?: string;
+  price?: number;
 }
 
 export interface AdSb {
@@ -25,6 +34,8 @@ export interface AdSb {
   description: string;
   dateAdded: string;
   aircraftId: string;
+  status?: string;
+  complianceDate?: string;
 }
 
 export interface Stc {
@@ -46,7 +57,57 @@ export interface Invoice {
   totalAmount: number;
   aircraftId: string;
   notes: string;
+  invoiceNumber?: string;
 }
+
+// ============================================
+// MAPPING FUNCTIONS - Backend <-> Local
+// ============================================
+
+const mapPartFromBackend = (p: PartRecord): Part => ({
+  id: p.id,
+  name: p.name || p.part_number,
+  partNumber: p.part_number,
+  quantity: p.quantity || 1,
+  installedDate: p.installed_date || p.created_at?.split('T')[0] || '',
+  aircraftId: p.aircraft_id,
+  serialNumber: p.serial_number,
+  supplier: p.supplier,
+  price: p.price,
+});
+
+const mapAdSbFromBackend = (a: ADSBRecord): AdSb => ({
+  id: a.id,
+  type: a.adsb_type,
+  number: a.reference_number,
+  description: a.description || '',
+  dateAdded: a.compliance_date || a.created_at?.split('T')[0] || '',
+  aircraftId: a.aircraft_id,
+  status: a.status,
+  complianceDate: a.compliance_date,
+});
+
+const mapStcFromBackend = (s: STCRecord): Stc => ({
+  id: s.id,
+  number: s.stc_number,
+  reference: s.stc_number,
+  description: s.description || '',
+  dateAdded: s.approval_date || s.created_at?.split('T')[0] || '',
+  aircraftId: s.aircraft_id,
+});
+
+const mapInvoiceFromBackend = (i: InvoiceRecord): Invoice => ({
+  id: i.id,
+  supplier: i.vendor_name || '',
+  date: i.invoice_date || i.created_at?.split('T')[0] || '',
+  partsAmount: i.parts_cost || 0,
+  laborAmount: i.labor_cost || 0,
+  hoursWorked: i.labor_hours || 0,
+  totalAmount: i.total_cost || 0,
+  aircraftId: i.aircraft_id,
+  notes: i.description || '',
+  invoiceNumber: i.invoice_number,
+});
 
 // ============================================
 // CONTEXT
@@ -75,6 +136,9 @@ interface MaintenanceDataContextType {
   deleteInvoice: (id: string) => void;
   getInvoicesByAircraft: (aircraftId: string) => Invoice[];
   getInvoiceById: (id: string) => Invoice | undefined;
+  // NEW: Sync with backend
+  syncWithBackend: (aircraftId: string) => Promise<void>;
+  isLoading: boolean;
 }
 
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
