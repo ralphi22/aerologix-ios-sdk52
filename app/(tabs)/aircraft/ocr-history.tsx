@@ -643,6 +643,57 @@ export default function OcrHistoryScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
+      
+      {/* Detail Modal */}
+      <Modal visible={showDetailModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {lang === 'fr' ? 'Détails du scan' : 'Scan Details'}
+              </Text>
+              <TouchableOpacity onPress={() => setShowDetailModal(false)} style={styles.modalClose}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {renderDetailModalContent()}
+            
+            {/* Action Buttons */}
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={styles.deleteButton} 
+                onPress={handleDeleteScan}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator size="small" color={COLORS.red} />
+                ) : (
+                  <Text style={styles.deleteButtonText}>
+                    🗑️ {lang === 'fr' ? 'Supprimer' : 'Delete'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+              
+              {!selectedDoc?.applied && (
+                <TouchableOpacity 
+                  style={styles.applyButton} 
+                  onPress={handleApplyData}
+                  disabled={isApplying}
+                >
+                  {isApplying ? (
+                    <ActivityIndicator size="small" color={COLORS.white} />
+                  ) : (
+                    <Text style={styles.applyButtonText}>
+                      ✓ {lang === 'fr' ? 'Appliquer' : 'Apply'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
