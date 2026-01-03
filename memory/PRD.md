@@ -28,6 +28,10 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
 - `GET /api/ocr/history/:aircraft_id` - OCR scan history
 - `POST /api/ocr/apply/:scan_id` - Apply OCR results
 - `DELETE /api/ocr/:scan_id` - Delete OCR scan
+- **NEW:** `GET /api/parts/:aircraft_id` - Get parts for aircraft
+- **NEW:** `GET /api/adsb/:aircraft_id` - Get AD/SBs for aircraft
+- **NEW:** `GET /api/stc/:aircraft_id` - Get STCs for aircraft
+- **NEW:** `GET /api/invoices/:aircraft_id` - Get invoices for aircraft
 
 ## Current Status (January 2025)
 
@@ -39,22 +43,24 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
 - Editable maintenance report settings
 - ELT tracking screen
 
-### ✅ Bug Fixes (Session 1-3)
-1. **Crash on Report screen** - Fixed missing `ELT_FIXED_LIMITS` import
-2. **Parts modal keyboard issue** - Added `KeyboardAvoidingView`
-3. **Aircraft ID mapping** - Support both `id` and `_id` formats
-4. **All Context Providers crash-safe** - Hooks return defaults instead of throwing
-5. **Date/Hours calculations** - Added validation for invalid values
+### ✅ Bug Fixes (Sessions 1-3)
+1. Crash on Report screen - Fixed
+2. Parts modal keyboard issue - Fixed
+3. All Context Providers crash-safe
+4. Date/Hours calculations validation
 
 ### ✅ Feature Improvements (Session 4 - January 2, 2025)
-1. **Photo persistence** - `photoUri` now properly mapped to/from `photo_url` API field
-2. **OCR Detail Modal** - Can now view full scan results with all extracted data
-3. **OCR Apply Sync** - After applying OCR, local stores are updated:
-   - Aircraft hours (airframe, engine, propeller)
-   - Parts added to maintenance store
-   - AD/SBs added to maintenance store
-   - Invoices added to invoice store
-4. **OCR Delete** - Can now delete scans from history
+1. **Photo persistence** - `photoUri` properly mapped to/from `photo_url`
+2. **OCR Detail Modal** - View full scan results with extracted data
+3. **OCR Apply/Delete** - Functional buttons in history screen
+
+### ✅ Backend Sync Integration (Session 5 - January 3, 2025)
+1. **New `maintenanceService.ts`** - API calls for parts, AD/SB, STC, invoices
+2. **`maintenanceDataStore.ts` refactored** - `syncWithBackend()` function added
+3. **OCR Apply simplified** - Now calls backend then syncs ALL data:
+   - `refreshAircraft()` for hours
+   - `syncWithBackend()` for parts/AD-SB/invoices
+4. **Auto-sync on screen open** - Parts and Invoices screens sync automatically
 
 ## File Structure
 ```
@@ -62,32 +68,46 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
 ├── app/                  
 │   ├── (tabs)/          
 │   │   ├── aircraft/    
-│   │   │   ├── ocr-history.tsx    # NEW: Detail modal + apply/delete
-│   │   │   ├── ocr-scan.tsx       # UPDATED: Local store sync after apply
+│   │   │   ├── ocr-history.tsx    # Modal + sync
+│   │   │   ├── ocr-scan.tsx       # Simplified apply
 │   │   │   └── maintenance/
-│   │   │       ├── report.tsx      
-│   │   │       ├── parts.tsx       
-│   │   │       └── report-settings.tsx
-│   ├── _layout.tsx      
-│   └── login.tsx
+│   │   │       ├── parts.tsx       # Auto-sync on open
+│   │   │       ├── invoices.tsx    # Auto-sync on open
+│   │   │       └── ...
+│   └── _layout.tsx      
 ├── services/            
-│   └── ocrService.ts    # Has deleteScan(), applyResults()
+│   ├── maintenanceService.ts  # NEW: Parts/ADSB/STC/Invoices API
+│   └── ocrService.ts
 └── stores/              
-    ├── aircraftLocalStore.ts  # UPDATED: photo_url mapping
-    ├── maintenanceDataStore.ts # Used for parts/invoices sync
+    ├── maintenanceDataStore.ts # Refactored: syncWithBackend()
     └── ...
 ```
 
+## Architecture: Frontend ↔ Backend Sync Flow
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    OCR Apply Flow                       │
+├─────────────────────────────────────────────────────────┤
+│  1. User clicks "Apply" on OCR scan                     │
+│  2. Frontend: POST /api/ocr/apply/:scan_id              │
+│  3. Backend: Updates aircraft hours, creates parts, etc │
+│  4. Frontend: GET /api/aircraft (refreshAircraft)       │
+│  5. Frontend: GET /api/parts, /api/adsb, /api/invoices │
+│  6. Local stores updated with fresh backend data        │
+└─────────────────────────────────────────────────────────┘
+```
+
 ## Known Issues
-1. **OCR Backend Validation** - Backend may reject scans with null part_number/quantity (needs backend fix to accept Optional fields)
-2. **OCR Quota Limit** - User limited to 3 scans/month (needs backend DB update to increase)
+1. **OCR Backend Validation** - Backend may reject scans with null part fields
+2. **OCR Quota Limit** - User limited to 3 scans/month (backend config)
 
 ## Test Credentials
 - Email: lima@123.com
 - Password: lima123
 
 ## Backlog / Future Tasks
-- Backend: Make OCR extracted fields optional (handle null values)
 - Backend: Increase OCR quota for testing
-- Add offline mode
-- Add push notifications for maintenance reminders
+- Backend: Make OCR extracted fields optional
+- Add offline mode with queue sync
+- Push notifications for maintenance reminders
