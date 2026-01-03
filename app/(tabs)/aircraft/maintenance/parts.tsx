@@ -113,13 +113,24 @@ export default function PartsScreen() {
 
       {/* Count Badge */}
       <View style={styles.countBadge}>
-        <Text style={styles.countText}>
-          {aircraftParts.length} {lang === 'fr' ? 'pièce(s) enregistrée(s)' : 'part(s) recorded'}
-        </Text>
+        {isLoading ? (
+          <ActivityIndicator size="small" color={COLORS.primary} />
+        ) : (
+          <Text style={styles.countText}>
+            {aircraftParts.length} {lang === 'fr' ? 'pièce(s) enregistrée(s)' : 'part(s) recorded'}
+          </Text>
+        )}
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {aircraftParts.length === 0 ? (
+        {isLoading ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.emptyText}>
+              {lang === 'fr' ? 'Chargement...' : 'Loading...'}
+            </Text>
+          </View>
+        ) : aircraftParts.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>⚙️</Text>
             <Text style={styles.emptyText}>
