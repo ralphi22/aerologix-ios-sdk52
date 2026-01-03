@@ -68,6 +68,7 @@ const mapApiToLocal = (apiAircraft: ApiAircraft): Aircraft => ({
   airframeHours: apiAircraft.airframe_hours || 0,
   engineHours: apiAircraft.engine_hours || 0,
   propellerHours: apiAircraft.propeller_hours || 0,
+  photoUri: apiAircraft.photo_url || undefined,
   createdAt: apiAircraft.created_at,
 });
 
@@ -82,6 +83,7 @@ const mapLocalToApi = (localAircraft: Omit<Aircraft, 'id' | 'createdAt'>): Aircr
   airframe_hours: localAircraft.airframeHours || 0,
   engine_hours: localAircraft.engineHours || 0,
   propeller_hours: localAircraft.propellerHours || 0,
+  photo_url: localAircraft.photoUri || undefined,
 });
 
 const AircraftContext = createContext<AircraftContextType | undefined>(undefined);
@@ -164,6 +166,7 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       if (aircraftData.airframeHours !== undefined) apiData.airframe_hours = aircraftData.airframeHours;
       if (aircraftData.engineHours !== undefined) apiData.engine_hours = aircraftData.engineHours;
       if (aircraftData.propellerHours !== undefined) apiData.propeller_hours = aircraftData.propellerHours;
+      if (aircraftData.photoUri !== undefined) apiData.photo_url = aircraftData.photoUri;
       
       const updated = await aircraftService.update(id, apiData);
       const updatedAircraft = mapApiToLocal(updated);
