@@ -364,6 +364,8 @@ const defaultMaintenanceContextValue: MaintenanceDataContextType = {
   deleteInvoice: () => console.warn('MaintenanceDataProvider not found'),
   getInvoicesByAircraft: () => [],
   getInvoiceById: () => undefined,
+  syncWithBackend: async () => console.warn('MaintenanceDataProvider not found'),
+  isLoading: false,
 };
 
 export function useMaintenanceData(): MaintenanceDataContextType {
