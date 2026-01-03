@@ -1,9 +1,10 @@
 /**
  * Invoices Screen - Financial tracking for maintenance costs
  * TC-SAFE: Financial information only, no regulatory validation
+ * Now syncs with backend
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +14,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
@@ -45,7 +47,7 @@ export default function InvoicesScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
-  const { invoices, addInvoice, deleteInvoice, getInvoicesByAircraft } = useMaintenanceData();
+  const { invoices, addInvoice, deleteInvoice, getInvoicesByAircraft, syncWithBackend, isLoading } = useMaintenanceData();
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newSupplier, setNewSupplier] = useState('');
@@ -54,6 +56,13 @@ export default function InvoicesScreen() {
   const [newLabor, setNewLabor] = useState('');
   const [newHours, setNewHours] = useState('');
   const [newNotes, setNewNotes] = useState('');
+  
+  // Sync with backend on mount
+  useEffect(() => {
+    if (aircraftId) {
+      syncWithBackend(aircraftId);
+    }
+  }, [aircraftId]);
 
   const aircraftInvoices = getInvoicesByAircraft(aircraftId || '');
 
