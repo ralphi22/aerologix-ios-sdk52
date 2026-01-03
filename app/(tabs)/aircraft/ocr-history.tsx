@@ -446,17 +446,31 @@ export default function OcrHistoryScreen() {
               </View>
             )}
             
+            {data.invoice_number && (
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'N° Facture:' : 'Invoice #:'}</Text>
+                <Text style={styles.dataValue}>{data.invoice_number}</Text>
+              </View>
+            )}
+            
+            {data.labor_hours != null && (
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Heures travail:' : 'Labor hours:'}</Text>
+                <Text style={styles.dataValue}>{Number(data.labor_hours).toFixed(1)}h</Text>
+              </View>
+            )}
+            
             {data.labor_cost != null && (
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>{lang === 'fr' ? 'Main-d\'œuvre:' : 'Labor:'}</Text>
-                <Text style={styles.dataValue}>${data.labor_cost.toFixed(2)}</Text>
+                <Text style={styles.dataValue}>${Number(data.labor_cost).toFixed(2)}</Text>
               </View>
             )}
             
             {data.parts_cost != null && (
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>{lang === 'fr' ? 'Pièces:' : 'Parts:'}</Text>
-                <Text style={styles.dataValue}>${data.parts_cost.toFixed(2)}</Text>
+                <Text style={styles.dataValue}>${Number(data.parts_cost).toFixed(2)}</Text>
               </View>
             )}
             
@@ -464,8 +478,27 @@ export default function OcrHistoryScreen() {
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>Total:</Text>
                 <Text style={[styles.dataValue, styles.dataHighlight, styles.totalCost]}>
-                  ${data.total_cost.toFixed(2)}
+                  ${Number(data.total_cost).toFixed(2)}
                 </Text>
+              </View>
+            )}
+            
+            {/* Parts from Invoice */}
+            {data.parts_replaced && data.parts_replaced.length > 0 && (
+              <View style={styles.dataRowFull}>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Pièces détaillées:' : 'Parts detailed:'}</Text>
+                {data.parts_replaced.map((part: any, idx: number) => (
+                  <Text key={idx} style={styles.listItem}>
+                    • {part.part_number || 'N/A'}: {part.description || ''} {part.quantity ? `(x${Math.round(part.quantity)})` : ''} {part.price ? `- $${part.price}` : ''}
+                  </Text>
+                ))}
+              </View>
+            )}
+            
+            {data.work_performed && (
+              <View style={styles.dataRowFull}>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Description:' : 'Description:'}</Text>
+                <Text style={styles.dataValueMulti}>{data.work_performed}</Text>
               </View>
             )}
           </View>
