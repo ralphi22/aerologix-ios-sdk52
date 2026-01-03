@@ -85,7 +85,7 @@ export default function OcrScannerScreen() {
   
   // Stores for local data updates
   const { updateAircraft, refreshAircraft } = useAircraftLocalStore();
-  const { addPart, addAdSb, addInvoice } = useMaintenanceData();
+  const { addPart, addAdSb, addInvoice, syncWithBackend } = useMaintenanceData();
 
   const [step, setStep] = useState<ScanStep>('source');
   const [sourceType, setSourceType] = useState<'photo' | 'import' | null>(null);
