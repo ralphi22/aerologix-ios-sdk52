@@ -26,6 +26,8 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
 - `GET /api/aircraft` - List aircraft
 - `POST /api/ocr/scan` - OCR document analysis
 - `GET /api/ocr/history/:aircraft_id` - OCR scan history
+- `POST /api/ocr/apply/:scan_id` - Apply OCR results
+- `DELETE /api/ocr/:scan_id` - Delete OCR scan
 
 ## Current Status (January 2025)
 
@@ -37,61 +39,55 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
 - Editable maintenance report settings
 - ELT tracking screen
 
-### ✅ Bug Fixes (Session 1)
+### ✅ Bug Fixes (Session 1-3)
 1. **Crash on Report screen** - Fixed missing `ELT_FIXED_LIMITS` import
-2. **Parts modal keyboard issue** - Added `KeyboardAvoidingView` for mobile keyboard handling
-3. **Aircraft ID mapping** - Improved to support both `id` and `_id` formats
+2. **Parts modal keyboard issue** - Added `KeyboardAvoidingView`
+3. **Aircraft ID mapping** - Support both `id` and `_id` formats
+4. **All Context Providers crash-safe** - Hooks return defaults instead of throwing
+5. **Date/Hours calculations** - Added validation for invalid values
 
-### ✅ Bug Fixes (Session 2)
-1. **Crash "Cannot read property 'toFixed' of null"** - Fixed null checks before toFixed() calls
-2. **Report screen crash** - Added missing `ReportSettingsProvider` to root layout
-3. **Missing redLight color** - Added to COLORS constant in ocr-history.tsx
-
-### ✅ Bug Fixes (Session 3 - January 2, 2025)
-1. **All Context Providers crash-safe** - All hooks now return default values instead of throwing errors:
-   - `useReportSettings` - returns default settings/limits
-   - `useElt` - returns default ELT data
-   - `useAircraftLocalStore` - returns empty aircraft list
-   - `useMaintenanceData` - returns empty data
-   - `useOcr` - returns empty documents
-2. **Report Screen protections** - Safe defaults for settings/limits objects
-3. **ELT Store calculations** - Added validation for invalid dates and division by zero
-4. **Battery/Test progress** - Changed default status from 'expired' to 'operational'
+### ✅ Feature Improvements (Session 4 - January 2, 2025)
+1. **Photo persistence** - `photoUri` now properly mapped to/from `photo_url` API field
+2. **OCR Detail Modal** - Can now view full scan results with all extracted data
+3. **OCR Apply Sync** - After applying OCR, local stores are updated:
+   - Aircraft hours (airframe, engine, propeller)
+   - Parts added to maintenance store
+   - AD/SBs added to maintenance store
+   - Invoices added to invoice store
+4. **OCR Delete** - Can now delete scans from history
 
 ## File Structure
 ```
 /app/
-├── app/                  # Expo Router routes
-│   ├── (tabs)/          # Main app screens
-│   │   ├── aircraft/    # Aircraft features
-│   │   │   ├── ocr-history.tsx    # Fixed: toFixed null check
-│   │   │   ├── ocr-scan.tsx       # Fixed: toFixed null check
+├── app/                  
+│   ├── (tabs)/          
+│   │   ├── aircraft/    
+│   │   │   ├── ocr-history.tsx    # NEW: Detail modal + apply/delete
+│   │   │   ├── ocr-scan.tsx       # UPDATED: Local store sync after apply
 │   │   │   └── maintenance/
-│   │   │       ├── report.tsx      # Fixed: safe defaults
-│   │   │       ├── parts.tsx       # Fixed: keyboard handling
+│   │   │       ├── report.tsx      
+│   │   │       ├── parts.tsx       
 │   │   │       └── report-settings.tsx
-│   ├── _layout.tsx      # Fixed: Added ReportSettingsProvider
+│   ├── _layout.tsx      
 │   └── login.tsx
-├── components/          # Reusable UI
-├── services/            # API services
-└── stores/              # All stores now crash-safe
-    ├── aircraftLocalStore.ts  # Hook with fallback
-    ├── eltStore.ts            # Hook with fallback + calc fixes
-    ├── maintenanceDataStore.ts # Hook with fallback
-    ├── ocrStore.ts            # Hook with fallback
-    └── reportSettingsStore.ts # Hook with fallback
+├── services/            
+│   └── ocrService.ts    # Has deleteScan(), applyResults()
+└── stores/              
+    ├── aircraftLocalStore.ts  # UPDATED: photo_url mapping
+    ├── maintenanceDataStore.ts # Used for parts/invoices sync
+    └── ...
 ```
 
 ## Known Issues
-1. **OCR Backend Error** - 500 Internal Server Error from Render. Backend OpenAI configuration issue.
+1. **OCR Backend Validation** - Backend may reject scans with null part_number/quantity (needs backend fix to accept Optional fields)
+2. **OCR Quota Limit** - User limited to 3 scans/month (needs backend DB update to increase)
 
 ## Test Credentials
 - Email: lima@123.com
 - Password: lima123
 
 ## Backlog / Future Tasks
-- Investigate and fix backend OCR integration with OpenAI
-- Add navigation to OCR scan detail view
-- Implement delete functionality for OCR scans
-- Implement offline mode
+- Backend: Make OCR extracted fields optional (handle null values)
+- Backend: Increase OCR quota for testing
+- Add offline mode
 - Add push notifications for maintenance reminders
