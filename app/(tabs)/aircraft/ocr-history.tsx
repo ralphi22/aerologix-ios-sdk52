@@ -12,10 +12,14 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { getLanguage } from '@/i18n';
 import ocrService, { OCRScanResponse, DocumentType } from '@/services/ocrService';
+import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
+import { useMaintenanceData } from '@/stores/maintenanceDataStore';
 
 const COLORS = {
   primary: '#0033A0',
