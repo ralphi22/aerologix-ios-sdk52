@@ -248,71 +248,18 @@ export default function OcrHistoryScreen() {
     
     setIsApplying(true);
     try {
-      // Call backend to apply
+      // 1. Call backend to apply OCR data
       await ocrService.applyResults(selectedDoc.id, true);
       
-      // Update local aircraft hours if maintenance report
-      if (selectedDoc.document_type === 'maintenance_report' && selectedDoc.extracted_data) {
-        const data = selectedDoc.extracted_data;
-        const updates: any = {};
-        if (data.airframe_hours != null) updates.airframeHours = data.airframe_hours;
-        if (data.engine_hours != null) updates.engineHours = data.engine_hours;
-        if (data.propeller_hours != null) updates.propellerHours = data.propeller_hours;
-        
-        if (Object.keys(updates).length > 0) {
-          await updateAircraft(aircraftId, updates);
-        }
-        
-        // Add parts to local store
-        if (data.parts_replaced && Array.isArray(data.parts_replaced)) {
-          for (const part of data.parts_replaced) {
-            if (part.part_number || part.description) {
-              addPart({
-                name: part.description || part.part_number || 'Unknown',
-                partNumber: part.part_number || 'N/A',
-                quantity: part.quantity || 1,
-                installedDate: data.report_date || new Date().toISOString().split('T')[0],
-                aircraftId: aircraftId,
-              });
-            }
-          }
-        }
-        
-        // Add AD/SBs to local store
-        if (data.ad_notes && Array.isArray(data.ad_notes)) {
-          for (const ad of data.ad_notes) {
-            addAdSb({
-              type: 'AD',
-              number: ad.ad_number || 'N/A',
-              description: ad.description || ad.compliance_status || '',
-              dateAdded: data.report_date || new Date().toISOString().split('T')[0],
-              aircraftId: aircraftId,
-            });
-          }
-        }
-      }
-      
-      // Add invoice to local store
-      if (selectedDoc.document_type === 'invoice' && selectedDoc.extracted_data) {
-        const data = selectedDoc.extracted_data;
-        addInvoice({
-          supplier: data.vendor_name || data.amo || 'Unknown',
-          date: data.invoice_date || data.report_date || new Date().toISOString().split('T')[0],
-          partsAmount: data.parts_cost || 0,
-          laborAmount: data.labor_cost || 0,
-          hoursWorked: data.labor_hours || 0,
-          totalAmount: data.total_cost || 0,
-          aircraftId: aircraftId,
-          notes: data.work_performed || data.description || '',
-        });
-      }
-      
-      // Refresh aircraft data
+      // 2. Sync aircraft data from backend (heures mises à jour)
       await refreshAircraft();
+      
+      // 3. Sync maintenance data from backend (pièces, AD/SB, factures)
+      await syncWithBackend(aircraftId);
       
       Alert.alert(
         lang === 'fr' ? 'Succès' : 'Success',
-        lang === 'fr' ? 'Données appliquées avec succès' : 'Data applied successfully'
+        lang === 'fr' ? 'Données appliquées et synchronisées' : 'Data applied and synced'
       );
       
       setShowDetailModal(false);
