@@ -798,6 +798,9 @@ const styles = StyleSheet.create({
   statusPending: { backgroundColor: COLORS.orangeLight },
   statusAppliedText: { color: COLORS.green },
   statusPendingText: { color: COLORS.orange },
+  // Raw data display
+  rawDataScroll: { maxHeight: 200, backgroundColor: '#1E1E1E', borderRadius: 8, padding: 12 },
+  rawDataText: { fontSize: 11, fontFamily: 'monospace', color: '#9CDCFE', lineHeight: 16 },
   modalActions: { flexDirection: 'row', padding: 20, paddingTop: 12, gap: 12 },
   deleteButton: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: COLORS.red, alignItems: 'center' },
   deleteButtonText: { fontSize: 15, color: COLORS.red, fontWeight: '600' },
