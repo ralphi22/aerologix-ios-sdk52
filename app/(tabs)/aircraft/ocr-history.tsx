@@ -186,8 +186,8 @@ export default function OcrHistoryScreen() {
   const lang = getLanguage();
   
   // Stores for applying data
-  const { updateAircraft, refreshAircraft } = useAircraftLocalStore();
-  const { addPart, addAdSb, addInvoice } = useMaintenanceData();
+  const { refreshAircraft } = useAircraftLocalStore();
+  const { syncWithBackend } = useMaintenanceData();
 
   const [documents, setDocuments] = useState<OCRScanResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
