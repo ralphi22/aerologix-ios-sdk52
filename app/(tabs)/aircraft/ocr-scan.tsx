@@ -270,13 +270,78 @@ export default function OcrScannerScreen() {
   };
 
   const handleApplyData = async () => {
-    if (!scanResult?.id) return;
+    if (!scanResult?.id || !aircraftId) return;
 
     setIsApplying(true);
     try {
-      // Apply the OCR results
+      // Apply the OCR results to backend
       const shouldUpdateHours = validatedFields.has('airframe_hours') || validatedFields.has('engine_hours');
       await ocrService.applyResults(scanResult.id, shouldUpdateHours);
+      
+      const data = scanResult.extracted_data;
+      
+      // Update local aircraft hours if maintenance report
+      if (scanResult.document_type === 'maintenance_report' && data) {
+        const updates: any = {};
+        if (validatedFields.has('airframe_hours') && data.airframe_hours != null) {
+          updates.airframeHours = data.airframe_hours;
+        }
+        if (validatedFields.has('engine_hours') && data.engine_hours != null) {
+          updates.engineHours = data.engine_hours;
+        }
+        if (data.propeller_hours != null) {
+          updates.propellerHours = data.propeller_hours;
+        }
+        
+        if (Object.keys(updates).length > 0) {
+          await updateAircraft(aircraftId, updates);
+        }
+        
+        // Add parts to local store
+        if (validatedFields.has('parts') && data.parts_replaced && Array.isArray(data.parts_replaced)) {
+          for (const part of data.parts_replaced) {
+            if (part.part_number || part.description) {
+              addPart({
+                name: part.description || part.part_number || 'Unknown',
+                partNumber: part.part_number || 'N/A',
+                quantity: part.quantity || 1,
+                installedDate: data.report_date || new Date().toISOString().split('T')[0],
+                aircraftId: aircraftId,
+              });
+            }
+          }
+        }
+        
+        // Add AD/SBs to local store
+        if (validatedFields.has('adSbs') && data.ad_notes && Array.isArray(data.ad_notes)) {
+          for (const ad of data.ad_notes) {
+            addAdSb({
+              type: 'AD',
+              number: ad.ad_number || 'N/A',
+              description: ad.description || ad.compliance_status || '',
+              dateAdded: data.report_date || new Date().toISOString().split('T')[0],
+              aircraftId: aircraftId,
+            });
+          }
+        }
+      }
+      
+      // Add invoice to local store
+      if (scanResult.document_type === 'invoice' && data && validatedFields.has('costs')) {
+        addInvoice({
+          supplier: data.vendor_name || data.amo || 'Unknown',
+          date: data.invoice_date || data.report_date || new Date().toISOString().split('T')[0],
+          partsAmount: data.parts_cost || 0,
+          laborAmount: data.labor_cost || 0,
+          hoursWorked: data.labor_hours || 0,
+          totalAmount: data.total_cost || 0,
+          aircraftId: aircraftId,
+          notes: data.work_performed || data.description || '',
+        });
+      }
+      
+      // Refresh aircraft data from backend
+      await refreshAircraft();
 
       Alert.alert(
         lang === 'fr' ? 'Succès' : 'Success',
