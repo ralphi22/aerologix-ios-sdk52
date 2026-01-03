@@ -329,6 +329,18 @@ export default function OcrHistoryScreen() {
           {lang === 'fr' ? 'Scanné le' : 'Scanned on'} {selectedDoc.created_at?.split('T')[0]}
         </Text>
         
+        {/* RAW JSON Preview - Always show full extracted data */}
+        <View style={styles.dataSection}>
+          <Text style={styles.dataSectionTitle}>
+            {lang === 'fr' ? '📋 Données brutes extraites' : '📋 Raw Extracted Data'}
+          </Text>
+          <ScrollView style={styles.rawDataScroll} nestedScrollEnabled>
+            <Text style={styles.rawDataText}>
+              {JSON.stringify(data, null, 2)}
+            </Text>
+          </ScrollView>
+        </View>
+        
         {/* Maintenance Report Data */}
         {selectedDoc.document_type === 'maintenance_report' && (
           <View style={styles.dataSection}>
@@ -353,21 +365,21 @@ export default function OcrHistoryScreen() {
             {data.airframe_hours != null && (
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>{lang === 'fr' ? 'Heures cellule:' : 'Airframe hours:'}</Text>
-                <Text style={[styles.dataValue, styles.dataHighlight]}>{data.airframe_hours.toFixed(1)}</Text>
+                <Text style={[styles.dataValue, styles.dataHighlight]}>{Number(data.airframe_hours).toFixed(1)}</Text>
               </View>
             )}
             
             {data.engine_hours != null && (
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>{lang === 'fr' ? 'Heures moteur:' : 'Engine hours:'}</Text>
-                <Text style={[styles.dataValue, styles.dataHighlight]}>{data.engine_hours.toFixed(1)}</Text>
+                <Text style={[styles.dataValue, styles.dataHighlight]}>{Number(data.engine_hours).toFixed(1)}</Text>
               </View>
             )}
             
             {data.propeller_hours != null && (
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>{lang === 'fr' ? 'Heures hélice:' : 'Propeller hours:'}</Text>
-                <Text style={[styles.dataValue, styles.dataHighlight]}>{data.propeller_hours.toFixed(1)}</Text>
+                <Text style={[styles.dataValue, styles.dataHighlight]}>{Number(data.propeller_hours).toFixed(1)}</Text>
               </View>
             )}
             
@@ -383,7 +395,7 @@ export default function OcrHistoryScreen() {
                 <Text style={styles.dataLabel}>{lang === 'fr' ? 'Pièces remplacées:' : 'Parts replaced:'}</Text>
                 {data.parts_replaced.map((part: any, idx: number) => (
                   <Text key={idx} style={styles.listItem}>
-                    • {part.description || part.part_number || 'N/A'} {part.quantity ? `(x${part.quantity})` : ''}
+                    • {part.description || part.part_number || 'N/A'} {part.quantity ? `(x${Math.round(part.quantity)})` : ''} {part.price ? `- $${part.price}` : ''}
                   </Text>
                 ))}
               </View>
@@ -394,7 +406,18 @@ export default function OcrHistoryScreen() {
                 <Text style={styles.dataLabel}>AD/SB:</Text>
                 {data.ad_notes.map((ad: any, idx: number) => (
                   <Text key={idx} style={styles.listItem}>
-                    • {ad.ad_number}: {ad.description || ad.compliance_status || ''}
+                    • {ad.ad_number || ad.reference_number}: {ad.description || ad.compliance_status || ''}
+                  </Text>
+                ))}
+              </View>
+            )}
+            
+            {data.stc_references && data.stc_references.length > 0 && (
+              <View style={styles.dataRowFull}>
+                <Text style={styles.dataLabel}>STC:</Text>
+                {data.stc_references.map((stc: any, idx: number) => (
+                  <Text key={idx} style={styles.listItem}>
+                    • {stc.number}: {stc.description || ''}
                   </Text>
                 ))}
               </View>
