@@ -1,9 +1,10 @@
 /**
  * Parts Screen - Visual storage for installed parts
  * TC-SAFE: Information only, no regulatory decisions
+ * Now syncs with backend
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +16,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
@@ -39,13 +41,20 @@ export default function PartsScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
-  const { parts, addPart, deletePart, getPartsByAircraft } = useMaintenanceData();
+  const { parts, addPart, deletePart, getPartsByAircraft, syncWithBackend, isLoading } = useMaintenanceData();
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newPartName, setNewPartName] = useState('');
   const [newPartNumber, setNewPartNumber] = useState('');
   const [newPartQty, setNewPartQty] = useState('1');
   const [newPartDate, setNewPartDate] = useState('');
+  
+  // Sync with backend on mount
+  useEffect(() => {
+    if (aircraftId) {
+      syncWithBackend(aircraftId);
+    }
+  }, [aircraftId]);
 
   const aircraftParts = getPartsByAircraft(aircraftId || '');
 
