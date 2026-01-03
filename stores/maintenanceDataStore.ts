@@ -232,10 +232,38 @@ const mockInvoices: Invoice[] = [
 const MaintenanceDataContext = createContext<MaintenanceDataContextType | undefined>(undefined);
 
 export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
-  const [parts, setParts] = useState<Part[]>(mockParts);
-  const [adSbs, setAdSbs] = useState<AdSb[]>(mockAdSbs);
-  const [stcs, setStcs] = useState<Stc[]>(mockStcs);
-  const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
+  const [parts, setParts] = useState<Part[]>([]);
+  const [adSbs, setAdSbs] = useState<AdSb[]>([]);
+  const [stcs, setStcs] = useState<Stc[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // NEW: Sync all data from backend
+  const syncWithBackend = async (aircraftId: string) => {
+    if (!aircraftId) return;
+    
+    setIsLoading(true);
+    try {
+      const data = await maintenanceService.syncAllData(aircraftId);
+      
+      // Map backend data to local format
+      setParts(data.parts.map(mapPartFromBackend));
+      setAdSbs(data.adsbs.map(mapAdSbFromBackend));
+      setStcs(data.stcs.map(mapStcFromBackend));
+      setInvoices(data.invoices.map(mapInvoiceFromBackend));
+      
+      console.log('Maintenance data synced:', {
+        parts: data.parts.length,
+        adsbs: data.adsbs.length,
+        stcs: data.stcs.length,
+        invoices: data.invoices.length,
+      });
+    } catch (error) {
+      console.log('Error syncing maintenance data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Parts
   const addPart = (partData: Omit<Part, 'id'>) => {
@@ -248,8 +276,7 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
   };
 
   const getPartsByAircraft = (aircraftId: string) => {
-    // Return all parts for demo (in real app, filter by aircraftId)
-    return parts;
+    return parts.filter((p) => p.aircraftId === aircraftId || p.aircraftId === 'mock');
   };
 
   // AD/SB
@@ -263,7 +290,7 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
   };
 
   const getAdSbsByAircraft = (aircraftId: string) => {
-    return adSbs;
+    return adSbs.filter((a) => a.aircraftId === aircraftId || a.aircraftId === 'mock');
   };
 
   // STC
@@ -277,7 +304,7 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
   };
 
   const getStcsByAircraft = (aircraftId: string) => {
-    return stcs;
+    return stcs.filter((s) => s.aircraftId === aircraftId || s.aircraftId === 'mock');
   };
 
   // Invoices
@@ -295,7 +322,7 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
   };
 
   const getInvoicesByAircraft = (aircraftId: string) => {
-    return invoices;
+    return invoices.filter((i) => i.aircraftId === aircraftId || i.aircraftId === 'mock');
   };
 
   const getInvoiceById = (id: string) => {
@@ -310,6 +337,7 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
         adSbs, addAdSb, deleteAdSb, getAdSbsByAircraft,
         stcs, addStc, deleteStc, getStcsByAircraft,
         invoices, addInvoice, updateInvoice, deleteInvoice, getInvoicesByAircraft, getInvoiceById,
+        syncWithBackend, isLoading,
       },
     },
     children
