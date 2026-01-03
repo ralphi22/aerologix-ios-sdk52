@@ -24,6 +24,8 @@ import ocrService, {
   DocumentType,
   DuplicateCheckResponse,
 } from '@/services/ocrService';
+import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
+import { useMaintenanceData } from '@/stores/maintenanceDataStore';
 
 const COLORS = {
   primary: '#0033A0',
