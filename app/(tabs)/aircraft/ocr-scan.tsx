@@ -82,6 +82,10 @@ export default function OcrScannerScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
+  
+  // Stores for local data updates
+  const { updateAircraft, refreshAircraft } = useAircraftLocalStore();
+  const { addPart, addAdSb, addInvoice } = useMaintenanceData();
 
   const [step, setStep] = useState<ScanStep>('source');
   const [sourceType, setSourceType] = useState<'photo' | 'import' | null>(null);
