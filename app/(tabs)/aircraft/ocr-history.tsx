@@ -184,11 +184,21 @@ export default function OcrHistoryScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
+  
+  // Stores for applying data
+  const { updateAircraft, refreshAircraft } = useAircraftLocalStore();
+  const { addPart, addAdSb, addInvoice } = useMaintenanceData();
 
   const [documents, setDocuments] = useState<OCRScanResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Detail modal state
+  const [selectedDoc, setSelectedDoc] = useState<OCRScanResponse | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadHistory = useCallback(async () => {
     if (!aircraftId) return;
@@ -229,9 +239,286 @@ export default function OcrHistoryScreen() {
   const otherDocs = documents.filter((d) => d.document_type === 'other' || d.document_type === 'stc');
 
   const handleDocumentPress = (doc: OCRScanResponse) => {
-    // Navigate to detail or show info
-    // For now just log
-    console.log('Document pressed:', doc.id);
+    setSelectedDoc(doc);
+    setShowDetailModal(true);
+  };
+  
+  const handleApplyData = async () => {
+    if (!selectedDoc || !aircraftId) return;
+    
+    setIsApplying(true);
+    try {
+      // Call backend to apply
+      await ocrService.applyResults(selectedDoc.id, true);
+      
+      // Update local aircraft hours if maintenance report
+      if (selectedDoc.document_type === 'maintenance_report' && selectedDoc.extracted_data) {
+        const data = selectedDoc.extracted_data;
+        const updates: any = {};
+        if (data.airframe_hours != null) updates.airframeHours = data.airframe_hours;
+        if (data.engine_hours != null) updates.engineHours = data.engine_hours;
+        if (data.propeller_hours != null) updates.propellerHours = data.propeller_hours;
+        
+        if (Object.keys(updates).length > 0) {
+          await updateAircraft(aircraftId, updates);
+        }
+        
+        // Add parts to local store
+        if (data.parts_replaced && Array.isArray(data.parts_replaced)) {
+          for (const part of data.parts_replaced) {
+            if (part.part_number || part.description) {
+              addPart({
+                name: part.description || part.part_number || 'Unknown',
+                partNumber: part.part_number || 'N/A',
+                quantity: part.quantity || 1,
+                installedDate: data.report_date || new Date().toISOString().split('T')[0],
+                aircraftId: aircraftId,
+              });
+            }
+          }
+        }
+        
+        // Add AD/SBs to local store
+        if (data.ad_notes && Array.isArray(data.ad_notes)) {
+          for (const ad of data.ad_notes) {
+            addAdSb({
+              type: 'AD',
+              number: ad.ad_number || 'N/A',
+              description: ad.description || ad.compliance_status || '',
+              dateAdded: data.report_date || new Date().toISOString().split('T')[0],
+              aircraftId: aircraftId,
+            });
+          }
+        }
+      }
+      
+      // Add invoice to local store
+      if (selectedDoc.document_type === 'invoice' && selectedDoc.extracted_data) {
+        const data = selectedDoc.extracted_data;
+        addInvoice({
+          supplier: data.vendor_name || data.amo || 'Unknown',
+          date: data.invoice_date || data.report_date || new Date().toISOString().split('T')[0],
+          partsAmount: data.parts_cost || 0,
+          laborAmount: data.labor_cost || 0,
+          hoursWorked: data.labor_hours || 0,
+          totalAmount: data.total_cost || 0,
+          aircraftId: aircraftId,
+          notes: data.work_performed || data.description || '',
+        });
+      }
+      
+      // Refresh aircraft data
+      await refreshAircraft();
+      
+      Alert.alert(
+        lang === 'fr' ? 'Succès' : 'Success',
+        lang === 'fr' ? 'Données appliquées avec succès' : 'Data applied successfully'
+      );
+      
+      setShowDetailModal(false);
+      loadHistory();
+      
+    } catch (err: any) {
+      Alert.alert(
+        lang === 'fr' ? 'Erreur' : 'Error',
+        err.response?.data?.detail || err.message || (lang === 'fr' ? 'Échec de l\'application' : 'Failed to apply')
+      );
+    } finally {
+      setIsApplying(false);
+    }
+  };
+  
+  const handleDeleteScan = async () => {
+    if (!selectedDoc) return;
+    
+    Alert.alert(
+      lang === 'fr' ? 'Confirmer suppression' : 'Confirm Delete',
+      lang === 'fr' ? 'Voulez-vous vraiment supprimer ce scan?' : 'Are you sure you want to delete this scan?',
+      [
+        { text: lang === 'fr' ? 'Annuler' : 'Cancel', style: 'cancel' },
+        {
+          text: lang === 'fr' ? 'Supprimer' : 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              await ocrService.deleteScan(selectedDoc.id);
+              setShowDetailModal(false);
+              loadHistory();
+              Alert.alert(
+                lang === 'fr' ? 'Supprimé' : 'Deleted',
+                lang === 'fr' ? 'Scan supprimé avec succès' : 'Scan deleted successfully'
+              );
+            } catch (err: any) {
+              Alert.alert(
+                lang === 'fr' ? 'Erreur' : 'Error',
+                err.message || (lang === 'fr' ? 'Échec de la suppression' : 'Failed to delete')
+              );
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+  
+  // Render detail modal content
+  const renderDetailModalContent = () => {
+    if (!selectedDoc) return null;
+    
+    const data = selectedDoc.extracted_data || {};
+    const config = getDocTypeConfig(selectedDoc.document_type, lang);
+    
+    return (
+      <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+        {/* Header Info */}
+        <View style={[styles.modalTypeTag, { backgroundColor: config.bgColor }]}>
+          <Text style={styles.modalTypeIcon}>{config.icon}</Text>
+          <Text style={[styles.modalTypeLabel, { color: config.color }]}>{config.label}</Text>
+        </View>
+        
+        <Text style={styles.modalDate}>
+          {lang === 'fr' ? 'Scanné le' : 'Scanned on'} {selectedDoc.created_at?.split('T')[0]}
+        </Text>
+        
+        {/* Maintenance Report Data */}
+        {selectedDoc.document_type === 'maintenance_report' && (
+          <View style={styles.dataSection}>
+            <Text style={styles.dataSectionTitle}>
+              {lang === 'fr' ? 'Données extraites' : 'Extracted Data'}
+            </Text>
+            
+            {data.amo && (
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>AMO:</Text>
+                <Text style={styles.dataValue}>{data.amo}</Text>
+              </View>
+            )}
+            
+            {data.report_date && (
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Date rapport:' : 'Report date:'}</Text>
+                <Text style={styles.dataValue}>{data.report_date}</Text>
+              </View>
+            )}
+            
+            {data.airframe_hours != null && (
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Heures cellule:' : 'Airframe hours:'}</Text>
+                <Text style={[styles.dataValue, styles.dataHighlight]}>{data.airframe_hours.toFixed(1)}</Text>
+              </View>
+            )}
+            
+            {data.engine_hours != null && (
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Heures moteur:' : 'Engine hours:'}</Text>
+                <Text style={[styles.dataValue, styles.dataHighlight]}>{data.engine_hours.toFixed(1)}</Text>
+              </View>
+            )}
+            
+            {data.propeller_hours != null && (
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Heures hélice:' : 'Propeller hours:'}</Text>
+                <Text style={[styles.dataValue, styles.dataHighlight]}>{data.propeller_hours.toFixed(1)}</Text>
+              </View>
+            )}
+            
+            {data.work_performed && (
+              <View style={styles.dataRowFull}>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Travaux:' : 'Work performed:'}</Text>
+                <Text style={styles.dataValueMulti}>{data.work_performed}</Text>
+              </View>
+            )}
+            
+            {data.parts_replaced && data.parts_replaced.length > 0 && (
+              <View style={styles.dataRowFull}>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Pièces remplacées:' : 'Parts replaced:'}</Text>
+                {data.parts_replaced.map((part: any, idx: number) => (
+                  <Text key={idx} style={styles.listItem}>
+                    • {part.description || part.part_number || 'N/A'} {part.quantity ? `(x${part.quantity})` : ''}
+                  </Text>
+                ))}
+              </View>
+            )}
+            
+            {data.ad_notes && data.ad_notes.length > 0 && (
+              <View style={styles.dataRowFull}>
+                <Text style={styles.dataLabel}>AD/SB:</Text>
+                {data.ad_notes.map((ad: any, idx: number) => (
+                  <Text key={idx} style={styles.listItem}>
+                    • {ad.ad_number}: {ad.description || ad.compliance_status || ''}
+                  </Text>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+        
+        {/* Invoice Data */}
+        {selectedDoc.document_type === 'invoice' && (
+          <View style={styles.dataSection}>
+            <Text style={styles.dataSectionTitle}>
+              {lang === 'fr' ? 'Détails facture' : 'Invoice Details'}
+            </Text>
+            
+            {(data.vendor_name || data.amo) && (
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Fournisseur:' : 'Vendor:'}</Text>
+                <Text style={styles.dataValue}>{data.vendor_name || data.amo}</Text>
+              </View>
+            )}
+            
+            {(data.invoice_date || data.report_date) && (
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Date:</Text>
+                <Text style={styles.dataValue}>{data.invoice_date || data.report_date}</Text>
+              </View>
+            )}
+            
+            {data.labor_cost != null && (
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Main-d\'œuvre:' : 'Labor:'}</Text>
+                <Text style={styles.dataValue}>${data.labor_cost.toFixed(2)}</Text>
+              </View>
+            )}
+            
+            {data.parts_cost != null && (
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Pièces:' : 'Parts:'}</Text>
+                <Text style={styles.dataValue}>${data.parts_cost.toFixed(2)}</Text>
+              </View>
+            )}
+            
+            {data.total_cost != null && (
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Total:</Text>
+                <Text style={[styles.dataValue, styles.dataHighlight, styles.totalCost]}>
+                  ${data.total_cost.toFixed(2)}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+        
+        {/* Status */}
+        <View style={styles.statusSection}>
+          <View style={[
+            styles.statusBadge,
+            selectedDoc.applied ? styles.statusApplied : styles.statusPending
+          ]}>
+            <Text style={[
+              styles.statusText,
+              selectedDoc.applied ? styles.statusAppliedText : styles.statusPendingText
+            ]}>
+              {selectedDoc.applied 
+                ? (lang === 'fr' ? '✓ Appliqué' : '✓ Applied')
+                : (lang === 'fr' ? '○ Non appliqué' : '○ Not applied')}
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+    );
   };
 
   const navigateToScanner = () => {
