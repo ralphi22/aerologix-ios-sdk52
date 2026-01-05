@@ -1,9 +1,10 @@
 /**
  * STC Screen - Visual storage for Supplemental Type Certificates
  * TC-SAFE: Information only, no compatibility validation
+ * Now syncs with backend
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +14,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
@@ -38,12 +40,20 @@ export default function StcScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
-  const { stcs, addStc, deleteStc, getStcsByAircraft } = useMaintenanceData();
+  const { stcs, addStc, deleteStc, getStcsByAircraft, syncWithBackend, isLoading } = useMaintenanceData();
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newNumber, setNewNumber] = useState('');
   const [newReference, setNewReference] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Sync with backend on mount
+  useEffect(() => {
+    if (aircraftId) {
+      syncWithBackend(aircraftId);
+    }
+  }, [aircraftId]);
 
   const aircraftStcs = getStcsByAircraft(aircraftId || '');
 
@@ -53,7 +63,21 @@ export default function StcScreen() {
       lang === 'fr' ? `Supprimer "${number}" ?` : `Delete "${number}"?`,
       [
         { text: lang === 'fr' ? 'Annuler' : 'Cancel', style: 'cancel' },
-        { text: lang === 'fr' ? 'Supprimer' : 'Delete', style: 'destructive', onPress: () => deleteStc(id) },
+        { 
+          text: lang === 'fr' ? 'Supprimer' : 'Delete', 
+          style: 'destructive', 
+          onPress: async () => {
+            setDeletingId(id);
+            const success = await deleteStc(id);
+            setDeletingId(null);
+            if (!success) {
+              Alert.alert(
+                lang === 'fr' ? 'Erreur' : 'Error',
+                lang === 'fr' ? 'Échec de la suppression' : 'Failed to delete'
+              );
+            }
+          }
+        },
       ]
     );
   };
