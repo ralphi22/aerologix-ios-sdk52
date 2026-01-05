@@ -1,9 +1,10 @@
 /**
  * AD/SB Screen - Visual storage for Airworthiness Directives & Service Bulletins
  * TC-SAFE: Information only, no compliance decisions
+ * Now syncs with backend
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +14,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
@@ -38,12 +40,20 @@ export default function AdSbScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
-  const { adSbs, addAdSb, deleteAdSb, getAdSbsByAircraft } = useMaintenanceData();
+  const { adSbs, addAdSb, deleteAdSb, getAdSbsByAircraft, syncWithBackend, isLoading } = useMaintenanceData();
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newType, setNewType] = useState<'AD' | 'SB'>('AD');
   const [newNumber, setNewNumber] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Sync with backend on mount
+  useEffect(() => {
+    if (aircraftId) {
+      syncWithBackend(aircraftId);
+    }
+  }, [aircraftId]);
 
   const aircraftAdSbs = getAdSbsByAircraft(aircraftId || '');
   const adCount = aircraftAdSbs.filter((a) => a.type === 'AD').length;
@@ -55,7 +65,21 @@ export default function AdSbScreen() {
       lang === 'fr' ? `Supprimer "${number}" ?` : `Delete "${number}"?`,
       [
         { text: lang === 'fr' ? 'Annuler' : 'Cancel', style: 'cancel' },
-        { text: lang === 'fr' ? 'Supprimer' : 'Delete', style: 'destructive', onPress: () => deleteAdSb(id) },
+        { 
+          text: lang === 'fr' ? 'Supprimer' : 'Delete', 
+          style: 'destructive', 
+          onPress: async () => {
+            setDeletingId(id);
+            const success = await deleteAdSb(id);
+            setDeletingId(null);
+            if (!success) {
+              Alert.alert(
+                lang === 'fr' ? 'Erreur' : 'Error',
+                lang === 'fr' ? 'Échec de la suppression' : 'Failed to delete'
+              );
+            }
+          }
+        },
       ]
     );
   };
