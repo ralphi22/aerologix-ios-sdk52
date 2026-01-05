@@ -152,6 +152,7 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
   const [stcs, setStcs] = useState<Stc[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // NEW: Sync all data from backend
   const syncWithBackend = async (aircraftId: string) => {
