@@ -99,11 +99,13 @@ class MaintenanceService {
   }
   
   async deletePart(partId: string): Promise<boolean> {
+    console.log('DELETE part request:', partId);
     try {
-      await api.delete(`/api/parts/${partId}`);
+      const response = await api.delete(`/api/parts/${partId}`);
+      console.log('DELETE part response:', response.status);
       return true;
     } catch (error: any) {
-      console.log('Error deleting part:', error.message);
+      console.log('DELETE part error:', error.response?.status, error.message);
       return false;
     }
   }
@@ -131,11 +133,13 @@ class MaintenanceService {
   }
   
   async deleteADSB(adsbId: string): Promise<boolean> {
+    console.log('DELETE adsb request:', adsbId);
     try {
-      await api.delete(`/api/adsb/${adsbId}`);
+      const response = await api.delete(`/api/adsb/${adsbId}`);
+      console.log('DELETE adsb response:', response.status);
       return true;
     } catch (error: any) {
-      console.log('Error deleting AD/SB:', error.message);
+      console.log('DELETE adsb error:', error.response?.status, error.message);
       return false;
     }
   }
