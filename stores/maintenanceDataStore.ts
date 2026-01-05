@@ -117,28 +117,29 @@ interface MaintenanceDataContextType {
   // Parts
   parts: Part[];
   addPart: (part: Omit<Part, 'id'>) => void;
-  deletePart: (id: string) => void;
+  deletePart: (id: string) => Promise<boolean>;
   getPartsByAircraft: (aircraftId: string) => Part[];
   // AD/SB
   adSbs: AdSb[];
   addAdSb: (adSb: Omit<AdSb, 'id'>) => void;
-  deleteAdSb: (id: string) => void;
+  deleteAdSb: (id: string) => Promise<boolean>;
   getAdSbsByAircraft: (aircraftId: string) => AdSb[];
   // STC
   stcs: Stc[];
   addStc: (stc: Omit<Stc, 'id'>) => void;
-  deleteStc: (id: string) => void;
+  deleteStc: (id: string) => Promise<boolean>;
   getStcsByAircraft: (aircraftId: string) => Stc[];
   // Invoices
   invoices: Invoice[];
   addInvoice: (invoice: Omit<Invoice, 'id'>) => void;
   updateInvoice: (id: string, data: Partial<Invoice>) => void;
-  deleteInvoice: (id: string) => void;
+  deleteInvoice: (id: string) => Promise<boolean>;
   getInvoicesByAircraft: (aircraftId: string) => Invoice[];
   getInvoiceById: (id: string) => Invoice | undefined;
   // NEW: Sync with backend
   syncWithBackend: (aircraftId: string) => Promise<void>;
   isLoading: boolean;
+  isDeleting: boolean;
 }
 
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
