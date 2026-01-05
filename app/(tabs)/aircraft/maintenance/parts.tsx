@@ -48,6 +48,7 @@ export default function PartsScreen() {
   const [newPartNumber, setNewPartNumber] = useState('');
   const [newPartQty, setNewPartQty] = useState('1');
   const [newPartDate, setNewPartDate] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   
   // Sync with backend on mount
   useEffect(() => {
@@ -64,7 +65,21 @@ export default function PartsScreen() {
       lang === 'fr' ? `Supprimer "${name}" ?` : `Delete "${name}"?`,
       [
         { text: lang === 'fr' ? 'Annuler' : 'Cancel', style: 'cancel' },
-        { text: lang === 'fr' ? 'Supprimer' : 'Delete', style: 'destructive', onPress: () => deletePart(id) },
+        { 
+          text: lang === 'fr' ? 'Supprimer' : 'Delete', 
+          style: 'destructive', 
+          onPress: async () => {
+            setDeletingId(id);
+            const success = await deletePart(id);
+            setDeletingId(null);
+            if (!success) {
+              Alert.alert(
+                lang === 'fr' ? 'Erreur' : 'Error',
+                lang === 'fr' ? 'Échec de la suppression' : 'Failed to delete'
+              );
+            }
+          }
+        },
       ]
     );
   };
