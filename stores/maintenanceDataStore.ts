@@ -313,7 +313,7 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
         adSbs, addAdSb, deleteAdSb, getAdSbsByAircraft,
         stcs, addStc, deleteStc, getStcsByAircraft,
         invoices, addInvoice, updateInvoice, deleteInvoice, getInvoicesByAircraft, getInvoiceById,
-        syncWithBackend, isLoading,
+        syncWithBackend, isLoading, isDeleting,
       },
     },
     children
