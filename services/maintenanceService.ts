@@ -167,11 +167,13 @@ class MaintenanceService {
   }
   
   async deleteSTC(stcId: string): Promise<boolean> {
+    console.log('DELETE stc request:', stcId);
     try {
-      await api.delete(`/api/stc/${stcId}`);
+      const response = await api.delete(`/api/stc/${stcId}`);
+      console.log('DELETE stc response:', response.status);
       return true;
     } catch (error: any) {
-      console.log('Error deleting STC:', error.message);
+      console.log('DELETE stc error:', error.response?.status, error.message);
       return false;
     }
   }
@@ -199,11 +201,13 @@ class MaintenanceService {
   }
   
   async deleteInvoice(invoiceId: string): Promise<boolean> {
+    console.log('DELETE invoice request:', invoiceId);
     try {
-      await api.delete(`/api/invoices/${invoiceId}`);
+      const response = await api.delete(`/api/invoices/${invoiceId}`);
+      console.log('DELETE invoice response:', response.status);
       return true;
     } catch (error: any) {
-      console.log('Error deleting invoice:', error.message);
+      console.log('DELETE invoice error:', error.response?.status, error.message);
       return false;
     }
   }
