@@ -187,8 +187,23 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
     setParts((prev) => [newPart, ...prev]);
   };
 
-  const deletePart = (id: string) => {
-    setParts((prev) => prev.filter((p) => p.id !== id));
+  const deletePart = async (id: string): Promise<boolean> => {
+    console.log('DELETE part', id);
+    setIsDeleting(true);
+    try {
+      const success = await maintenanceService.deletePart(id);
+      console.log('DELETE part response', success ? 'SUCCESS' : 'FAILED');
+      if (success) {
+        setParts((prev) => prev.filter((p) => p.id !== id));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.log('DELETE part error', error);
+      return false;
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const getPartsByAircraft = (aircraftId: string) => {
@@ -201,8 +216,23 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
     setAdSbs((prev) => [newAdSb, ...prev]);
   };
 
-  const deleteAdSb = (id: string) => {
-    setAdSbs((prev) => prev.filter((a) => a.id !== id));
+  const deleteAdSb = async (id: string): Promise<boolean> => {
+    console.log('DELETE adsb', id);
+    setIsDeleting(true);
+    try {
+      const success = await maintenanceService.deleteADSB(id);
+      console.log('DELETE adsb response', success ? 'SUCCESS' : 'FAILED');
+      if (success) {
+        setAdSbs((prev) => prev.filter((a) => a.id !== id));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.log('DELETE adsb error', error);
+      return false;
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const getAdSbsByAircraft = (aircraftId: string) => {
@@ -215,8 +245,23 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
     setStcs((prev) => [newStc, ...prev]);
   };
 
-  const deleteStc = (id: string) => {
-    setStcs((prev) => prev.filter((s) => s.id !== id));
+  const deleteStc = async (id: string): Promise<boolean> => {
+    console.log('DELETE stc', id);
+    setIsDeleting(true);
+    try {
+      const success = await maintenanceService.deleteSTC(id);
+      console.log('DELETE stc response', success ? 'SUCCESS' : 'FAILED');
+      if (success) {
+        setStcs((prev) => prev.filter((s) => s.id !== id));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.log('DELETE stc error', error);
+      return false;
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const getStcsByAircraft = (aircraftId: string) => {
@@ -233,8 +278,23 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
     setInvoices((prev) => prev.map((inv) => inv.id === id ? { ...inv, ...data } : inv));
   };
 
-  const deleteInvoice = (id: string) => {
-    setInvoices((prev) => prev.filter((inv) => inv.id !== id));
+  const deleteInvoice = async (id: string): Promise<boolean> => {
+    console.log('DELETE invoice', id);
+    setIsDeleting(true);
+    try {
+      const success = await maintenanceService.deleteInvoice(id);
+      console.log('DELETE invoice response', success ? 'SUCCESS' : 'FAILED');
+      if (success) {
+        setInvoices((prev) => prev.filter((inv) => inv.id !== id));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.log('DELETE invoice error', error);
+      return false;
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const getInvoicesByAircraft = (aircraftId: string) => {
