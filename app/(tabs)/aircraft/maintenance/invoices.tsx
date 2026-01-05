@@ -65,6 +65,7 @@ export default function InvoicesScreen() {
   }, [aircraftId]);
 
   const aircraftInvoices = getInvoicesByAircraft(aircraftId || '');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Calculate totals for analysis
   const totalExpenses = aircraftInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
@@ -79,7 +80,21 @@ export default function InvoicesScreen() {
       lang === 'fr' ? `Supprimer la facture de "${supplier}" ?` : `Delete invoice from "${supplier}"?`,
       [
         { text: lang === 'fr' ? 'Annuler' : 'Cancel', style: 'cancel' },
-        { text: lang === 'fr' ? 'Supprimer' : 'Delete', style: 'destructive', onPress: () => deleteInvoice(id) },
+        { 
+          text: lang === 'fr' ? 'Supprimer' : 'Delete', 
+          style: 'destructive', 
+          onPress: async () => {
+            setDeletingId(id);
+            const success = await deleteInvoice(id);
+            setDeletingId(null);
+            if (!success) {
+              Alert.alert(
+                lang === 'fr' ? 'Erreur' : 'Error',
+                lang === 'fr' ? 'Échec de la suppression' : 'Failed to delete'
+              );
+            }
+          }
+        },
       ]
     );
   };
@@ -91,11 +106,14 @@ export default function InvoicesScreen() {
     );
   };
 
-  const handleRefresh = () => {
-    Alert.alert(
-      lang === 'fr' ? 'Actualiser' : 'Refresh',
-      lang === 'fr' ? 'Données actualisées' : 'Data refreshed'
-    );
+  const handleRefresh = async () => {
+    if (aircraftId) {
+      await syncWithBackend(aircraftId);
+      Alert.alert(
+        lang === 'fr' ? 'Actualiser' : 'Refresh',
+        lang === 'fr' ? 'Données actualisées' : 'Data refreshed'
+      );
+    }
   };
 
   const handleAdd = () => {
