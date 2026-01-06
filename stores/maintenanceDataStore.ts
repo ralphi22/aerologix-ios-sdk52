@@ -64,40 +64,50 @@ export interface Invoice {
 // MAPPING FUNCTIONS - Backend <-> Local
 // ============================================
 
+// Helper to get ID from backend record (supports both id and _id)
+const getRecordId = (record: any): string => {
+  const id = record.id || record._id;
+  if (!id) {
+    console.warn('Record missing id:', record);
+    return '';
+  }
+  return String(id);
+};
+
 const mapPartFromBackend = (p: PartRecord): Part => ({
-  id: p.id,
-  name: p.name || p.part_number,
-  partNumber: p.part_number,
+  id: getRecordId(p),
+  name: p.name || p.part_number || '',
+  partNumber: p.part_number || '',
   quantity: p.quantity || 1,
   installedDate: p.installed_date || p.created_at?.split('T')[0] || '',
-  aircraftId: p.aircraft_id,
+  aircraftId: p.aircraft_id || '',
   serialNumber: p.serial_number,
   supplier: p.supplier,
   price: p.price,
 });
 
 const mapAdSbFromBackend = (a: ADSBRecord): AdSb => ({
-  id: a.id,
-  type: a.adsb_type,
-  number: a.reference_number,
+  id: getRecordId(a),
+  type: a.adsb_type || 'AD',
+  number: a.reference_number || '',
   description: a.description || '',
   dateAdded: a.compliance_date || a.created_at?.split('T')[0] || '',
-  aircraftId: a.aircraft_id,
+  aircraftId: a.aircraft_id || '',
   status: a.status,
   complianceDate: a.compliance_date,
 });
 
 const mapStcFromBackend = (s: STCRecord): Stc => ({
-  id: s.id,
-  number: s.stc_number,
-  reference: s.stc_number,
+  id: getRecordId(s),
+  number: s.stc_number || '',
+  reference: s.stc_number || '',
   description: s.description || '',
   dateAdded: s.approval_date || s.created_at?.split('T')[0] || '',
-  aircraftId: s.aircraft_id,
+  aircraftId: s.aircraft_id || '',
 });
 
 const mapInvoiceFromBackend = (i: InvoiceRecord): Invoice => ({
-  id: i.id,
+  id: getRecordId(i),
   supplier: i.vendor_name || '',
   date: i.invoice_date || i.created_at?.split('T')[0] || '',
   partsAmount: i.parts_cost || 0,
