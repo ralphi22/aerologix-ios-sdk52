@@ -314,7 +314,8 @@ export default function OcrHistoryScreen() {
   const renderDetailModalContent = () => {
     if (!selectedDoc) return null;
     
-    const data = selectedDoc.extracted_data || {};
+    // Use 'any' type for data to handle dynamic backend fields
+    const data: any = selectedDoc.extracted_data || {};
     const config = getDocTypeConfig(selectedDoc.document_type, lang);
     
     return (
