@@ -62,6 +62,14 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
    - `syncWithBackend()` for parts/AD-SB/invoices
 4. **Auto-sync on screen open** - Parts and Invoices screens sync automatically
 
+### ✅ Data Persistence Fixes (Session 6 - January 6, 2025)
+1. **`report-settings.tsx` crash fix** - Added missing `useEffect` import + `KeyboardAvoidingView`
+2. **Aircraft local data persistence** - New system in `aircraftLocalStore.ts`:
+   - Extra fields (category, engineType, maxWeight, baseOperations, photo, etc.) now persisted to `SecureStore`
+   - Backend API only supports limited fields; local data merged on load
+   - Photo URI stored locally (not sent to backend as it's a local file path)
+3. **TypeScript fixes** - Fixed type casting in `ocr-history.tsx` for dynamic backend fields
+
 ## File Structure
 ```
 /app/
