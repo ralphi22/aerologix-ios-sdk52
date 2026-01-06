@@ -337,17 +337,27 @@ export default function OcrHistoryScreen() {
               {lang === 'fr' ? 'Données extraites' : 'Extracted Data'}
             </Text>
             
-            {data.amo && (
+            {/* AMO - check both field names */}
+            {(data.amo_name || data.amo) && (
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>AMO:</Text>
-                <Text style={styles.dataValue}>{data.amo}</Text>
+                <Text style={styles.dataValue}>{data.amo_name || data.amo}</Text>
               </View>
             )}
             
-            {data.report_date && (
+            {/* AME */}
+            {(data.ame_name || data.ame_license) && (
               <View style={styles.dataRow}>
-                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Date rapport:' : 'Report date:'}</Text>
-                <Text style={styles.dataValue}>{data.report_date}</Text>
+                <Text style={styles.dataLabel}>AME:</Text>
+                <Text style={styles.dataValue}>{data.ame_name}{data.ame_license ? ` (${data.ame_license})` : ''}</Text>
+              </View>
+            )}
+            
+            {/* Date - check both field names */}
+            {(data.date || data.report_date) && (
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Date:' : 'Date:'}</Text>
+                <Text style={styles.dataValue}>{data.date || data.report_date}</Text>
               </View>
             )}
             
@@ -372,10 +382,11 @@ export default function OcrHistoryScreen() {
               </View>
             )}
             
-            {data.work_performed && (
+            {/* Description - check both field names */}
+            {(data.description || data.work_performed) && (
               <View style={styles.dataRowFull}>
-                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Travaux:' : 'Work performed:'}</Text>
-                <Text style={styles.dataValueMulti}>{data.work_performed}</Text>
+                <Text style={styles.dataLabel}>{lang === 'fr' ? 'Description:' : 'Description:'}</Text>
+                <Text style={styles.dataValueMulti}>{data.description || data.work_performed}</Text>
               </View>
             )}
             
@@ -384,18 +395,19 @@ export default function OcrHistoryScreen() {
                 <Text style={styles.dataLabel}>{lang === 'fr' ? 'Pièces remplacées:' : 'Parts replaced:'}</Text>
                 {data.parts_replaced.map((part: any, idx: number) => (
                   <Text key={idx} style={styles.listItem}>
-                    • {part.description || part.part_number || 'N/A'} {part.quantity ? `(x${Math.round(part.quantity)})` : ''} {part.price ? `- $${part.price}` : ''}
+                    • {part.part_number || part.name || 'N/A'} {part.quantity ? `(x${Math.round(part.quantity)})` : ''} {part.price ? `- $${part.price}` : ''}
                   </Text>
                 ))}
               </View>
             )}
             
-            {data.ad_notes && data.ad_notes.length > 0 && (
+            {/* AD/SB references - check both field names */}
+            {((data.ad_sb_references && data.ad_sb_references.length > 0) || (data.ad_notes && data.ad_notes.length > 0)) && (
               <View style={styles.dataRowFull}>
                 <Text style={styles.dataLabel}>AD/SB:</Text>
-                {data.ad_notes.map((ad: any, idx: number) => (
+                {(data.ad_sb_references || data.ad_notes || []).map((ad: any, idx: number) => (
                   <Text key={idx} style={styles.listItem}>
-                    • {ad.ad_number || ad.reference_number}: {ad.description || ad.compliance_status || ''}
+                    • {ad.reference_number || ad.ad_number}: {ad.description || ad.compliance_status || ad.status || ''}
                   </Text>
                 ))}
               </View>
