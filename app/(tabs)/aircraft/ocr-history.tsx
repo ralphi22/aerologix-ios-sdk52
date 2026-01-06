@@ -679,7 +679,7 @@ export default function OcrHistoryScreen() {
                 )}
               </TouchableOpacity>
               
-              {!selectedDoc?.applied && (
+              {!(selectedDoc as any)?.applied && (
                 <TouchableOpacity 
                   style={styles.applyButton} 
                   onPress={handleApplyData}
