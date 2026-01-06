@@ -158,7 +158,17 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
   const [localDataMap, setLocalDataMap] = useState<LocalDataMap>({});
 
-  // Fetch aircraft from backend
+  // Load local data on mount
+  useEffect(() => {
+    const initLocalData = async () => {
+      const data = await loadLocalData();
+      setLocalDataMap(data);
+      console.log('Loaded local aircraft data for', Object.keys(data).length, 'aircraft');
+    };
+    initLocalData();
+  }, []);
+
+  // Fetch aircraft from backend and merge with local data
   const refreshAircraft = useCallback(async () => {
     try {
       // Check if user is authenticated
@@ -171,8 +181,16 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       setError(null);
       
+      // Load latest local data
+      const currentLocalData = await loadLocalData();
+      setLocalDataMap(currentLocalData);
+      
       const apiAircraft = await aircraftService.getAll();
-      const localAircraft = apiAircraft.map(mapApiToLocal);
+      // Merge API data with local data
+      const localAircraft = apiAircraft.map(api => {
+        const id = (api as any).id?.toString() || api._id;
+        return mapApiToLocal(api, currentLocalData[id]);
+      });
       setAircraft(localAircraft);
       
     } catch (err: any) {
@@ -201,8 +219,15 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       
       const apiData = mapLocalToApi(aircraftData);
       const created = await aircraftService.create(apiData);
-      const newAircraft = mapApiToLocal(created);
+      const newId = (created as any).id?.toString() || created._id;
       
+      // Save local-only fields to SecureStore
+      const localFields = extractLocalData(aircraftData);
+      const updatedLocalData = { ...localDataMap, [newId]: localFields };
+      setLocalDataMap(updatedLocalData);
+      await saveLocalData(updatedLocalData);
+      
+      const newAircraft = mapApiToLocal(created, localFields);
       setAircraft((prev) => [newAircraft, ...prev]);
       
     } catch (err: any) {
@@ -219,7 +244,20 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       setError(null);
       
-      // Map only the fields that are being updated
+      // Update local-only fields in SecureStore
+      const existingLocalData = localDataMap[id] || {};
+      const newLocalFields = extractLocalData(aircraftData);
+      const mergedLocalData: LocalAircraftData = {
+        ...existingLocalData,
+        ...Object.fromEntries(
+          Object.entries(newLocalFields).filter(([_, v]) => v !== undefined)
+        ),
+      };
+      const updatedLocalDataMap = { ...localDataMap, [id]: mergedLocalData };
+      setLocalDataMap(updatedLocalDataMap);
+      await saveLocalData(updatedLocalDataMap);
+      
+      // Map only the backend-supported fields that are being updated
       const apiData: Partial<AircraftCreate> = {};
       if (aircraftData.registration !== undefined) apiData.registration = aircraftData.registration;
       if (aircraftData.commonName !== undefined) apiData.aircraft_type = aircraftData.commonName;
@@ -230,10 +268,10 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       if (aircraftData.airframeHours !== undefined) apiData.airframe_hours = aircraftData.airframeHours;
       if (aircraftData.engineHours !== undefined) apiData.engine_hours = aircraftData.engineHours;
       if (aircraftData.propellerHours !== undefined) apiData.propeller_hours = aircraftData.propellerHours;
-      if (aircraftData.photoUri !== undefined) apiData.photo_url = aircraftData.photoUri;
+      // Note: photo_url not sent to backend, stored locally only
       
       const updated = await aircraftService.update(id, apiData);
-      const updatedAircraft = mapApiToLocal(updated);
+      const updatedAircraft = mapApiToLocal(updated, mergedLocalData);
       
       setAircraft((prev) =>
         prev.map((a) => a.id === id ? updatedAircraft : a)
