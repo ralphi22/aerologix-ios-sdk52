@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "frontendsdk52clean",
     "userInterfaceStyle": "automatic",
-
     "extra": {
       "apiUrl": "https://aerologix-ai-mobile.onrender.com",
       "router": {
@@ -17,12 +16,14 @@
         "projectId": "9185a318-0b3e-4e67-bb6c-19660d6c37d7"
       }
     },
-
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "12"
+      "buildNumber": "12",
+      "bundleIdentifier": "com.ralphi.frontendsdk52clean",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
-
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -34,12 +35,10 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.ralphi.frontendsdk52clean"
     },
-
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-
     "plugins": [
       "expo-router",
       [
@@ -55,7 +54,6 @@
         }
       ]
     ],
-
     "owner": "ralphi"
   }
 }
