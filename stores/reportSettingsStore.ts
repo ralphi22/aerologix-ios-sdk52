@@ -91,17 +91,68 @@ const ReportSettingsContext = createContext<ReportSettingsContextType | undefine
 export function ReportSettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<ReportSettings>(defaultSettings);
   const [limits, setLimits] = useState<EditableLimits>(defaultLimits);
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  const updateSettings = (newSettings: Partial<ReportSettings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
+  // Load persisted data on mount
+  useEffect(() => {
+    const loadPersistedData = async () => {
+      try {
+        const savedSettings = await SecureStore.getItemAsync(STORAGE_KEY_SETTINGS);
+        const savedLimits = await SecureStore.getItemAsync(STORAGE_KEY_LIMITS);
+        
+        if (savedSettings) {
+          const parsed = JSON.parse(savedSettings);
+          console.log('Loaded report settings from storage:', parsed);
+          setSettings(prev => ({ ...prev, ...parsed }));
+        }
+        
+        if (savedLimits) {
+          const parsed = JSON.parse(savedLimits);
+          console.log('Loaded report limits from storage:', parsed);
+          setLimits(prev => ({ ...prev, ...parsed }));
+        }
+      } catch (error) {
+        console.log('Error loading report settings:', error);
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+    
+    loadPersistedData();
+  }, []);
+
+  // Persist settings when changed
+  const updateSettings = async (newSettings: Partial<ReportSettings>) => {
+    const updated = { ...settings, ...newSettings };
+    setSettings(updated);
+    try {
+      await SecureStore.setItemAsync(STORAGE_KEY_SETTINGS, JSON.stringify(updated));
+      console.log('Report settings saved to storage');
+    } catch (error) {
+      console.log('Error saving report settings:', error);
+    }
   };
 
-  const updateLimits = (newLimits: Partial<EditableLimits>) => {
-    setLimits((prev) => ({ ...prev, ...newLimits }));
+  // Persist limits when changed
+  const updateLimits = async (newLimits: Partial<EditableLimits>) => {
+    const updated = { ...limits, ...newLimits };
+    setLimits(updated);
+    try {
+      await SecureStore.setItemAsync(STORAGE_KEY_LIMITS, JSON.stringify(updated));
+      console.log('Report limits saved to storage');
+    } catch (error) {
+      console.log('Error saving report limits:', error);
+    }
   };
 
-  const resetLimitsToDefault = () => {
+  const resetLimitsToDefault = async () => {
     setLimits(defaultLimits);
+    try {
+      await SecureStore.deleteItemAsync(STORAGE_KEY_LIMITS);
+      console.log('Report limits reset to defaults');
+    } catch (error) {
+      console.log('Error resetting report limits:', error);
+    }
   };
 
   return React.createElement(
