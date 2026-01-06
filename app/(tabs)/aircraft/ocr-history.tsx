@@ -330,18 +330,6 @@ export default function OcrHistoryScreen() {
           {lang === 'fr' ? 'Scanné le' : 'Scanned on'} {selectedDoc.created_at?.split('T')[0]}
         </Text>
         
-        {/* RAW JSON Preview - Always show full extracted data */}
-        <View style={styles.dataSection}>
-          <Text style={styles.dataSectionTitle}>
-            {lang === 'fr' ? '📋 Données brutes extraites' : '📋 Raw Extracted Data'}
-          </Text>
-          <ScrollView style={styles.rawDataScroll} nestedScrollEnabled>
-            <Text style={styles.rawDataText}>
-              {JSON.stringify(data, null, 2)}
-            </Text>
-          </ScrollView>
-        </View>
-        
         {/* Maintenance Report Data */}
         {selectedDoc.document_type === 'maintenance_report' && (
           <View style={styles.dataSection}>
