@@ -1,11 +1,15 @@
 /**
  * aircraftLocalStore.ts - State management for aircraft with backend sync
  * Uses React Context + API synchronization with Render backend
+ * LOCAL PERSISTENCE: Extra fields (photo, category, etc.) stored in SecureStore
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import * as SecureStore from 'expo-secure-store';
 import aircraftService, { Aircraft as ApiAircraft, AircraftCreate } from '@/services/aircraftService';
 import authService from '@/services/authService';
+
+const LOCAL_DATA_KEY = 'aerologix_aircraft_local_data';
 
 export interface Aircraft {
   id: string;
