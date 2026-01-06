@@ -292,6 +292,13 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       setError(null);
       
       await aircraftService.delete(id);
+      
+      // Remove local data for this aircraft
+      const updatedLocalDataMap = { ...localDataMap };
+      delete updatedLocalDataMap[id];
+      setLocalDataMap(updatedLocalDataMap);
+      await saveLocalData(updatedLocalDataMap);
+      
       setAircraft((prev) => prev.filter((a) => a.id !== id));
       
     } catch (err: any) {
