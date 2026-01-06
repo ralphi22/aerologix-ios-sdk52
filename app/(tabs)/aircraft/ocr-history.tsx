@@ -509,13 +509,13 @@ export default function OcrHistoryScreen() {
         <View style={styles.statusSection}>
           <View style={[
             styles.statusBadge,
-            selectedDoc.applied ? styles.statusApplied : styles.statusPending
+            (selectedDoc as any).applied ? styles.statusApplied : styles.statusPending
           ]}>
             <Text style={[
               styles.statusText,
-              selectedDoc.applied ? styles.statusAppliedText : styles.statusPendingText
+              (selectedDoc as any).applied ? styles.statusAppliedText : styles.statusPendingText
             ]}>
-              {selectedDoc.applied 
+              {(selectedDoc as any).applied 
                 ? (lang === 'fr' ? '✓ Appliqué' : '✓ Applied')
                 : (lang === 'fr' ? '○ Non appliqué' : '○ Not applied')}
             </Text>
