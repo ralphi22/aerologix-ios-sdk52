@@ -111,15 +111,17 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
 ```
 
 ## Known Issues
-1. **OCR Backend Validation** - Backend may reject scans with null part fields
-2. **OCR Quota Limit** - User limited to 3 scans/month (backend config)
+1. **OCR Backend Logic** - Backend extracts parts from maintenance reports instead of invoices (BACKEND FIX NEEDED)
+2. **OCR Pydantic Validation** - Backend rejects quantity as float (e.g., 41.5) - needs `int` to `float` change (BACKEND FIX NEEDED)
+3. **OCR Quota Limit** - User limited to 3 scans/month (BACKEND FIX NEEDED)
 
 ## Test Credentials
 - Email: lima@123.com
 - Password: lima123
 
 ## Backlog / Future Tasks
+- Backend: Fix OCR logic (parts from invoices, hours from maintenance reports)
+- Backend: Change quantity field from int to float
 - Backend: Increase OCR quota for testing
-- Backend: Make OCR extracted fields optional
 - Add offline mode with queue sync
 - Push notifications for maintenance reminders
