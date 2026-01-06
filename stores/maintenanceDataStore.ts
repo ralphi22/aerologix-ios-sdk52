@@ -172,11 +172,27 @@ export function MaintenanceDataProvider({ children }: { children: ReactNode }) {
     try {
       const data = await maintenanceService.syncAllData(aircraftId);
       
+      // Log raw backend data for debugging
+      console.log('Backend data received:', {
+        parts: data.parts.map((p: any) => ({ id: p.id, _id: p._id, part_number: p.part_number })),
+        adsbs: data.adsbs.map((a: any) => ({ id: a.id, _id: a._id, reference_number: a.reference_number })),
+      });
+      
       // Map backend data to local format
-      setParts(data.parts.map(mapPartFromBackend));
-      setAdSbs(data.adsbs.map(mapAdSbFromBackend));
-      setStcs(data.stcs.map(mapStcFromBackend));
-      setInvoices(data.invoices.map(mapInvoiceFromBackend));
+      const mappedParts = data.parts.map(mapPartFromBackend);
+      const mappedAdsbs = data.adsbs.map(mapAdSbFromBackend);
+      const mappedStcs = data.stcs.map(mapStcFromBackend);
+      const mappedInvoices = data.invoices.map(mapInvoiceFromBackend);
+      
+      console.log('Mapped data IDs:', {
+        parts: mappedParts.map(p => p.id),
+        adsbs: mappedAdsbs.map(a => a.id),
+      });
+      
+      setParts(mappedParts);
+      setAdSbs(mappedAdsbs);
+      setStcs(mappedStcs);
+      setInvoices(mappedInvoices);
       
       console.log('Maintenance data synced:', {
         parts: data.parts.length,
