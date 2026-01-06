@@ -2,9 +2,14 @@
  * Maintenance Report Store - Local state for report settings
  * TC-SAFE: Visual references only, no regulatory validation
  * All limits are now EDITABLE - rules can change
+ * PERSISTENCE: Uses SecureStore for local persistence
  */
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import * as SecureStore from 'expo-secure-store';
+
+const STORAGE_KEY_SETTINGS = 'aerologix_report_settings';
+const STORAGE_KEY_LIMITS = 'aerologix_report_limits';
 
 // ============================================
 // DEFAULT LIMITS - Can be modified by user
