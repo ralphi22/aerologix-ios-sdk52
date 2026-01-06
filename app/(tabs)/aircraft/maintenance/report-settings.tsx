@@ -403,7 +403,7 @@ export default function ReportSettingsScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
