@@ -62,6 +62,14 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
    - `syncWithBackend()` for parts/AD-SB/invoices
 4. **Auto-sync on screen open** - Parts and Invoices screens sync automatically
 
+### ✅ Data Persistence Fixes (Session 6 - January 6, 2025)
+1. **`report-settings.tsx` crash fix** - Added missing `useEffect` import + `KeyboardAvoidingView`
+2. **Aircraft local data persistence** - New system in `aircraftLocalStore.ts`:
+   - Extra fields (category, engineType, maxWeight, baseOperations, photo, etc.) now persisted to `SecureStore`
+   - Backend API only supports limited fields; local data merged on load
+   - Photo URI stored locally (not sent to backend as it's a local file path)
+3. **TypeScript fixes** - Fixed type casting in `ocr-history.tsx` for dynamic backend fields
+
 ## File Structure
 ```
 /app/
@@ -70,16 +78,20 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
 │   │   ├── aircraft/    
 │   │   │   ├── ocr-history.tsx    # Modal + sync
 │   │   │   ├── ocr-scan.tsx       # Simplified apply
+│   │   │   ├── edit.tsx           # Photo + local fields
 │   │   │   └── maintenance/
 │   │   │       ├── parts.tsx       # Auto-sync on open
 │   │   │       ├── invoices.tsx    # Auto-sync on open
+│   │   │       ├── report-settings.tsx # Persisted settings
 │   │   │       └── ...
 │   └── _layout.tsx      
 ├── services/            
-│   ├── maintenanceService.ts  # NEW: Parts/ADSB/STC/Invoices API
+│   ├── maintenanceService.ts  # Parts/ADSB/STC/Invoices API
 │   └── ocrService.ts
 └── stores/              
-    ├── maintenanceDataStore.ts # Refactored: syncWithBackend()
+    ├── aircraftLocalStore.ts    # MODIFIED: SecureStore for local fields
+    ├── maintenanceDataStore.ts  # syncWithBackend()
+    ├── reportSettingsStore.ts   # SecureStore persistence
     └── ...
 ```
 
@@ -99,15 +111,17 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
 ```
 
 ## Known Issues
-1. **OCR Backend Validation** - Backend may reject scans with null part fields
-2. **OCR Quota Limit** - User limited to 3 scans/month (backend config)
+1. **OCR Backend Logic** - Backend extracts parts from maintenance reports instead of invoices (BACKEND FIX NEEDED)
+2. **OCR Pydantic Validation** - Backend rejects quantity as float (e.g., 41.5) - needs `int` to `float` change (BACKEND FIX NEEDED)
+3. **OCR Quota Limit** - User limited to 3 scans/month (BACKEND FIX NEEDED)
 
 ## Test Credentials
 - Email: lima@123.com
 - Password: lima123
 
 ## Backlog / Future Tasks
+- Backend: Fix OCR logic (parts from invoices, hours from maintenance reports)
+- Backend: Change quantity field from int to float
 - Backend: Increase OCR quota for testing
-- Backend: Make OCR extracted fields optional
 - Add offline mode with queue sync
 - Push notifications for maintenance reminders

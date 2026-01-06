@@ -314,7 +314,8 @@ export default function OcrHistoryScreen() {
   const renderDetailModalContent = () => {
     if (!selectedDoc) return null;
     
-    const data = selectedDoc.extracted_data || {};
+    // Use 'any' type for data to handle dynamic backend fields
+    const data: any = selectedDoc.extracted_data || {};
     const config = getDocTypeConfig(selectedDoc.document_type, lang);
     
     return (
@@ -508,13 +509,13 @@ export default function OcrHistoryScreen() {
         <View style={styles.statusSection}>
           <View style={[
             styles.statusBadge,
-            selectedDoc.applied ? styles.statusApplied : styles.statusPending
+            (selectedDoc as any).applied ? styles.statusApplied : styles.statusPending
           ]}>
             <Text style={[
               styles.statusText,
-              selectedDoc.applied ? styles.statusAppliedText : styles.statusPendingText
+              (selectedDoc as any).applied ? styles.statusAppliedText : styles.statusPendingText
             ]}>
-              {selectedDoc.applied 
+              {(selectedDoc as any).applied 
                 ? (lang === 'fr' ? '✓ Appliqué' : '✓ Applied')
                 : (lang === 'fr' ? '○ Non appliqué' : '○ Not applied')}
             </Text>
@@ -678,7 +679,7 @@ export default function OcrHistoryScreen() {
                 )}
               </TouchableOpacity>
               
-              {!selectedDoc?.applied && (
+              {!(selectedDoc as any)?.applied && (
                 <TouchableOpacity 
                   style={styles.applyButton} 
                   onPress={handleApplyData}

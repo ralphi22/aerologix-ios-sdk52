@@ -1,11 +1,15 @@
 /**
  * aircraftLocalStore.ts - State management for aircraft with backend sync
  * Uses React Context + API synchronization with Render backend
+ * LOCAL PERSISTENCE: Extra fields (photo, category, etc.) stored in SecureStore
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import * as SecureStore from 'expo-secure-store';
 import aircraftService, { Aircraft as ApiAircraft, AircraftCreate } from '@/services/aircraftService';
 import authService from '@/services/authService';
+
+const LOCAL_DATA_KEY = 'aerologix_aircraft_local_data';
 
 export interface Aircraft {
   id: string;
@@ -44,32 +48,91 @@ interface AircraftContextType {
   refreshAircraft: () => Promise<void>;
 }
 
-// Map API aircraft to local format
-// Note: Backend uses 'id' (numeric) not '_id' (MongoDB ObjectId)
-const mapApiToLocal = (apiAircraft: ApiAircraft): Aircraft => ({
+// Fields that are stored locally (not supported by backend API)
+interface LocalAircraftData {
+  category?: string;
+  engineType?: string;
+  maxWeight?: string;
+  baseOperations?: string;
+  countryManufacture?: string;
+  registrationType?: string;
+  ownerSince?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  country?: string;
+  photoUri?: string;
+}
+
+// Type for local storage: map of aircraft ID to local data
+type LocalDataMap = { [aircraftId: string]: LocalAircraftData };
+
+// Load local data from SecureStore
+const loadLocalData = async (): Promise<LocalDataMap> => {
+  try {
+    const data = await SecureStore.getItemAsync(LOCAL_DATA_KEY);
+    if (data) {
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.log('Error loading local aircraft data:', error);
+  }
+  return {};
+};
+
+// Save local data to SecureStore
+const saveLocalData = async (data: LocalDataMap): Promise<void> => {
+  try {
+    await SecureStore.setItemAsync(LOCAL_DATA_KEY, JSON.stringify(data));
+    console.log('Local aircraft data saved');
+  } catch (error) {
+    console.log('Error saving local aircraft data:', error);
+  }
+};
+
+// Map API aircraft to local format, merging with local data
+const mapApiToLocal = (apiAircraft: ApiAircraft, localData: LocalAircraftData = {}): Aircraft => ({
   id: (apiAircraft as any).id?.toString() || apiAircraft._id,
   registration: apiAircraft.registration,
   commonName: apiAircraft.aircraft_type || '',
   model: apiAircraft.model || '',
   serialNumber: apiAircraft.serial_number || '',
-  category: '',
-  engineType: '',
-  maxWeight: '',
-  baseOperations: '',
+  // Fields from local storage (not in backend)
+  category: localData.category || '',
+  engineType: localData.engineType || '',
+  maxWeight: localData.maxWeight || '',
+  baseOperations: localData.baseOperations || '',
+  countryManufacture: localData.countryManufacture || '',
+  registrationType: localData.registrationType || '',
+  ownerSince: localData.ownerSince || '',
+  addressLine1: localData.addressLine1 || '',
+  addressLine2: localData.addressLine2 || '',
+  city: localData.city || '',
+  country: localData.country || '',
+  photoUri: localData.photoUri || apiAircraft.photo_url || undefined,
+  // Fields from backend
   manufacturer: apiAircraft.manufacturer || '',
-  countryManufacture: '',
   yearManufacture: apiAircraft.year?.toString() || '',
-  registrationType: '',
-  ownerSince: '',
-  addressLine1: '',
-  addressLine2: '',
-  city: '',
-  country: '',
   airframeHours: apiAircraft.airframe_hours || 0,
   engineHours: apiAircraft.engine_hours || 0,
   propellerHours: apiAircraft.propeller_hours || 0,
-  photoUri: apiAircraft.photo_url || undefined,
   createdAt: apiAircraft.created_at,
+});
+
+// Extract local-only fields from aircraft data
+const extractLocalData = (aircraft: Partial<Aircraft>): LocalAircraftData => ({
+  category: aircraft.category,
+  engineType: aircraft.engineType,
+  maxWeight: aircraft.maxWeight,
+  baseOperations: aircraft.baseOperations,
+  countryManufacture: aircraft.countryManufacture,
+  registrationType: aircraft.registrationType,
+  ownerSince: aircraft.ownerSince,
+  addressLine1: aircraft.addressLine1,
+  addressLine2: aircraft.addressLine2,
+  city: aircraft.city,
+  country: aircraft.country,
+  photoUri: aircraft.photoUri,
 });
 
 // Map local aircraft to API format
@@ -83,7 +146,7 @@ const mapLocalToApi = (localAircraft: Omit<Aircraft, 'id' | 'createdAt'>): Aircr
   airframe_hours: localAircraft.airframeHours || 0,
   engine_hours: localAircraft.engineHours || 0,
   propeller_hours: localAircraft.propellerHours || 0,
-  photo_url: localAircraft.photoUri || undefined,
+  photo_url: undefined, // Photo stored locally, not sent to backend
 });
 
 const AircraftContext = createContext<AircraftContextType | undefined>(undefined);
@@ -93,8 +156,19 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [localDataMap, setLocalDataMap] = useState<LocalDataMap>({});
 
-  // Fetch aircraft from backend
+  // Load local data on mount
+  useEffect(() => {
+    const initLocalData = async () => {
+      const data = await loadLocalData();
+      setLocalDataMap(data);
+      console.log('Loaded local aircraft data for', Object.keys(data).length, 'aircraft');
+    };
+    initLocalData();
+  }, []);
+
+  // Fetch aircraft from backend and merge with local data
   const refreshAircraft = useCallback(async () => {
     try {
       // Check if user is authenticated
@@ -107,8 +181,16 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       setError(null);
       
+      // Load latest local data
+      const currentLocalData = await loadLocalData();
+      setLocalDataMap(currentLocalData);
+      
       const apiAircraft = await aircraftService.getAll();
-      const localAircraft = apiAircraft.map(mapApiToLocal);
+      // Merge API data with local data
+      const localAircraft = apiAircraft.map(api => {
+        const id = (api as any).id?.toString() || api._id;
+        return mapApiToLocal(api, currentLocalData[id]);
+      });
       setAircraft(localAircraft);
       
     } catch (err: any) {
@@ -137,8 +219,15 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       
       const apiData = mapLocalToApi(aircraftData);
       const created = await aircraftService.create(apiData);
-      const newAircraft = mapApiToLocal(created);
+      const newId = (created as any).id?.toString() || created._id;
       
+      // Save local-only fields to SecureStore
+      const localFields = extractLocalData(aircraftData);
+      const updatedLocalData = { ...localDataMap, [newId]: localFields };
+      setLocalDataMap(updatedLocalData);
+      await saveLocalData(updatedLocalData);
+      
+      const newAircraft = mapApiToLocal(created, localFields);
       setAircraft((prev) => [newAircraft, ...prev]);
       
     } catch (err: any) {
@@ -155,7 +244,20 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       setError(null);
       
-      // Map only the fields that are being updated
+      // Update local-only fields in SecureStore
+      const existingLocalData = localDataMap[id] || {};
+      const newLocalFields = extractLocalData(aircraftData);
+      const mergedLocalData: LocalAircraftData = {
+        ...existingLocalData,
+        ...Object.fromEntries(
+          Object.entries(newLocalFields).filter(([_, v]) => v !== undefined)
+        ),
+      };
+      const updatedLocalDataMap = { ...localDataMap, [id]: mergedLocalData };
+      setLocalDataMap(updatedLocalDataMap);
+      await saveLocalData(updatedLocalDataMap);
+      
+      // Map only the backend-supported fields that are being updated
       const apiData: Partial<AircraftCreate> = {};
       if (aircraftData.registration !== undefined) apiData.registration = aircraftData.registration;
       if (aircraftData.commonName !== undefined) apiData.aircraft_type = aircraftData.commonName;
@@ -166,10 +268,10 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       if (aircraftData.airframeHours !== undefined) apiData.airframe_hours = aircraftData.airframeHours;
       if (aircraftData.engineHours !== undefined) apiData.engine_hours = aircraftData.engineHours;
       if (aircraftData.propellerHours !== undefined) apiData.propeller_hours = aircraftData.propellerHours;
-      if (aircraftData.photoUri !== undefined) apiData.photo_url = aircraftData.photoUri;
+      // Note: photo_url not sent to backend, stored locally only
       
       const updated = await aircraftService.update(id, apiData);
-      const updatedAircraft = mapApiToLocal(updated);
+      const updatedAircraft = mapApiToLocal(updated, mergedLocalData);
       
       setAircraft((prev) =>
         prev.map((a) => a.id === id ? updatedAircraft : a)
@@ -190,6 +292,13 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       setError(null);
       
       await aircraftService.delete(id);
+      
+      // Remove local data for this aircraft
+      const updatedLocalDataMap = { ...localDataMap };
+      delete updatedLocalDataMap[id];
+      setLocalDataMap(updatedLocalDataMap);
+      await saveLocalData(updatedLocalDataMap);
+      
       setAircraft((prev) => prev.filter((a) => a.id !== id));
       
     } catch (err: any) {
