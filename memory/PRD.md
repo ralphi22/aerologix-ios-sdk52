@@ -78,16 +78,20 @@ Build a mobile application for aircraft maintenance tracking with OCR capability
 │   │   ├── aircraft/    
 │   │   │   ├── ocr-history.tsx    # Modal + sync
 │   │   │   ├── ocr-scan.tsx       # Simplified apply
+│   │   │   ├── edit.tsx           # Photo + local fields
 │   │   │   └── maintenance/
 │   │   │       ├── parts.tsx       # Auto-sync on open
 │   │   │       ├── invoices.tsx    # Auto-sync on open
+│   │   │       ├── report-settings.tsx # Persisted settings
 │   │   │       └── ...
 │   └── _layout.tsx      
 ├── services/            
-│   ├── maintenanceService.ts  # NEW: Parts/ADSB/STC/Invoices API
+│   ├── maintenanceService.ts  # Parts/ADSB/STC/Invoices API
 │   └── ocrService.ts
 └── stores/              
-    ├── maintenanceDataStore.ts # Refactored: syncWithBackend()
+    ├── aircraftLocalStore.ts    # MODIFIED: SecureStore for local fields
+    ├── maintenanceDataStore.ts  # syncWithBackend()
+    ├── reportSettingsStore.ts   # SecureStore persistence
     └── ...
 ```
 
