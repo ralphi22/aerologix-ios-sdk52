@@ -9,7 +9,8 @@ import api from './api';
 // TYPES - Parts
 // ============================================
 export interface PartRecord {
-  id: string;
+  id?: string;
+  _id?: string;  // MongoDB format
   aircraft_id: string;
   part_number: string;
   name?: string;
@@ -27,7 +28,8 @@ export interface PartRecord {
 // TYPES - AD/SB
 // ============================================
 export interface ADSBRecord {
-  id: string;
+  id?: string;
+  _id?: string;  // MongoDB format
   aircraft_id: string;
   adsb_type: 'AD' | 'SB';
   reference_number: string;
@@ -44,7 +46,8 @@ export interface ADSBRecord {
 // TYPES - STC
 // ============================================
 export interface STCRecord {
-  id: string;
+  id?: string;
+  _id?: string;  // MongoDB format
   aircraft_id: string;
   stc_number: string;
   description?: string;
@@ -57,7 +60,8 @@ export interface STCRecord {
 // TYPES - Invoices
 // ============================================
 export interface InvoiceRecord {
-  id: string;
+  id?: string;
+  _id?: string;  // MongoDB format
   aircraft_id: string;
   vendor_name?: string;
   invoice_date?: string;
