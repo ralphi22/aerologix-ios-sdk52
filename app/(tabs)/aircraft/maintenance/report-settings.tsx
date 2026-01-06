@@ -120,48 +120,50 @@ export default function ReportSettingsScreen() {
   const lang = getLanguage();
   const { settings, limits, updateSettings, updateLimits, resetLimitsToDefault } = useReportSettings();
 
-  // Local state for settings - initialized empty, will be set from store in useEffect
-  const [motorTbo, setMotorTbo] = useState('');
-  const [avioniqueDate, setAvioniqueDate] = useState('');
-  const [magnetosHoursUsed, setMagnetosHoursUsed] = useState('');
-  const [pompeVideHoursUsed, setPompeVideHoursUsed] = useState('');
-  const [heliceDate, setHeliceDate] = useState('');
-  const [celluleDate, setCelluleDate] = useState('');
-  const [eltTestDate, setEltTestDate] = useState('');
-  const [eltBatteryExpiry, setEltBatteryExpiry] = useState('');
+  // Local state for settings - initialized with store values (which have defaults)
+  const [motorTbo, setMotorTbo] = useState(settings.motorTbo?.toString() || '2000');
+  const [avioniqueDate, setAvioniqueDate] = useState(settings.avioniqueDate || '');
+  const [magnetosHoursUsed, setMagnetosHoursUsed] = useState(settings.magnetosHoursUsed?.toString() || '0');
+  const [pompeVideHoursUsed, setPompeVideHoursUsed] = useState(settings.pompeVideHoursUsed?.toString() || '0');
+  const [heliceDate, setHeliceDate] = useState(settings.heliceDate || '');
+  const [celluleDate, setCelluleDate] = useState(settings.celluleDate || '');
+  const [eltTestDate, setEltTestDate] = useState(settings.eltTestDate || '');
+  const [eltBatteryExpiry, setEltBatteryExpiry] = useState(settings.eltBatteryExpiry || '');
 
-  // Local state for limits - initialized empty, will be set from store in useEffect
-  const [celluleYears, setCelluleYears] = useState('');
-  const [heliceYears, setHeliceYears] = useState('');
-  const [avioniqueMonths, setAvioniqueMonths] = useState('');
-  const [magnetosHours, setMagnetosHours] = useState('');
-  const [pompeVideHours, setPompeVideHours] = useState('');
-  const [eltTestMonths, setEltTestMonths] = useState('');
-  const [eltBatteryMonths, setEltBatteryMonths] = useState('');
+  // Local state for limits - initialized with store values (which have defaults)
+  const [celluleYears, setCelluleYears] = useState(limits.celluleYears?.toString() || '5');
+  const [heliceYears, setHeliceYears] = useState(limits.heliceYears?.toString() || '5');
+  const [avioniqueMonths, setAvioniqueMonths] = useState(limits.avioniqueMonths?.toString() || '24');
+  const [magnetosHours, setMagnetosHours] = useState(limits.magnetosHours?.toString() || '500');
+  const [pompeVideHours, setPompeVideHours] = useState(limits.pompeVideHours?.toString() || '400');
+  const [eltTestMonths, setEltTestMonths] = useState(limits.eltTestMonths?.toString() || '12');
+  const [eltBatteryMonths, setEltBatteryMonths] = useState(limits.eltBatteryMonths?.toString() || '24');
 
-  // Load data from store when it changes (including after async load from storage)
+  // Update form when store data changes (after async load from SecureStore)
   useEffect(() => {
-    console.log('Loading settings into form:', settings);
-    setMotorTbo(settings.motorTbo.toString());
-    setAvioniqueDate(settings.avioniqueDate);
-    setMagnetosHoursUsed(settings.magnetosHoursUsed.toString());
-    setPompeVideHoursUsed(settings.pompeVideHoursUsed.toString());
-    setHeliceDate(settings.heliceDate);
-    setCelluleDate(settings.celluleDate);
-    setEltTestDate(settings.eltTestDate);
-    setEltBatteryExpiry(settings.eltBatteryExpiry);
+    if (settings) {
+      setMotorTbo(settings.motorTbo?.toString() || '2000');
+      setAvioniqueDate(settings.avioniqueDate || '');
+      setMagnetosHoursUsed(settings.magnetosHoursUsed?.toString() || '0');
+      setPompeVideHoursUsed(settings.pompeVideHoursUsed?.toString() || '0');
+      setHeliceDate(settings.heliceDate || '');
+      setCelluleDate(settings.celluleDate || '');
+      setEltTestDate(settings.eltTestDate || '');
+      setEltBatteryExpiry(settings.eltBatteryExpiry || '');
+    }
   }, [settings]);
 
-  // Load limits from store when it changes
+  // Update form when limits change (after async load from SecureStore)
   useEffect(() => {
-    console.log('Loading limits into form:', limits);
-    setCelluleYears(limits.celluleYears.toString());
-    setHeliceYears(limits.heliceYears.toString());
-    setAvioniqueMonths(limits.avioniqueMonths.toString());
-    setMagnetosHours(limits.magnetosHours.toString());
-    setPompeVideHours(limits.pompeVideHours.toString());
-    setEltTestMonths(limits.eltTestMonths.toString());
-    setEltBatteryMonths(limits.eltBatteryMonths.toString());
+    if (limits) {
+      setCelluleYears(limits.celluleYears?.toString() || '5');
+      setHeliceYears(limits.heliceYears?.toString() || '5');
+      setAvioniqueMonths(limits.avioniqueMonths?.toString() || '24');
+      setMagnetosHours(limits.magnetosHours?.toString() || '500');
+      setPompeVideHours(limits.pompeVideHours?.toString() || '400');
+      setEltTestMonths(limits.eltTestMonths?.toString() || '12');
+      setEltBatteryMonths(limits.eltBatteryMonths?.toString() || '24');
+    }
   }, [limits]);
 
   const handleSave = () => {
