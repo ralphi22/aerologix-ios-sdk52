@@ -120,24 +120,49 @@ export default function ReportSettingsScreen() {
   const lang = getLanguage();
   const { settings, limits, updateSettings, updateLimits, resetLimitsToDefault } = useReportSettings();
 
-  // Local state for settings
-  const [motorTbo, setMotorTbo] = useState(settings.motorTbo.toString());
-  const [avioniqueDate, setAvioniqueDate] = useState(settings.avioniqueDate);
-  const [magnetosHoursUsed, setMagnetosHoursUsed] = useState(settings.magnetosHoursUsed.toString());
-  const [pompeVideHoursUsed, setPompeVideHoursUsed] = useState(settings.pompeVideHoursUsed.toString());
-  const [heliceDate, setHeliceDate] = useState(settings.heliceDate);
-  const [celluleDate, setCelluleDate] = useState(settings.celluleDate);
-  const [eltTestDate, setEltTestDate] = useState(settings.eltTestDate);
-  const [eltBatteryExpiry, setEltBatteryExpiry] = useState(settings.eltBatteryExpiry);
+  // Local state for settings - initialized empty, will be set from store in useEffect
+  const [motorTbo, setMotorTbo] = useState('');
+  const [avioniqueDate, setAvioniqueDate] = useState('');
+  const [magnetosHoursUsed, setMagnetosHoursUsed] = useState('');
+  const [pompeVideHoursUsed, setPompeVideHoursUsed] = useState('');
+  const [heliceDate, setHeliceDate] = useState('');
+  const [celluleDate, setCelluleDate] = useState('');
+  const [eltTestDate, setEltTestDate] = useState('');
+  const [eltBatteryExpiry, setEltBatteryExpiry] = useState('');
 
-  // Local state for limits
-  const [celluleYears, setCelluleYears] = useState(limits.celluleYears.toString());
-  const [heliceYears, setHeliceYears] = useState(limits.heliceYears.toString());
-  const [avioniqueMonths, setAvioniqueMonths] = useState(limits.avioniqueMonths.toString());
-  const [magnetosHours, setMagnetosHours] = useState(limits.magnetosHours.toString());
-  const [pompeVideHours, setPompeVideHours] = useState(limits.pompeVideHours.toString());
-  const [eltTestMonths, setEltTestMonths] = useState(limits.eltTestMonths.toString());
-  const [eltBatteryMonths, setEltBatteryMonths] = useState(limits.eltBatteryMonths.toString());
+  // Local state for limits - initialized empty, will be set from store in useEffect
+  const [celluleYears, setCelluleYears] = useState('');
+  const [heliceYears, setHeliceYears] = useState('');
+  const [avioniqueMonths, setAvioniqueMonths] = useState('');
+  const [magnetosHours, setMagnetosHours] = useState('');
+  const [pompeVideHours, setPompeVideHours] = useState('');
+  const [eltTestMonths, setEltTestMonths] = useState('');
+  const [eltBatteryMonths, setEltBatteryMonths] = useState('');
+
+  // Load data from store when it changes (including after async load from storage)
+  useEffect(() => {
+    console.log('Loading settings into form:', settings);
+    setMotorTbo(settings.motorTbo.toString());
+    setAvioniqueDate(settings.avioniqueDate);
+    setMagnetosHoursUsed(settings.magnetosHoursUsed.toString());
+    setPompeVideHoursUsed(settings.pompeVideHoursUsed.toString());
+    setHeliceDate(settings.heliceDate);
+    setCelluleDate(settings.celluleDate);
+    setEltTestDate(settings.eltTestDate);
+    setEltBatteryExpiry(settings.eltBatteryExpiry);
+  }, [settings]);
+
+  // Load limits from store when it changes
+  useEffect(() => {
+    console.log('Loading limits into form:', limits);
+    setCelluleYears(limits.celluleYears.toString());
+    setHeliceYears(limits.heliceYears.toString());
+    setAvioniqueMonths(limits.avioniqueMonths.toString());
+    setMagnetosHours(limits.magnetosHours.toString());
+    setPompeVideHours(limits.pompeVideHours.toString());
+    setEltTestMonths(limits.eltTestMonths.toString());
+    setEltBatteryMonths(limits.eltBatteryMonths.toString());
+  }, [limits]);
 
   const handleSave = () => {
     // Update settings
