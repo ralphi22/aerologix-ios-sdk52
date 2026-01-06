@@ -114,7 +114,7 @@ const mapInvoiceFromBackend = (i: InvoiceRecord): Invoice => ({
   laborAmount: i.labor_cost || 0,
   hoursWorked: i.labor_hours || 0,
   totalAmount: i.total_cost || 0,
-  aircraftId: i.aircraft_id,
+  aircraftId: i.aircraft_id || '',
   notes: i.description || '',
   invoiceNumber: i.invoice_number,
 });
