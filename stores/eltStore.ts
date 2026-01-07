@@ -1,10 +1,13 @@
 /**
- * ELT Store - Local state for ELT (Emergency Locator Transmitter) data
+ * ELT Store - State management for ELT (Emergency Locator Transmitter) data
  * TC-SAFE: Visual storage only, no regulatory validation
  * OCR data must be validated by user before storage
+ * 
+ * UPDATED: Now persists data to backend via eltService
  */
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import eltService, { EltDataBackend } from '../services/eltService';
 
 // ============================================
 // FIXED LIMITS - NON-MODIFIABLE CONSTANTS
@@ -73,27 +76,31 @@ interface EltContextType {
   eltData: EltData;
   fixedLimits: typeof ELT_FIXED_LIMITS;
   ocrHistory: OcrScanRecord[];
-  updateEltData: (data: Partial<EltData>) => void;
+  isLoading: boolean;
+  error: string | null;
+  updateEltData: (data: Partial<EltData>) => Promise<void>;
   applyOcrData: (data: Partial<EltData>) => void;
   addOcrScan: (scan: Omit<OcrScanRecord, 'id'>) => void;
   getEltStatus: () => EltStatus;
   getTestProgress: () => { percent: number; daysRemaining: number; status: EltStatus };
   getBatteryProgress: () => { percent: number; daysRemaining: number; status: EltStatus };
+  loadEltData: (aircraftId: string) => Promise<void>;
+  saveEltData: () => Promise<void>;
 }
 
-// Default mock data
-const defaultEltData: EltData = {
-  manufacturer: 'ACR Electronics',
-  model: 'ResQLink 400',
-  serialNumber: 'ACR-2024-00123',
-  eltType: '406 MHz + GPS',
-  hexCode: 'A3B4C5D6E7',
-  activationDate: '2020-05-15',
-  serviceDate: '2020-06-01',
-  lastTestDate: '2025-11-10',
-  lastBatteryDate: '2023-11-10',
-  batteryExpiryDate: '2027-11-10',
-  aircraftId: 'mock',
+// Default empty data (not mock data)
+const emptyEltData: EltData = {
+  manufacturer: '',
+  model: '',
+  serialNumber: '',
+  eltType: '',
+  hexCode: '',
+  activationDate: '',
+  serviceDate: '',
+  lastTestDate: '',
+  lastBatteryDate: '',
+  batteryExpiryDate: '',
+  aircraftId: '',
   lastOcrScanDate: '',
   ocrValidated: false,
 };
@@ -101,6 +108,43 @@ const defaultEltData: EltData = {
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
 const EltContext = createContext<EltContextType | undefined>(undefined);
+
+// Helper: Convert frontend EltData to backend format
+function toBackendFormat(data: EltData): Omit<EltDataBackend, 'aircraft_id'> {
+  return {
+    manufacturer: data.manufacturer,
+    model: data.model,
+    serial_number: data.serialNumber,
+    elt_type: data.eltType,
+    hex_code: data.hexCode,
+    activation_date: data.activationDate,
+    service_date: data.serviceDate,
+    last_test_date: data.lastTestDate,
+    last_battery_date: data.lastBatteryDate,
+    battery_expiry_date: data.batteryExpiryDate,
+    last_ocr_scan_date: data.lastOcrScanDate,
+    ocr_validated: data.ocrValidated,
+  };
+}
+
+// Helper: Convert backend format to frontend EltData
+function toFrontendFormat(data: EltDataBackend): EltData {
+  return {
+    manufacturer: data.manufacturer || '',
+    model: data.model || '',
+    serialNumber: data.serial_number || '',
+    eltType: (data.elt_type as EltType) || '',
+    hexCode: data.hex_code || '',
+    activationDate: data.activation_date || '',
+    serviceDate: data.service_date || '',
+    lastTestDate: data.last_test_date || '',
+    lastBatteryDate: data.last_battery_date || '',
+    batteryExpiryDate: data.battery_expiry_date || '',
+    aircraftId: data.aircraft_id || '',
+    lastOcrScanDate: data.last_ocr_scan_date || '',
+    ocrValidated: data.ocr_validated || false,
+  };
+}
 
 // Calculate progress for date-based items
 function calculateDateProgress(lastDate: string, limitMonths: number): { percent: number; daysRemaining: number; status: EltStatus } {
@@ -141,33 +185,114 @@ function calculateDateProgress(lastDate: string, limitMonths: number): { percent
 }
 
 export function EltProvider({ children }: { children: ReactNode }) {
-  const [eltData, setEltData] = useState<EltData>(defaultEltData);
+  const [eltData, setEltData] = useState<EltData>(emptyEltData);
   const [ocrHistory, setOcrHistory] = useState<OcrScanRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const updateEltData = (data: Partial<EltData>) => {
-    setEltData((prev) => ({ ...prev, ...data }));
-  };
+  // Load ELT data from backend for a specific aircraft
+  const loadEltData = useCallback(async (aircraftId: string) => {
+    if (!aircraftId) {
+      console.log('No aircraftId provided, using empty data');
+      setEltData({ ...emptyEltData });
+      return;
+    }
 
-  const applyOcrData = (data: Partial<EltData>) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const backendData = await eltService.getByAircraftId(aircraftId);
+      
+      if (backendData) {
+        const frontendData = toFrontendFormat(backendData);
+        setEltData(frontendData);
+        console.log('ELT data loaded from backend for aircraft:', aircraftId);
+      } else {
+        // No existing data, set empty with aircraftId
+        setEltData({ ...emptyEltData, aircraftId });
+        console.log('No ELT data found for aircraft, using empty data:', aircraftId);
+      }
+    } catch (err: any) {
+      console.error('Error loading ELT data:', err);
+      setError(err.message || 'Failed to load ELT data');
+      setEltData({ ...emptyEltData, aircraftId });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Save ELT data to backend
+  const saveEltData = useCallback(async () => {
+    if (!eltData.aircraftId) {
+      console.warn('Cannot save ELT data: no aircraftId');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const backendFormat = toBackendFormat(eltData);
+      await eltService.upsert(eltData.aircraftId, backendFormat);
+      console.log('ELT data saved to backend for aircraft:', eltData.aircraftId);
+    } catch (err: any) {
+      console.error('Error saving ELT data:', err);
+      setError(err.message || 'Failed to save ELT data');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [eltData]);
+
+  // Update ELT data locally AND save to backend
+  const updateEltData = useCallback(async (data: Partial<EltData>) => {
+    const newData = { ...eltData, ...data };
+    setEltData(newData);
+    
+    // Save to backend if we have an aircraftId
+    if (newData.aircraftId) {
+      try {
+        const backendFormat = toBackendFormat(newData);
+        await eltService.upsert(newData.aircraftId, backendFormat);
+        console.log('ELT data updated and saved to backend');
+      } catch (err: any) {
+        console.error('Error saving ELT data to backend:', err);
+        setError(err.message || 'Failed to save ELT data');
+        // Data is still updated locally even if save fails
+      }
+    }
+  }, [eltData]);
+
+  const applyOcrData = useCallback((data: Partial<EltData>) => {
     // Apply OCR data after user validation
-    setEltData((prev) => ({
-      ...prev,
+    const newData = {
+      ...eltData,
       ...data,
       lastOcrScanDate: new Date().toISOString().split('T')[0],
       ocrValidated: true,
-    }));
-  };
+    };
+    setEltData(newData);
+    
+    // Auto-save after OCR
+    if (newData.aircraftId) {
+      const backendFormat = toBackendFormat(newData);
+      eltService.upsert(newData.aircraftId, backendFormat).catch(err => {
+        console.error('Error saving OCR data to backend:', err);
+      });
+    }
+  }, [eltData]);
 
-  const addOcrScan = (scan: Omit<OcrScanRecord, 'id'>) => {
+  const addOcrScan = useCallback((scan: Omit<OcrScanRecord, 'id'>) => {
     const newScan: OcrScanRecord = { ...scan, id: generateId() };
     setOcrHistory((prev) => [newScan, ...prev]);
-  };
+  }, []);
 
-  const getTestProgress = () => {
+  const getTestProgress = useCallback(() => {
     return calculateDateProgress(eltData.lastTestDate, ELT_FIXED_LIMITS.TEST_MONTHS);
-  };
+  }, [eltData.lastTestDate]);
 
-  const getBatteryProgress = () => {
+  const getBatteryProgress = useCallback(() => {
     if (!eltData.batteryExpiryDate || !eltData.lastBatteryDate) {
       return { percent: 0, daysRemaining: 0, status: 'operational' as EltStatus };
     }
@@ -200,9 +325,9 @@ export function EltProvider({ children }: { children: ReactNode }) {
     }
     
     return { percent, daysRemaining, status };
-  };
+  }, [eltData.batteryExpiryDate, eltData.lastBatteryDate]);
 
-  const getEltStatus = (): EltStatus => {
+  const getEltStatus = useCallback((): EltStatus => {
     const testProgress = getTestProgress();
     const batteryProgress = getBatteryProgress();
     
@@ -213,7 +338,7 @@ export function EltProvider({ children }: { children: ReactNode }) {
       return 'attention';
     }
     return 'operational';
-  };
+  }, [getTestProgress, getBatteryProgress]);
 
   return React.createElement(
     EltContext.Provider,
@@ -222,12 +347,16 @@ export function EltProvider({ children }: { children: ReactNode }) {
         eltData,
         fixedLimits: ELT_FIXED_LIMITS,
         ocrHistory,
+        isLoading,
+        error,
         updateEltData,
         applyOcrData,
         addOcrScan,
         getEltStatus,
         getTestProgress,
         getBatteryProgress,
+        loadEltData,
+        saveEltData,
       },
     },
     children
@@ -236,15 +365,19 @@ export function EltProvider({ children }: { children: ReactNode }) {
 
 // Default fallback context value
 const defaultContextValue: EltContextType = {
-  eltData: defaultEltData,
+  eltData: emptyEltData,
   fixedLimits: ELT_FIXED_LIMITS,
   ocrHistory: [],
-  updateEltData: () => console.warn('EltProvider not found'),
+  isLoading: false,
+  error: null,
+  updateEltData: async () => console.warn('EltProvider not found'),
   applyOcrData: () => console.warn('EltProvider not found'),
   addOcrScan: () => console.warn('EltProvider not found'),
   getEltStatus: () => 'operational' as EltStatus,
   getTestProgress: () => ({ percent: 0, daysRemaining: 0, status: 'operational' as EltStatus }),
   getBatteryProgress: () => ({ percent: 0, daysRemaining: 0, status: 'operational' as EltStatus }),
+  loadEltData: async () => console.warn('EltProvider not found'),
+  saveEltData: async () => console.warn('EltProvider not found'),
 };
 
 export function useElt(): EltContextType {
