@@ -109,22 +109,37 @@ const generateId = () => Date.now().toString(36) + Math.random().toString(36).su
 
 const EltContext = createContext<EltContextType | undefined>(undefined);
 
+// Helper: Clean date string - remove time component if present
+function cleanDateString(dateStr: string | undefined | null): string {
+  if (!dateStr) return '';
+  // If date has time component (T or space), extract only date part
+  if (dateStr.includes('T')) {
+    return dateStr.split('T')[0];
+  }
+  if (dateStr.includes(' ')) {
+    return dateStr.split(' ')[0];
+  }
+  return dateStr;
+}
+
 // Helper: Convert frontend EltData to backend format
 function toBackendFormat(data: EltData): Omit<EltDataBackend, 'aircraft_id'> {
-  return {
-    manufacturer: data.manufacturer,
-    model: data.model,
-    serial_number: data.serialNumber,
-    elt_type: data.eltType,
-    hex_code: data.hexCode,
-    activation_date: data.activationDate,
-    service_date: data.serviceDate,
-    last_test_date: data.lastTestDate,
-    last_battery_date: data.lastBatteryDate,
-    battery_expiry_date: data.batteryExpiryDate,
-    last_ocr_scan_date: data.lastOcrScanDate,
-    ocr_validated: data.ocrValidated,
+  const result = {
+    manufacturer: data.manufacturer || '',
+    model: data.model || '',
+    serial_number: data.serialNumber || '',
+    elt_type: data.eltType || '',
+    hex_code: data.hexCode || '',
+    activation_date: cleanDateString(data.activationDate),
+    service_date: cleanDateString(data.serviceDate),
+    last_test_date: cleanDateString(data.lastTestDate),
+    last_battery_date: cleanDateString(data.lastBatteryDate),
+    battery_expiry_date: cleanDateString(data.batteryExpiryDate),
+    last_ocr_scan_date: cleanDateString(data.lastOcrScanDate),
+    ocr_validated: data.ocrValidated || false,
   };
+  console.log('toBackendFormat - sending to backend:', JSON.stringify(result));
+  return result;
 }
 
 // Helper: Convert backend format to frontend EltData
