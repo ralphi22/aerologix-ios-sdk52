@@ -619,7 +619,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 16, marginTop: 16, backgroundColor: COLORS.green, paddingVertical: 16,
     borderRadius: 12, alignItems: 'center',
   },
+  saveButtonDisabled: { backgroundColor: COLORS.textMuted, opacity: 0.7 },
   saveButtonText: { color: COLORS.white, fontSize: 16, fontWeight: '600' },
+  // Loading indicator
+  loadingContainer: {
+    marginHorizontal: 16, marginTop: 16, padding: 16, backgroundColor: COLORS.blue,
+    borderRadius: 12, alignItems: 'center',
+  },
+  loadingText: { color: COLORS.primary, fontSize: 14 },
   // Registry Section
   registrySection: { padding: 16 },
   registryButton: {
