@@ -144,19 +144,20 @@ function toBackendFormat(data: EltData): Omit<EltDataBackend, 'aircraft_id'> {
 
 // Helper: Convert backend format to frontend EltData
 function toFrontendFormat(data: EltDataBackend): EltData {
-  return {
+  console.log('toFrontendFormat - received from backend:', JSON.stringify(data));
+  const result = {
     manufacturer: data.manufacturer || '',
     model: data.model || '',
     serialNumber: data.serial_number || '',
     eltType: (data.elt_type as EltType) || '',
     hexCode: data.hex_code || '',
-    activationDate: data.activation_date || '',
-    serviceDate: data.service_date || '',
-    lastTestDate: data.last_test_date || '',
-    lastBatteryDate: data.last_battery_date || '',
-    batteryExpiryDate: data.battery_expiry_date || '',
+    activationDate: cleanDateString(data.activation_date),
+    serviceDate: cleanDateString(data.service_date),
+    lastTestDate: cleanDateString(data.last_test_date),
+    lastBatteryDate: cleanDateString(data.last_battery_date),
+    batteryExpiryDate: cleanDateString(data.battery_expiry_date),
     aircraftId: data.aircraft_id || '',
-    lastOcrScanDate: data.last_ocr_scan_date || '',
+    lastOcrScanDate: cleanDateString(data.last_ocr_scan_date),
     ocrValidated: data.ocr_validated || false,
   };
 }
