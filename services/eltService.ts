@@ -34,9 +34,12 @@ class EltService {
    */
   async getByAircraftId(aircraftId: string): Promise<EltDataBackend | null> {
     try {
+      console.log('EltService.getByAircraftId - fetching for aircraft:', aircraftId);
       const response = await api.get(`/api/elt/aircraft/${aircraftId}`);
+      console.log('EltService.getByAircraftId - response:', JSON.stringify(response.data));
       return response.data;
     } catch (error: any) {
+      console.log('EltService.getByAircraftId - error:', error.response?.status, error.message);
       if (error.response?.status === 404) {
         return null;
       }
@@ -48,7 +51,9 @@ class EltService {
    * Create new ELT data for an aircraft
    */
   async create(data: EltDataBackend): Promise<EltDataBackend> {
+    console.log('EltService.create - data:', JSON.stringify(data));
     const response = await api.post('/api/elt', data);
+    console.log('EltService.create - response:', JSON.stringify(response.data));
     return response.data;
   }
 
@@ -56,7 +61,9 @@ class EltService {
    * Update existing ELT data
    */
   async update(aircraftId: string, data: Partial<EltDataBackend>): Promise<EltDataBackend> {
+    console.log('EltService.update - aircraftId:', aircraftId, 'data:', JSON.stringify(data));
     const response = await api.put(`/api/elt/aircraft/${aircraftId}`, data);
+    console.log('EltService.update - response:', JSON.stringify(response.data));
     return response.data;
   }
 
@@ -65,7 +72,9 @@ class EltService {
    */
   async upsert(aircraftId: string, data: Omit<EltDataBackend, 'aircraft_id'>): Promise<EltDataBackend> {
     const payload = { ...data, aircraft_id: aircraftId };
+    console.log('EltService.upsert - aircraftId:', aircraftId, 'payload:', JSON.stringify(payload));
     const response = await api.put(`/api/elt/aircraft/${aircraftId}`, payload);
+    console.log('EltService.upsert - response:', JSON.stringify(response.data));
     return response.data;
   }
 }
