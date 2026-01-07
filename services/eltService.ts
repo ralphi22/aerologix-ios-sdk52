@@ -3,26 +3,40 @@ import api from './api';
 /**
  * ELT Service - API communication for ELT (Emergency Locator Transmitter) data
  * Backend endpoints: /api/elt
+ * 
+ * Backend field names (from OpenAPI):
+ * - brand (manufacturer)
+ * - model
+ * - serial_number
+ * - installation_date (activation/installation)
+ * - certification_date (service date)
+ * - last_test_date
+ * - battery_expiry_date
+ * - battery_install_date (last battery change)
+ * - battery_interval_months
+ * - beacon_hex_id (hex code)
+ * - registration_number
+ * - remarks
  */
 
 export interface EltDataBackend {
   _id?: string;
-  aircraft_id: string;
+  aircraft_id?: string;
   // ELT identification
-  manufacturer: string;
-  model: string;
-  serial_number: string;
-  elt_type: string;
-  hex_code: string;
+  brand?: string | null;              // manufacturer
+  model?: string | null;
+  serial_number?: string | null;
+  beacon_hex_id?: string | null;      // hex code for 406 MHz
+  registration_number?: string | null;
   // Dates
-  activation_date: string;
-  service_date: string;
-  last_test_date: string;
-  last_battery_date: string;
-  battery_expiry_date: string;
-  // OCR metadata
-  last_ocr_scan_date?: string;
-  ocr_validated?: boolean;
+  installation_date?: string | null;  // activation date
+  certification_date?: string | null; // service/certification date
+  last_test_date?: string | null;
+  battery_expiry_date?: string | null;
+  battery_install_date?: string | null; // last battery change
+  battery_interval_months?: number | null;
+  // Other
+  remarks?: string | null;
   // Timestamps
   created_at?: string;
   updated_at?: string;
@@ -52,28 +66,17 @@ class EltService {
    */
   async create(data: EltDataBackend): Promise<EltDataBackend> {
     console.log('EltService.create - data:', JSON.stringify(data));
-    const response = await api.post('/api/elt', data);
+    const response = await api.post('/api/elt/', data);
     console.log('EltService.create - response:', JSON.stringify(response.data));
     return response.data;
   }
 
   /**
-   * Update existing ELT data
+   * Update existing ELT data (UPSERT - creates if not exists)
    */
-  async update(aircraftId: string, data: Partial<EltDataBackend>): Promise<EltDataBackend> {
-    console.log('EltService.update - aircraftId:', aircraftId, 'data:', JSON.stringify(data));
+  async upsert(aircraftId: string, data: Partial<EltDataBackend>): Promise<EltDataBackend> {
+    console.log('EltService.upsert - aircraftId:', aircraftId, 'payload:', JSON.stringify(data));
     const response = await api.put(`/api/elt/aircraft/${aircraftId}`, data);
-    console.log('EltService.update - response:', JSON.stringify(response.data));
-    return response.data;
-  }
-
-  /**
-   * Create or update ELT data (upsert)
-   */
-  async upsert(aircraftId: string, data: Omit<EltDataBackend, 'aircraft_id'>): Promise<EltDataBackend> {
-    const payload = { ...data, aircraft_id: aircraftId };
-    console.log('EltService.upsert - aircraftId:', aircraftId, 'payload:', JSON.stringify(payload));
-    const response = await api.put(`/api/elt/aircraft/${aircraftId}`, payload);
     console.log('EltService.upsert - response:', JSON.stringify(response.data));
     return response.data;
   }
