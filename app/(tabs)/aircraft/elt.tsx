@@ -133,12 +133,23 @@ export default function EltScreen() {
     getEltStatus,
     getTestProgress,
     getBatteryProgress,
+    loadEltData,
+    isLoading,
   } = useElt();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({ ...eltData });
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Sync editData when eltData changes (e.g., after OCR)
+  // Load ELT data from backend when screen mounts or aircraftId changes
+  useEffect(() => {
+    if (aircraftId) {
+      console.log('Loading ELT data for aircraft:', aircraftId);
+      loadEltData(aircraftId);
+    }
+  }, [aircraftId, loadEltData]);
+
+  // Sync editData when eltData changes (e.g., after OCR or backend load)
   useEffect(() => {
     if (!isEditing) {
       setEditData({ ...eltData });
@@ -149,13 +160,25 @@ export default function EltScreen() {
   const testProgress = getTestProgress();
   const batteryProgress = getBatteryProgress();
 
-  const handleSave = () => {
-    updateEltData(editData);
-    setIsEditing(false);
-    Alert.alert(
-      lang === 'fr' ? 'Enregistré' : 'Saved',
-      lang === 'fr' ? 'Données ELT mises à jour' : 'ELT data updated'
-    );
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      // Include aircraftId in the data being saved
+      const dataToSave = { ...editData, aircraftId: aircraftId || '' };
+      await updateEltData(dataToSave);
+      setIsEditing(false);
+      Alert.alert(
+        lang === 'fr' ? 'Enregistré' : 'Saved',
+        lang === 'fr' ? 'Données ELT sauvegardées avec succès' : 'ELT data saved successfully'
+      );
+    } catch (error) {
+      Alert.alert(
+        lang === 'fr' ? 'Erreur' : 'Error',
+        lang === 'fr' ? 'Échec de la sauvegarde des données ELT' : 'Failed to save ELT data'
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancel = () => {
