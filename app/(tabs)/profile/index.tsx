@@ -1,6 +1,6 @@
 /**
  * Profile Screen - User info, subscription, limits
- * Based on screenshot design
+ * Updated for App Store v1 - Non-monetized, clean experience
  */
 
 import React from 'react';
@@ -10,10 +10,10 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { t, getLanguage } from '@/i18n';
+import { getLanguage } from '@/i18n';
+import { useAuthStore } from '@/stores/authStore';
 
 const COLORS = {
   primary: '#0033A0',
@@ -26,24 +26,22 @@ const COLORS = {
   danger: '#DC3545',
 };
 
-// Mock user data (OFFLINE MODE)
-const MOCK_USER = {
-  name: 'lima',
-  email: 'lima@123.com',
-};
-
 export default function ProfileScreen() {
   const router = useRouter();
   const lang = getLanguage();
+  const { user, logout } = useAuthStore();
+
+  // Use real user data from auth store
+  const userName = user?.name || 'Utilisateur';
+  const userEmail = user?.email || '';
 
   const handleManageSubscription = () => {
-    Alert.alert(
-      lang === 'fr' ? 'Gérer l\'abonnement' : 'Manage Subscription',
-      lang === 'fr' ? 'Fonctionnalité bientôt disponible' : 'Feature coming soon'
-    );
+    // Navigate to simple "Mon profil" screen
+    router.push('/profile/my-profile');
   };
 
   const handleLogout = () => {
+    logout();
     router.replace('/login');
   };
 
@@ -63,8 +61,8 @@ export default function ProfileScreen() {
           <View style={styles.avatar}>
             <Text style={styles.avatarIcon}>👤</Text>
           </View>
-          <Text style={styles.userName}>{MOCK_USER.name}</Text>
-          <Text style={styles.userEmail}>{MOCK_USER.email}</Text>
+          <Text style={styles.userName}>{userName}</Text>
+          <Text style={styles.userEmail}>{userEmail}</Text>
         </View>
 
         {/* Subscription Section */}
@@ -73,14 +71,16 @@ export default function ProfileScreen() {
             {lang === 'fr' ? 'Abonnement' : 'Subscription'}
           </Text>
           <View style={styles.subscriptionCard}>
-            <Text style={styles.subscriptionPlan}>Basic</Text>
+            <Text style={styles.subscriptionPlan}>
+              {lang === 'fr' ? 'Lancement gratuit' : 'Free Launch'}
+            </Text>
             <Text style={styles.subscriptionStatus}>
-              {lang === 'fr' ? 'Actif' : 'Active'}
+              {lang === 'fr' ? '7 jours' : '7 days'}
             </Text>
           </View>
         </View>
 
-        {/* Limits Section */}
+        {/* Benefits Section (Static informational only) */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
             {lang === 'fr' ? 'Limites' : 'Limits'}
@@ -90,7 +90,7 @@ export default function ProfileScreen() {
               <View style={styles.limitLeft}>
                 <Text style={styles.limitIcon}>✈️</Text>
                 <Text style={styles.limitLabel}>
-                  {lang === 'fr' ? 'Aéronefs' : 'Aircraft'}
+                  {lang === 'fr' ? 'Avion' : 'Aircraft'}
                 </Text>
               </View>
               <Text style={styles.limitValue}>1</Text>
@@ -99,26 +99,24 @@ export default function ProfileScreen() {
             <View style={styles.limitRow}>
               <View style={styles.limitLeft}>
                 <Text style={styles.limitIcon}>📷</Text>
-                <Text style={styles.limitLabel}>
-                  {lang === 'fr' ? 'OCR par mois' : 'OCR per month'}
-                </Text>
+                <Text style={styles.limitLabel}>OCR</Text>
               </View>
-              <Text style={styles.limitValue}>50</Text>
+              <Text style={styles.limitValue}>10</Text>
             </View>
             <View style={styles.limitDivider} />
             <View style={styles.limitRow}>
               <View style={styles.limitLeft}>
-                <Text style={styles.limitIcon}>📖</Text>
-                <Text style={styles.limitLabel}>
-                  {lang === 'fr' ? 'Entrées carnet/mois' : 'Logbook entries/month'}
-                </Text>
+                <Text style={styles.limitIcon}>📘</Text>
+                <Text style={styles.limitLabel}>Log Book GPS</Text>
               </View>
-              <Text style={styles.limitValue}>10</Text>
+              <Text style={styles.limitValueSoon}>
+                {lang === 'fr' ? 'Bientôt' : 'Soon'}
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* Manage Subscription Button */}
+        {/* Manage Subscription Button - navigates to simple profile screen */}
         <TouchableOpacity
           style={styles.manageButton}
           onPress={handleManageSubscription}
@@ -246,6 +244,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.textDark,
+  },
+  limitValueSoon: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.textMuted,
+    fontStyle: 'italic',
   },
   limitDivider: {
     height: 1,
