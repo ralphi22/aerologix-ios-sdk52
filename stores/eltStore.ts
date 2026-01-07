@@ -160,6 +160,8 @@ function toFrontendFormat(data: EltDataBackend): EltData {
     lastOcrScanDate: cleanDateString(data.last_ocr_scan_date),
     ocrValidated: data.ocr_validated || false,
   };
+  console.log('toFrontendFormat - converted result:', JSON.stringify(result));
+  return result;
 }
 
 // Calculate progress for date-based items
