@@ -237,7 +237,7 @@ export function EltProvider({ children }: { children: ReactNode }) {
       const backendData = await eltService.getByAircraftId(aircraftId);
       
       if (backendData) {
-        const frontendData = toFrontendFormat(backendData);
+        const frontendData = toFrontendFormat(backendData, aircraftId);
         setEltData(frontendData);
         console.log('ELT data loaded from backend for aircraft:', aircraftId);
       } else {
