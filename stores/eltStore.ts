@@ -122,43 +122,57 @@ function cleanDateString(dateStr: string | undefined | null): string {
   return dateStr;
 }
 
-// Helper: Convert frontend EltData to backend format
-function toBackendFormat(data: EltData): Omit<EltDataBackend, 'aircraft_id'> {
-  const result = {
-    manufacturer: data.manufacturer || '',
+/**
+ * Convert frontend EltData to backend format
+ * 
+ * Backend field mapping (from OpenAPI):
+ * - brand (frontend: manufacturer)
+ * - model
+ * - serial_number (frontend: serialNumber)
+ * - beacon_hex_id (frontend: hexCode)
+ * - installation_date (frontend: activationDate)
+ * - certification_date (frontend: serviceDate)
+ * - last_test_date (frontend: lastTestDate)
+ * - battery_install_date (frontend: lastBatteryDate)
+ * - battery_expiry_date (frontend: batteryExpiryDate)
+ */
+function toBackendFormat(data: EltData): Partial<EltDataBackend> {
+  const result: Partial<EltDataBackend> = {
+    brand: data.manufacturer || '',
     model: data.model || '',
     serial_number: data.serialNumber || '',
-    elt_type: data.eltType || '',
-    hex_code: data.hexCode || '',
-    activation_date: cleanDateString(data.activationDate),
-    service_date: cleanDateString(data.serviceDate),
+    beacon_hex_id: data.hexCode || '',
+    installation_date: cleanDateString(data.activationDate),
+    certification_date: cleanDateString(data.serviceDate),
     last_test_date: cleanDateString(data.lastTestDate),
-    last_battery_date: cleanDateString(data.lastBatteryDate),
+    battery_install_date: cleanDateString(data.lastBatteryDate),
     battery_expiry_date: cleanDateString(data.batteryExpiryDate),
-    last_ocr_scan_date: cleanDateString(data.lastOcrScanDate),
-    ocr_validated: data.ocrValidated || false,
+    // Note: eltType is stored locally only (not in backend schema)
+    remarks: data.eltType || '', // Store eltType in remarks field as workaround
   };
   console.log('toBackendFormat - sending to backend:', JSON.stringify(result));
   return result;
 }
 
-// Helper: Convert backend format to frontend EltData
-function toFrontendFormat(data: EltDataBackend): EltData {
+/**
+ * Convert backend format to frontend EltData
+ */
+function toFrontendFormat(data: EltDataBackend, aircraftId: string): EltData {
   console.log('toFrontendFormat - received from backend:', JSON.stringify(data));
-  const result = {
-    manufacturer: data.manufacturer || '',
+  const result: EltData = {
+    manufacturer: data.brand || '',
     model: data.model || '',
     serialNumber: data.serial_number || '',
-    eltType: (data.elt_type as EltType) || '',
-    hexCode: data.hex_code || '',
-    activationDate: cleanDateString(data.activation_date),
-    serviceDate: cleanDateString(data.service_date),
+    eltType: (data.remarks as EltType) || '', // Retrieve eltType from remarks
+    hexCode: data.beacon_hex_id || '',
+    activationDate: cleanDateString(data.installation_date),
+    serviceDate: cleanDateString(data.certification_date),
     lastTestDate: cleanDateString(data.last_test_date),
-    lastBatteryDate: cleanDateString(data.last_battery_date),
+    lastBatteryDate: cleanDateString(data.battery_install_date),
     batteryExpiryDate: cleanDateString(data.battery_expiry_date),
-    aircraftId: data.aircraft_id || '',
-    lastOcrScanDate: cleanDateString(data.last_ocr_scan_date),
-    ocrValidated: data.ocr_validated || false,
+    aircraftId: aircraftId || data.aircraft_id || '',
+    lastOcrScanDate: '',
+    ocrValidated: false,
   };
   console.log('toFrontendFormat - converted result:', JSON.stringify(result));
   return result;
