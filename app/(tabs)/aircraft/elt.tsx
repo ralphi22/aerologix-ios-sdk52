@@ -478,11 +478,27 @@ export default function EltScreen() {
 
         {/* Save Button (when editing) */}
         {isEditing && (
-          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+          <TouchableOpacity 
+            style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} 
+            onPress={handleSave}
+            disabled={isSaving}
+          >
             <Text style={styles.saveButtonText}>
-              {lang === 'fr' ? 'Enregistrer les modifications' : 'Save Changes'}
+              {isSaving 
+                ? (lang === 'fr' ? 'Sauvegarde en cours...' : 'Saving...')
+                : (lang === 'fr' ? 'Enregistrer les modifications' : 'Save Changes')
+              }
             </Text>
           </TouchableOpacity>
+        )}
+
+        {/* Loading indicator */}
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>
+              {lang === 'fr' ? 'Chargement des données ELT...' : 'Loading ELT data...'}
+            </Text>
+          </View>
         )}
 
         {/* Beacon Registry Link */}
