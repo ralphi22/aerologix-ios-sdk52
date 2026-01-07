@@ -1,6 +1,6 @@
 /**
  * Profile Screen - User info, subscription, limits
- * Based on screenshot design
+ * V1 App Store - Lancement gratuit (no monetization)
  */
 
 import React from 'react';
@@ -10,10 +10,10 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { t, getLanguage } from '@/i18n';
+import { getLanguage } from '@/i18n';
+import { useAuthStore } from '@/stores/authStore';
 
 const COLORS = {
   primary: '#0033A0',
@@ -21,29 +21,26 @@ const COLORS = {
   white: '#FFFFFF',
   textDark: '#11181C',
   textMuted: '#6C757D',
-  cardBg: '#B8C5D6',
+  cardBg: '#4CAF50', // Green for free launch
   border: '#E0E0E0',
   danger: '#DC3545',
-};
-
-// Mock user data (OFFLINE MODE)
-const MOCK_USER = {
-  name: 'lima',
-  email: 'lima@123.com',
 };
 
 export default function ProfileScreen() {
   const router = useRouter();
   const lang = getLanguage();
+  const { user, logout } = useAuthStore();
+
+  // Use real user data or fallback
+  const userName = user?.name || (lang === 'fr' ? 'Utilisateur' : 'User');
+  const userEmail = user?.email || '';
 
   const handleManageSubscription = () => {
-    Alert.alert(
-      lang === 'fr' ? 'Gérer l\'abonnement' : 'Manage Subscription',
-      lang === 'fr' ? 'Fonctionnalité bientôt disponible' : 'Feature coming soon'
-    );
+    router.push('/(tabs)/profile/account');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logout();
     router.replace('/login');
   };
 
@@ -61,26 +58,30 @@ export default function ProfileScreen() {
         {/* User Avatar & Info */}
         <View style={styles.userSection}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarIcon}>👤</Text>
+            <Text style={styles.avatarText}>
+              {userName.charAt(0).toUpperCase()}
+            </Text>
           </View>
-          <Text style={styles.userName}>{MOCK_USER.name}</Text>
-          <Text style={styles.userEmail}>{MOCK_USER.email}</Text>
+          <Text style={styles.userName}>{userName}</Text>
+          <Text style={styles.userEmail}>{userEmail}</Text>
         </View>
 
-        {/* Subscription Section */}
+        {/* Subscription Section - Free Launch */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
             {lang === 'fr' ? 'Abonnement' : 'Subscription'}
           </Text>
           <View style={styles.subscriptionCard}>
-            <Text style={styles.subscriptionPlan}>Basic</Text>
+            <Text style={styles.subscriptionPlan}>
+              {lang === 'fr' ? 'Lancement gratuit' : 'Free Launch'}
+            </Text>
             <Text style={styles.subscriptionStatus}>
-              {lang === 'fr' ? 'Actif' : 'Active'}
+              {lang === 'fr' ? '7 jours' : '7 days'}
             </Text>
           </View>
         </View>
 
-        {/* Limits Section */}
+        {/* Limits Section - Free tier limits */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
             {lang === 'fr' ? 'Limites' : 'Limits'}
@@ -90,7 +91,7 @@ export default function ProfileScreen() {
               <View style={styles.limitLeft}>
                 <Text style={styles.limitIcon}>✈️</Text>
                 <Text style={styles.limitLabel}>
-                  {lang === 'fr' ? 'Aéronefs' : 'Aircraft'}
+                  {lang === 'fr' ? 'Avion' : 'Aircraft'}
                 </Text>
               </View>
               <Text style={styles.limitValue}>1</Text>
@@ -99,34 +100,32 @@ export default function ProfileScreen() {
             <View style={styles.limitRow}>
               <View style={styles.limitLeft}>
                 <Text style={styles.limitIcon}>📷</Text>
-                <Text style={styles.limitLabel}>
-                  {lang === 'fr' ? 'OCR par mois' : 'OCR per month'}
-                </Text>
+                <Text style={styles.limitLabel}>OCR</Text>
               </View>
-              <Text style={styles.limitValue}>50</Text>
+              <Text style={styles.limitValue}>10</Text>
             </View>
             <View style={styles.limitDivider} />
             <View style={styles.limitRow}>
               <View style={styles.limitLeft}>
-                <Text style={styles.limitIcon}>📖</Text>
-                <Text style={styles.limitLabel}>
-                  {lang === 'fr' ? 'Entrées carnet/mois' : 'Logbook entries/month'}
-                </Text>
+                <Text style={styles.limitIcon}>📘</Text>
+                <Text style={styles.limitLabel}>Log Book GPS</Text>
               </View>
-              <Text style={styles.limitValue}>10</Text>
+              <Text style={styles.limitValueMuted}>
+                {lang === 'fr' ? 'Bientôt' : 'Soon'}
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* Manage Subscription Button */}
+        {/* Account Info Button */}
         <TouchableOpacity
           style={styles.manageButton}
           onPress={handleManageSubscription}
         >
           <View style={styles.manageButtonLeft}>
-            <Text style={styles.manageIcon}>💳</Text>
+            <Text style={styles.manageIcon}>👤</Text>
             <Text style={styles.manageText}>
-              {lang === 'fr' ? 'Gérer l\'abonnement' : 'Manage subscription'}
+              {lang === 'fr' ? 'Mon compte' : 'My account'}
             </Text>
           </View>
           <Text style={styles.manageArrow}>›</Text>
@@ -167,16 +166,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
-  avatarIcon: {
-    fontSize: 48,
+  avatarText: {
+    fontSize: 32,
+    fontWeight: 'bold',
     color: COLORS.white,
   },
   userName: {
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   subscriptionPlan: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: COLORS.white,
     marginBottom: 4,
@@ -246,6 +246,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.textDark,
+  },
+  limitValueMuted: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.textMuted,
+    fontStyle: 'italic',
   },
   limitDivider: {
     height: 1,
