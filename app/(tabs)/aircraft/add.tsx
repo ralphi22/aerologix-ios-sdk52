@@ -233,34 +233,58 @@ export default function AddAircraftScreen() {
           {/* SECTION: Identity */}
           <SectionHeader title={t('section_identity')} />
           <View style={styles.section}>
-            <FormField
-              label={t('registration')}
-              value={registration}
-              onChangeText={(text) => setRegistration(text.toUpperCase())}
-              placeholder="C-FABC"
-              hint={t('registration_hint')}
-              autoCapitalize="characters"
-            />
+            {/* Registration with TC Lookup */}
+            <View style={styles.fieldContainer}>
+              <View style={styles.fieldLabelRow}>
+                <Text style={styles.fieldLabel}>{t('registration')}</Text>
+                {isLookingUp && (
+                  <View style={styles.lookupIndicator}>
+                    <ActivityIndicator size="small" color={COLORS.primary} />
+                    <Text style={styles.lookupText}>
+                      {lang === 'fr' ? 'Recherche TC...' : 'TC Lookup...'}
+                    </Text>
+                  </View>
+                )}
+                {tcLookupDone && !isLookingUp && (
+                  <View style={styles.lookupSuccess}>
+                    <Text style={styles.lookupSuccessText}>✓ TC</Text>
+                  </View>
+                )}
+              </View>
+              <TextInput
+                style={styles.fieldInput}
+                value={registration}
+                onChangeText={handleRegistrationChange}
+                placeholder="C-FABC"
+                placeholderTextColor={COLORS.textMuted}
+                autoCapitalize="characters"
+              />
+              <Text style={styles.fieldHint}>
+                {lang === 'fr' 
+                  ? 'Auto-remplissage depuis Transport Canada' 
+                  : 'Auto-fill from Transport Canada registry'}
+              </Text>
+            </View>
             <FormField
               label={t('common_name')}
               value={commonName}
               onChangeText={setCommonName}
               placeholder="Cessna"
-              hint={t('auto_fill_hint')}
+              hint={tcLookupDone ? (lang === 'fr' ? '✓ Rempli par TC' : '✓ Filled from TC') : t('auto_fill_hint')}
             />
             <FormField
               label={t('model_name')}
               value={model}
               onChangeText={setModel}
               placeholder="150L"
-              hint={t('auto_fill_hint')}
+              hint={tcLookupDone ? (lang === 'fr' ? '✓ Rempli par TC' : '✓ Filled from TC') : t('auto_fill_hint')}
             />
             <FormField
               label={t('serial_number')}
               value={serialNumber}
               onChangeText={setSerialNumber}
               placeholder="15070001"
-              hint={t('auto_fill_hint')}
+              hint={tcLookupDone ? (lang === 'fr' ? '✓ Rempli par TC' : '✓ Filled from TC') : t('auto_fill_hint')}
             />
           </View>
 
