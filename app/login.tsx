@@ -17,15 +17,15 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import authService from '@/services/authService';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { login, signup, isLoading } = useAuthStore();
   const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async () => {
     if (!email || !password || (isSignup && !name)) {
@@ -33,12 +33,11 @@ export default function LoginScreen() {
       return;
     }
 
-    setIsLoading(true);
     try {
       if (isSignup) {
-        await authService.signup({ email, name, password });
+        await signup(email, name, password);
       } else {
-        await authService.login({ email, password });
+        await login(email, password);
       }
       
       // Navigation vers le premier tab (aircraft)
@@ -47,8 +46,6 @@ export default function LoginScreen() {
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || error.message || "Échec de l'authentification";
       Alert.alert('Erreur', errorMessage);
-    } finally {
-      setIsLoading(false);
     }
   };
 
