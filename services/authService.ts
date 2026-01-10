@@ -6,19 +6,31 @@ import api, { storage } from './api';
  * =========================
  */
 
+export interface UserLimits {
+  max_aircrafts: number;
+  ocr_per_month: number;
+  gps_logbook: boolean;
+  tea_amo_sharing: boolean;
+  invoices: boolean;
+  cost_per_hour: boolean;
+  prebuy: boolean;
+}
+
+export interface UserSubscription {
+  plan: string;
+  status: string;
+  stripe_subscription_id?: string;
+  billing_cycle?: string;
+  current_period_end?: string;
+}
+
 export interface User {
   id: string;
   email: string;
   name: string;
-  subscription: {
-    plan: string;
-    status: string;
-  };
-  limits: {
-    max_aircrafts: number;
-    ocr_per_month: number;
-    logbook_entries_per_month: number;
-  };
+  plan_code: string;
+  subscription: UserSubscription;
+  limits: UserLimits;
 }
 
 export interface LoginCredentials {
