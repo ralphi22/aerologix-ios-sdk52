@@ -18,6 +18,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
 import { useElt, EltStatus, EltType } from '@/stores/eltStore';
+import { RegulatoryStatus } from '@/components/RegulatoryAlerts';
 
 const COLORS = {
   primary: '#0033A0',
