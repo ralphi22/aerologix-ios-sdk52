@@ -1,6 +1,7 @@
 /**
- * Mon Profil Screen - User info display + account deletion
- * App Store v1 compliant - No payments, no plans, no subscriptions
+ * My Profile Screen - Account Settings Only
+ * Contains: Name, Email, Delete Account
+ * No subscription info here
  */
 
 import React, { useState } from 'react';
@@ -27,7 +28,6 @@ const COLORS = {
   textMuted: '#6C757D',
   border: '#E0E0E0',
   danger: '#DC3545',
-  dangerDark: '#C82333',
 };
 
 export default function MyProfileScreen() {
@@ -38,8 +38,8 @@ export default function MyProfileScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Use real user data from auth store with priority: displayName > fullName > name > email > "—"
-  const userName = (user as any)?.displayName || (user as any)?.fullName || user?.name || user?.email || '—';
+  // User data
+  const userName = (user as any)?.displayName || (user as any)?.fullName || user?.name || '—';
   const userEmail = user?.email || '—';
 
   const handleBack = () => {
@@ -50,7 +50,6 @@ export default function MyProfileScreen() {
     setIsDeleting(true);
     try {
       await api.delete('/api/users/me');
-      // Success - clear auth store and redirect to login
       await logout();
       setShowDeleteModal(false);
       router.replace('/login');
@@ -72,7 +71,7 @@ export default function MyProfileScreen() {
           <Text style={styles.backText}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {lang === 'fr' ? 'Mon profil' : 'My Profile'}
+          {lang === 'fr' ? 'Paramètres du compte' : 'Account Settings'}
         </Text>
         <View style={styles.backButton} />
       </View>
@@ -100,15 +99,20 @@ export default function MyProfileScreen() {
           </View>
         </View>
 
-        {/* Delete Account Button */}
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={() => setShowDeleteModal(true)}
-        >
-          <Text style={styles.deleteButtonText}>
-            {lang === 'fr' ? 'Supprimer le compte' : 'Delete Account'}
+        {/* Danger Zone */}
+        <View style={styles.dangerSection}>
+          <Text style={styles.dangerTitle}>
+            {lang === 'fr' ? 'Zone de danger' : 'Danger Zone'}
           </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => setShowDeleteModal(true)}
+          >
+            <Text style={styles.deleteButtonText}>
+              {lang === 'fr' ? 'Supprimer le compte' : 'Delete Account'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Delete Confirmation Modal */}
@@ -232,9 +236,19 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.border,
   },
-  // Delete Account Button
-  deleteButton: {
+  // Danger section
+  dangerSection: {
     marginTop: 32,
+  },
+  dangerTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.danger,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  deleteButton: {
     backgroundColor: COLORS.danger,
     paddingVertical: 16,
     borderRadius: 12,

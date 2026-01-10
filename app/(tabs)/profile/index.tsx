@@ -1,6 +1,6 @@
 /**
- * Profile Screen - User info, subscription, limits
- * Updated for App Store v1 - Non-monetized, clean experience
+ * Profile Screen - Subscription Dashboard
+ * Shows real subscription data from Stripe via backend
  */
 
 import React from 'react';
@@ -14,6 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { getLanguage } from '@/i18n';
 import { useAuthStore } from '@/stores/authStore';
+import { Ionicons } from '@expo/vector-icons';
 
 const COLORS = {
   primary: '#0033A0',
@@ -24,6 +25,27 @@ const COLORS = {
   cardBg: '#B8C5D6',
   border: '#E0E0E0',
   danger: '#DC3545',
+  success: '#28A745',
+  warning: '#FFC107',
+};
+
+// Plan display names mapping
+const PLAN_DISPLAY_NAMES: Record<string, { en: string; fr: string }> = {
+  BASIC: { en: 'Basic (Free)', fr: 'Basic (Gratuit)' },
+  PILOT: { en: 'Pilot', fr: 'Pilot' },
+  PILOT_PRO: { en: 'Pilot Pro', fr: 'Pilot Pro' },
+  MAINTENANCE_PRO: { en: 'Pilot Pro', fr: 'Pilot Pro' },
+  FLEET: { en: 'Fleet', fr: 'Fleet' },
+  FLEET_AI: { en: 'Fleet', fr: 'Fleet' },
+};
+
+// Status display
+const STATUS_DISPLAY: Record<string, { en: string; fr: string; color: string }> = {
+  active: { en: 'Active', fr: 'Actif', color: COLORS.success },
+  trialing: { en: 'Trial', fr: 'Essai', color: COLORS.warning },
+  canceled: { en: 'Canceled', fr: 'Annulé', color: COLORS.danger },
+  past_due: { en: 'Past Due', fr: 'Impayé', color: COLORS.danger },
+  inactive: { en: 'Inactive', fr: 'Inactif', color: COLORS.textMuted },
 };
 
 export default function ProfileScreen() {
@@ -31,12 +53,38 @@ export default function ProfileScreen() {
   const lang = getLanguage();
   const { user, logout } = useAuthStore();
 
-  // Use real user data from auth store with priority: displayName > fullName > name > email > "—"
+  // User info
   const userName = (user as any)?.displayName || (user as any)?.fullName || user?.name || user?.email || '—';
   const userEmail = user?.email || '';
 
+  // Subscription info from backend
+  const planCode = user?.plan_code || user?.subscription?.plan || 'BASIC';
+  const subscriptionStatus = user?.subscription?.status || 'inactive';
+  const limits = user?.limits || {
+    max_aircrafts: 1,
+    ocr_per_month: 5,
+    gps_logbook: false,
+    tea_amo_sharing: false,
+    invoices: false,
+    cost_per_hour: false,
+    prebuy: false,
+  };
+
+  // Display values
+  const planDisplay = PLAN_DISPLAY_NAMES[planCode]?.[lang] || PLAN_DISPLAY_NAMES[planCode]?.en || planCode;
+  const statusInfo = STATUS_DISPLAY[subscriptionStatus] || STATUS_DISPLAY.inactive;
+  const statusDisplay = statusInfo[lang] || statusInfo.en;
+
+  // Limits display
+  const maxAircrafts = limits.max_aircrafts === -1 ? '∞' : String(limits.max_aircrafts || 1);
+  const ocrPerMonth = limits.ocr_per_month === -1 ? '∞' : String(limits.ocr_per_month || 5);
+  const hasLogbookGPS = limits.gps_logbook || limits.tea_amo_sharing;
+
   const handleManageSubscription = () => {
-    // Navigate to simple "Mon profil" screen
+    router.push('/profile/subscription');
+  };
+
+  const handleMyProfile = () => {
     router.push('/profile/my-profile');
   };
 
@@ -63,6 +111,14 @@ export default function ProfileScreen() {
           </View>
           <Text style={styles.userName}>{userName}</Text>
           <Text style={styles.userEmail}>{userEmail}</Text>
+          
+          {/* My Profile Link */}
+          <TouchableOpacity style={styles.profileLink} onPress={handleMyProfile}>
+            <Ionicons name="settings-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.profileLinkText}>
+              {lang === 'fr' ? 'Paramètres du compte' : 'Account Settings'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Subscription Section */}
@@ -71,52 +127,99 @@ export default function ProfileScreen() {
             {lang === 'fr' ? 'Abonnement' : 'Subscription'}
           </Text>
           <View style={styles.subscriptionCard}>
-            <Text style={styles.subscriptionPlan}>
-              {lang === 'fr' ? 'Lancement gratuit' : 'Free Launch'}
-            </Text>
-            <Text style={styles.subscriptionStatus}>
-              {lang === 'fr' ? '7 jours' : '7 days'}
-            </Text>
+            <Text style={styles.subscriptionPlan}>{planDisplay}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: statusInfo.color }]}>
+              <Text style={styles.statusText}>{statusDisplay}</Text>
+            </View>
           </View>
         </View>
 
-        {/* Benefits Section (Static informational only) */}
+        {/* Limits Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
             {lang === 'fr' ? 'Limites' : 'Limits'}
           </Text>
           <View style={styles.limitsCard}>
+            {/* Aircraft limit */}
             <View style={styles.limitRow}>
               <View style={styles.limitLeft}>
                 <Text style={styles.limitIcon}>✈️</Text>
                 <Text style={styles.limitLabel}>
-                  {lang === 'fr' ? 'Avion' : 'Aircraft'}
+                  {lang === 'fr' ? 'Aéronefs' : 'Aircraft'}
                 </Text>
               </View>
-              <Text style={styles.limitValue}>1</Text>
+              <Text style={styles.limitValue}>{maxAircrafts}</Text>
             </View>
+            
             <View style={styles.limitDivider} />
+            
+            {/* OCR limit */}
             <View style={styles.limitRow}>
               <View style={styles.limitLeft}>
                 <Text style={styles.limitIcon}>📷</Text>
-                <Text style={styles.limitLabel}>OCR</Text>
+                <Text style={styles.limitLabel}>OCR / {lang === 'fr' ? 'mois' : 'month'}</Text>
               </View>
-              <Text style={styles.limitValue}>10</Text>
+              <Text style={styles.limitValue}>{ocrPerMonth}</Text>
             </View>
+            
             <View style={styles.limitDivider} />
+            
+            {/* Log Book GPS */}
             <View style={styles.limitRow}>
               <View style={styles.limitLeft}>
                 <Text style={styles.limitIcon}>📘</Text>
                 <Text style={styles.limitLabel}>Log Book GPS</Text>
               </View>
-              <Text style={styles.limitValueSoon}>
-                {lang === 'fr' ? 'Bientôt' : 'Soon'}
-              </Text>
+              {hasLogbookGPS ? (
+                <Ionicons name="checkmark-circle" size={22} color={COLORS.success} />
+              ) : (
+                <Text style={styles.limitValueDisabled}>
+                  {lang === 'fr' ? 'Non inclus' : 'Not included'}
+                </Text>
+              )}
+            </View>
+            
+            <View style={styles.limitDivider} />
+            
+            {/* Invoices */}
+            <View style={styles.limitRow}>
+              <View style={styles.limitLeft}>
+                <Text style={styles.limitIcon}>🧾</Text>
+                <Text style={styles.limitLabel}>
+                  {lang === 'fr' ? 'Factures' : 'Invoices'}
+                </Text>
+              </View>
+              {limits.invoices ? (
+                <Ionicons name="checkmark-circle" size={22} color={COLORS.success} />
+              ) : (
+                <Text style={styles.limitValueDisabled}>
+                  {lang === 'fr' ? 'Non inclus' : 'Not included'}
+                </Text>
+              )}
+            </View>
+            
+            <View style={styles.limitDivider} />
+            
+            {/* Cost per hour */}
+            <View style={styles.limitRow}>
+              <View style={styles.limitLeft}>
+                <Text style={styles.limitIcon}>💰</Text>
+                <Text style={styles.limitLabel}>
+                  {lang === 'fr' ? 'Coût/heure' : 'Cost/hour'}
+                </Text>
+              </View>
+              {limits.cost_per_hour ? (
+                <Ionicons name="checkmark-circle" size={22} color={COLORS.success} />
+              ) : (
+                <Text style={styles.limitValueDisabled}>
+                  {lang === 'fr' ? 'Non inclus' : 'Not included'}
+                </Text>
+              )}
             </View>
           </View>
         </View>
 
-        {/* Manage Subscription Button - navigates to simple profile screen */}
+        {/* Manage Subscription Button */}
         <TouchableOpacity
           style={styles.manageButton}
           onPress={handleManageSubscription}
@@ -124,7 +227,7 @@ export default function ProfileScreen() {
           <View style={styles.manageButtonLeft}>
             <Text style={styles.manageIcon}>💳</Text>
             <Text style={styles.manageText}>
-              {lang === 'fr' ? 'Gérer l\'abonnement' : 'Manage subscription'}
+              {lang === 'fr' ? 'Gérer l\'abonnement' : 'Manage Subscription'}
             </Text>
           </View>
           <Text style={styles.manageArrow}>›</Text>
@@ -161,60 +264,80 @@ const styles = StyleSheet.create({
   // User section
   userSection: {
     alignItems: 'center',
-    paddingVertical: 30,
+    paddingVertical: 24,
     backgroundColor: COLORS.white,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   avatarIcon: {
-    fontSize: 48,
+    fontSize: 40,
     color: COLORS.white,
   },
   userName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '600',
     color: COLORS.textDark,
     marginBottom: 4,
   },
   userEmail: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.textMuted,
+    marginBottom: 12,
+  },
+  profileLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  profileLinkText: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '500',
   },
   // Section
   section: {
-    marginTop: 24,
+    marginTop: 20,
     paddingHorizontal: 16,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: COLORS.textDark,
-    marginBottom: 12,
+    color: COLORS.textMuted,
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   // Subscription card
   subscriptionCard: {
-    backgroundColor: COLORS.cardBg,
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
     padding: 20,
     alignItems: 'center',
   },
   subscriptionPlan: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
     color: COLORS.white,
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  subscriptionStatus: {
-    fontSize: 14,
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: COLORS.white,
-    opacity: 0.9,
   },
   // Limits card
   limitsCard: {
@@ -226,35 +349,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 14,
   },
   limitLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   limitIcon: {
-    fontSize: 20,
+    fontSize: 18,
     marginRight: 12,
   },
   limitLabel: {
-    fontSize: 16,
+    fontSize: 15,
     color: COLORS.textDark,
   },
   limitValue: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
     color: COLORS.textDark,
   },
-  limitValueSoon: {
-    fontSize: 14,
-    fontWeight: '500',
+  limitValueDisabled: {
+    fontSize: 13,
     color: COLORS.textMuted,
-    fontStyle: 'italic',
   },
   limitDivider: {
     height: 1,
     backgroundColor: COLORS.border,
-    marginHorizontal: 16,
+    marginHorizontal: 14,
   },
   // Manage button
   manageButton: {
@@ -263,7 +384,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.white,
     marginHorizontal: 16,
-    marginTop: 24,
+    marginTop: 20,
     padding: 16,
     borderRadius: 12,
   },
@@ -287,9 +408,9 @@ const styles = StyleSheet.create({
   // Logout button
   logoutButton: {
     marginHorizontal: 16,
-    marginTop: 24,
+    marginTop: 20,
     backgroundColor: COLORS.danger,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
