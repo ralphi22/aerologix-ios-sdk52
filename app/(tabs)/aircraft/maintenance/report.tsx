@@ -317,6 +317,7 @@ export default function ReportScreen() {
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={motorProgress.percent}
             status={motorProgress.status}
+            regulatorySystem="engine"
           />
 
           {/* Hélice */}
@@ -331,9 +332,10 @@ export default function ReportScreen() {
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={heliceProgress.percent}
             status={heliceProgress.status}
+            regulatorySystem="propeller"
           />
 
-          {/* Cellule (Annuelle) */}
+          {/* Cellule (Annuelle) - No regulatory system, just inspection */}
           <CriticalElementCard
             icon="✈️"
             iconBg={COLORS.greenLight}
@@ -359,6 +361,7 @@ export default function ReportScreen() {
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={avioniqueProgress.percent}
             status={avioniqueProgress.status}
+            regulatorySystem="avionics"
           />
 
           {/* Magnétos */}
@@ -373,6 +376,7 @@ export default function ReportScreen() {
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={magnetosProgress.percent}
             status={magnetosProgress.status}
+            regulatorySystem="magnetos"
           />
 
           {/* Pompe à vide */}
@@ -387,6 +391,7 @@ export default function ReportScreen() {
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={pompeProgress.percent}
             status={pompeProgress.status}
+            regulatorySystem="vacuumPump"
           />
 
           {/* ELT */}
@@ -401,6 +406,7 @@ export default function ReportScreen() {
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={eltProgress.percent}
             status={eltProgress.status}
+            regulatorySystem="elt"
           />
         </View>
 
