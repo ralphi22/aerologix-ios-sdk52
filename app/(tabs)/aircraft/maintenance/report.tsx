@@ -225,17 +225,6 @@ export default function ReportScreen() {
             eltTestProgressData.status === 'attention' ? 'warning' as const : 'exceeded' as const,
   };
 
-  // Check for alerts
-  const alerts: { title: string; titleFr: string; message: string; messageFr: string }[] = [];
-  if (avioniqueProgress.status === 'exceeded') {
-    alerts.push({
-      title: 'Avionics',
-      titleFr: 'Avionique',
-      message: 'Certification expired',
-      messageFr: 'Certification expirée',
-    });
-  }
-
   const navigateToSettings = () => {
     router.push({
       pathname: '/(tabs)/aircraft/maintenance/report-settings',
