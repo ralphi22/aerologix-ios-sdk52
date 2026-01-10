@@ -270,29 +270,11 @@ export default function ReportScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Alerts Section */}
-        {alerts.length > 0 && (
-          <View style={styles.alertsSection}>
-            <View style={styles.alertsHeader}>
-              <Text style={styles.alertsBell}>🔔</Text>
-              <Text style={styles.alertsTitle}>
-                {lang === 'fr' ? `Alertes (${alerts.length})` : `Alerts (${alerts.length})`}
-              </Text>
-            </View>
-            {alerts.map((alert, index) => (
-              <View key={index} style={styles.alertCard}>
-                <View style={styles.alertIconContainer}>
-                  <Text style={styles.alertIcon}>📡</Text>
-                </View>
-                <View style={styles.alertContent}>
-                  <Text style={styles.alertTitle}>{lang === 'fr' ? alert.titleFr : alert.title}</Text>
-                  <Text style={styles.alertMessage}>{lang === 'fr' ? alert.messageFr : alert.message}</Text>
-                </View>
-                <View style={styles.alertIndicator} />
-              </View>
-            ))}
-          </View>
-        )}
+        {/* Global Regulatory Banner - Only for Avionics and ELT when ≥100% */}
+        <GlobalRegulatoryBanner 
+          avionicsPercent={avioniqueProgress.percent} 
+          eltPercent={eltProgress.percent} 
+        />
 
         {/* Main Hours Summary */}
         <View style={styles.hoursSummary}>
