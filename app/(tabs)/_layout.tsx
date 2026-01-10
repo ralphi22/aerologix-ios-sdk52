@@ -38,7 +38,7 @@ export default function TabsLayout() {
         name="aircraft"
         options={{
           title: 'Aéronefs',
-          headerTitle: 'Mes Aéronefs',
+          headerTitle: 'AeroLogix',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="airplane" size={size} color={color} />
           ),
@@ -48,7 +48,7 @@ export default function TabsLayout() {
         name="eko"
         options={{
           title: 'EKO',
-          headerTitle: 'EKO - Assistant IA',
+          headerTitle: 'AeroLogix',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="sparkles" size={size} color={color} />
           ),
@@ -58,7 +58,7 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Profil',
-          headerTitle: 'Mon Profil',
+          headerTitle: 'AeroLogix',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
           ),
