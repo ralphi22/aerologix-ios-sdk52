@@ -31,8 +31,8 @@ export default function ProfileScreen() {
   const lang = getLanguage();
   const { user, logout } = useAuthStore();
 
-  // Use real user data from auth store
-  const userName = user?.name || 'Utilisateur';
+  // Use real user data from auth store with priority: displayName > fullName > name > email > "—"
+  const userName = (user as any)?.displayName || (user as any)?.fullName || user?.name || user?.email || '—';
   const userEmail = user?.email || '';
 
   const handleManageSubscription = () => {
