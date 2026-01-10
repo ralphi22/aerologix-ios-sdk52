@@ -1,9 +1,10 @@
 /**
  * Edit Aircraft Screen
- * Includes photo selection for aircraft image
+ * Includes photo selection and TC Lookup auto-fill
+ * TC Lookup fills ONLY: manufacturer, model, first_owner_given, first_owner_family
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,11 +17,13 @@ import {
   Platform,
   Alert,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { t, getLanguage } from '@/i18n';
 import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
+import api from '@/services/api';
 
 const COLORS = {
   primary: '#0033A0',
@@ -32,8 +35,15 @@ const COLORS = {
   hint: '#9E9E9E',
   blue: '#E3F2FD',
   green: '#4CAF50',
+  greenLight: '#E8F5E9',
   red: '#E53935',
+  redLight: '#FFEBEE',
+  orange: '#FF9800',
+  orangeLight: '#FFF3E0',
 };
+
+// TC Lookup status types
+type TCLookupStatus = 'idle' | 'loading' | 'success' | 'not_found' | 'invalid_format' | 'error';
 
 interface FormFieldProps {
   label: string;
@@ -43,6 +53,7 @@ interface FormFieldProps {
   hint?: string;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   keyboardType?: 'default' | 'numeric' | 'email-address';
+  tcFilled?: boolean;
 }
 
 function FormField({
@@ -53,10 +64,19 @@ function FormField({
   hint,
   autoCapitalize = 'sentences',
   keyboardType = 'default',
+  tcFilled = false,
 }: FormFieldProps) {
+  const lang = getLanguage();
   return (
     <View style={styles.fieldContainer}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.fieldLabelRow}>
+        <Text style={styles.fieldLabel}>{label}</Text>
+        {tcFilled && (
+          <View style={styles.tcFilledBadge}>
+            <Text style={styles.tcFilledText}>✓ TC</Text>
+          </View>
+        )}
+      </View>
       <TextInput
         style={styles.fieldInput}
         value={value}
@@ -87,6 +107,10 @@ export default function EditAircraftScreen() {
 
   const aircraft = getAircraftById(aircraftId || '');
 
+  // TC Lookup state
+  const [tcLookupStatus, setTcLookupStatus] = useState<TCLookupStatus>('idle');
+  const [tcLookupDone, setTcLookupDone] = useState(false);
+
   // Form state
   const [registration, setRegistration] = useState('');
   const [commonName, setCommonName] = useState('');
@@ -109,6 +133,10 @@ export default function EditAircraftScreen() {
   const [engineHours, setEngineHours] = useState('');
   const [propellerHours, setPropellerHours] = useState('');
   const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
+  
+  // TC Lookup additional fields (First Owner)
+  const [firstOwnerGiven, setFirstOwnerGiven] = useState('');
+  const [firstOwnerFamily, setFirstOwnerFamily] = useState('');
 
   // Load aircraft data
   useEffect(() => {
@@ -134,8 +162,67 @@ export default function EditAircraftScreen() {
       setEngineHours(aircraft.engineHours.toString());
       setPropellerHours(aircraft.propellerHours.toString());
       setPhotoUri(aircraft.photoUri);
+      // Load First Owner if saved
+      setFirstOwnerGiven((aircraft as any).firstOwnerGiven || '');
+      setFirstOwnerFamily((aircraft as any).firstOwnerFamily || '');
     }
   }, [aircraft]);
+
+  // TC Lookup - ONLY fills manufacturer, model, first_owner_given, first_owner_family
+  const fetchFromTC = useCallback(async (reg: string) => {
+    if (reg.length < 5 || tcLookupStatus === 'loading') return;
+
+    setTcLookupStatus('loading');
+    try {
+      const response = await api.get(`/api/tc/lookup?registration=${reg}`);
+      const data = response.data;
+
+      if (data) {
+        // ONLY fill the 4 authorized fields from TC
+        if (data.manufacturer) setManufacturer(data.manufacturer);
+        if (data.model) setModel(data.model);
+        if (data.first_owner_given_name) setFirstOwnerGiven(data.first_owner_given_name);
+        if (data.first_owner_family_name) setFirstOwnerFamily(data.first_owner_family_name);
+        
+        setTcLookupStatus('success');
+        setTcLookupDone(true);
+      }
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        setTcLookupStatus('not_found');
+      } else if (error?.response?.status === 400) {
+        setTcLookupStatus('invalid_format');
+      } else {
+        setTcLookupStatus('error');
+      }
+    }
+  }, [tcLookupStatus]);
+
+  // Handle registration change with TC lookup trigger
+  const handleRegistrationChange = (text: string) => {
+    const upperText = text.toUpperCase();
+    setRegistration(upperText);
+    
+    // Reset lookup if registration changes significantly
+    if (upperText.length < 5) {
+      setTcLookupStatus('idle');
+      setTcLookupDone(false);
+    }
+    
+    // Trigger TC lookup at 5+ characters
+    if (upperText.length >= 5 && !tcLookupDone && tcLookupStatus !== 'loading') {
+      fetchFromTC(upperText);
+    }
+  };
+
+  // Manually trigger TC lookup
+  const handleTCLookup = () => {
+    if (registration.length >= 5) {
+      setTcLookupDone(false);
+      setTcLookupStatus('idle');
+      fetchFromTC(registration);
+    }
+  };
 
   // Request media library permissions
   const requestMediaPermission = async (): Promise<boolean> => {
@@ -278,9 +365,50 @@ export default function EditAircraftScreen() {
       engineHours: parseFloat(engineHours) || 0,
       propellerHours: parseFloat(propellerHours) || 0,
       photoUri,
-    });
+      firstOwnerGiven,
+      firstOwnerFamily,
+    } as any);
 
     router.back();
+  };
+
+  // TC Lookup status message
+  const renderTCStatus = () => {
+    switch (tcLookupStatus) {
+      case 'loading':
+        return (
+          <View style={styles.tcStatusContainer}>
+            <ActivityIndicator size="small" color={COLORS.primary} />
+            <Text style={styles.tcStatusText}>
+              {lang === 'fr' ? 'Recherche Transport Canada...' : 'Looking up Transport Canada...'}
+            </Text>
+          </View>
+        );
+      case 'success':
+        return (
+          <View style={[styles.tcStatusContainer, styles.tcStatusSuccess]}>
+            <Text style={styles.tcStatusSuccessText}>✓ Source: Transport Canada</Text>
+          </View>
+        );
+      case 'not_found':
+        return (
+          <View style={[styles.tcStatusContainer, styles.tcStatusWarning]}>
+            <Text style={styles.tcStatusWarningText}>
+              {lang === 'fr' ? 'Non trouvé dans le registre TC' : 'Not found in TC registry'}
+            </Text>
+          </View>
+        );
+      case 'invalid_format':
+        return (
+          <View style={[styles.tcStatusContainer, styles.tcStatusError]}>
+            <Text style={styles.tcStatusErrorText}>
+              {lang === 'fr' ? 'Format d\'immatriculation canadienne invalide' : 'Invalid Canadian registration format'}
+            </Text>
+          </View>
+        );
+      default:
+        return null;
+    }
   };
 
   return (
@@ -329,16 +457,39 @@ export default function EditAircraftScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* SECTION: Identity */}
+          {/* SECTION: Identity with TC Lookup */}
           <SectionHeader title={t('section_identity')} />
           <View style={styles.section}>
-            <FormField
-              label={t('registration')}
-              value={registration}
-              onChangeText={(text) => setRegistration(text.toUpperCase())}
-              placeholder="C-FABC"
-              autoCapitalize="characters"
-            />
+            {/* Registration with TC Lookup */}
+            <View style={styles.fieldContainer}>
+              <View style={styles.fieldLabelRow}>
+                <Text style={styles.fieldLabel}>{t('registration')}</Text>
+                {tcLookupStatus === 'loading' && (
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                )}
+              </View>
+              <View style={styles.registrationRow}>
+                <TextInput
+                  style={[styles.fieldInput, styles.registrationInput]}
+                  value={registration}
+                  onChangeText={handleRegistrationChange}
+                  placeholder="C-FABC"
+                  placeholderTextColor={COLORS.textMuted}
+                  autoCapitalize="characters"
+                />
+                <TouchableOpacity 
+                  style={styles.tcLookupButton}
+                  onPress={handleTCLookup}
+                  disabled={registration.length < 5 || tcLookupStatus === 'loading'}
+                >
+                  <Text style={styles.tcLookupButtonText}>🔍 TC</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            {/* TC Status Message */}
+            {renderTCStatus()}
+            
             <FormField
               label={t('common_name')}
               value={commonName}
@@ -350,6 +501,7 @@ export default function EditAircraftScreen() {
               value={model}
               onChangeText={setModel}
               placeholder="150L"
+              tcFilled={tcLookupDone && tcLookupStatus === 'success'}
             />
             <FormField
               label={t('serial_number')}
@@ -401,6 +553,7 @@ export default function EditAircraftScreen() {
               value={manufacturer}
               onChangeText={setManufacturer}
               placeholder="Cessna Aircraft Company"
+              tcFilled={tcLookupDone && tcLookupStatus === 'success'}
             />
             <FormField
               label={t('country_manufacture')}
@@ -415,6 +568,33 @@ export default function EditAircraftScreen() {
               placeholder="1973"
               keyboardType="numeric"
             />
+          </View>
+
+          {/* SECTION: First Owner (from TC) */}
+          <SectionHeader title={lang === 'fr' ? 'Premier propriétaire' : 'First Owner'} />
+          <View style={styles.section}>
+            <FormField
+              label={lang === 'fr' ? 'Prénom' : 'Given Name'}
+              value={firstOwnerGiven}
+              onChangeText={setFirstOwnerGiven}
+              placeholder="John"
+              tcFilled={tcLookupDone && tcLookupStatus === 'success'}
+            />
+            <FormField
+              label={lang === 'fr' ? 'Nom de famille' : 'Family Name'}
+              value={firstOwnerFamily}
+              onChangeText={setFirstOwnerFamily}
+              placeholder="Doe"
+              tcFilled={tcLookupDone && tcLookupStatus === 'success'}
+            />
+            {/* TC Source disclaimer */}
+            <View style={styles.tcSourceNote}>
+              <Text style={styles.tcSourceText}>
+                {lang === 'fr' 
+                  ? 'Source: Registre des aéronefs civils de Transport Canada. Informatif seulement.'
+                  : 'Source: Transport Canada Civil Aircraft Register. Informational only.'}
+              </Text>
+            </View>
           </View>
 
           {/* SECTION: Hours */}
@@ -598,10 +778,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
+  fieldLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
   fieldLabel: {
     fontSize: 14,
     color: COLORS.textMuted,
-    marginBottom: 6,
   },
   fieldInput: {
     fontSize: 16,
@@ -613,6 +798,85 @@ const styles = StyleSheet.create({
     color: COLORS.hint,
     marginTop: 4,
     fontStyle: 'italic',
+  },
+  // TC Filled badge
+  tcFilledBadge: {
+    backgroundColor: COLORS.greenLight,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  tcFilledText: {
+    fontSize: 11,
+    color: COLORS.green,
+    fontWeight: '600',
+  },
+  // Registration row with TC button
+  registrationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  registrationInput: {
+    flex: 1,
+  },
+  tcLookupButton: {
+    backgroundColor: COLORS.blue,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  tcLookupButtonText: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  // TC Status messages
+  tcStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    gap: 8,
+  },
+  tcStatusText: {
+    fontSize: 13,
+    color: COLORS.primary,
+  },
+  tcStatusSuccess: {
+    backgroundColor: COLORS.greenLight,
+  },
+  tcStatusSuccessText: {
+    fontSize: 13,
+    color: COLORS.green,
+    fontWeight: '600',
+  },
+  tcStatusWarning: {
+    backgroundColor: COLORS.orangeLight,
+  },
+  tcStatusWarningText: {
+    fontSize: 13,
+    color: COLORS.orange,
+  },
+  tcStatusError: {
+    backgroundColor: COLORS.redLight,
+  },
+  tcStatusErrorText: {
+    fontSize: 13,
+    color: COLORS.red,
+  },
+  // TC Source note
+  tcSourceNote: {
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  tcSourceText: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    fontStyle: 'italic',
+    lineHeight: 16,
   },
   disclaimer: {
     flexDirection: 'row',
