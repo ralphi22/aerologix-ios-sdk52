@@ -1,19 +1,23 @@
 /**
- * Mon Profil Screen - Simple user info display
+ * Mon Profil Screen - User info display + account deletion
  * App Store v1 compliant - No payments, no plans, no subscriptions
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
+  Modal,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getLanguage } from '@/i18n';
 import { useAuthStore } from '@/stores/authStore';
+import api from '@/services/api';
 
 const COLORS = {
   primary: '#0033A0',
@@ -22,19 +26,42 @@ const COLORS = {
   textDark: '#11181C',
   textMuted: '#6C757D',
   border: '#E0E0E0',
+  danger: '#DC3545',
+  dangerDark: '#C82333',
 };
 
 export default function MyProfileScreen() {
   const router = useRouter();
   const lang = getLanguage();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
 
-  // Use real user data from auth store
-  const userName = user?.name || 'Utilisateur';
-  const userEmail = user?.email || '';
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Use real user data from auth store with priority: displayName > fullName > name > email > "—"
+  const userName = (user as any)?.displayName || (user as any)?.fullName || user?.name || user?.email || '—';
+  const userEmail = user?.email || '—';
 
   const handleBack = () => {
     router.back();
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      await api.delete('/api/users/me');
+      // Success - clear auth store and redirect to login
+      await logout();
+      setShowDeleteModal(false);
+      router.replace('/login');
+    } catch (error: any) {
+      setIsDeleting(false);
+      const errorMessage = error?.response?.data?.detail || error?.message || 'An error occurred while deleting your account.';
+      Alert.alert(
+        lang === 'fr' ? 'Erreur' : 'Error',
+        errorMessage
+      );
+    }
   };
 
   return (
@@ -72,7 +99,64 @@ export default function MyProfileScreen() {
             <Text style={styles.value}>{userEmail}</Text>
           </View>
         </View>
+
+        {/* Delete Account Button */}
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => setShowDeleteModal(true)}
+        >
+          <Text style={styles.deleteButtonText}>
+            {lang === 'fr' ? 'Supprimer le compte' : 'Delete Account'}
+          </Text>
+        </TouchableOpacity>
       </View>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !isDeleting && setShowDeleteModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {lang === 'fr' ? 'Supprimer le compte' : 'Delete Account'}
+            </Text>
+            <Text style={styles.modalMessage}>
+              {lang === 'fr'
+                ? 'Cela supprimera définitivement votre compte et toutes vos données. Cette action est irréversible.'
+                : 'This will permanently delete your account and all your data. This cannot be undone.'}
+            </Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+              >
+                <Text style={styles.cancelButtonText}>
+                  {lang === 'fr' ? 'Annuler' : 'Cancel'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmDeleteButton]}
+                onPress={handleDeleteAccount}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator color={COLORS.white} size="small" />
+                ) : (
+                  <Text style={styles.confirmDeleteButtonText}>
+                    {lang === 'fr' ? 'Supprimer' : 'Delete'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
