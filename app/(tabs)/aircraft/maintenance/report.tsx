@@ -2,6 +2,7 @@
  * Report Dashboard Screen
  * Displays maintenance status with progress bars for critical elements
  * TC-SAFE: Informational only, no airworthiness decisions
+ * Canadian Regulatory Alert Layer: Shows consequences only when ≥100%
  */
 
 import React from 'react';
@@ -17,6 +18,7 @@ import { getLanguage } from '@/i18n';
 import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
 import { useReportSettings } from '@/stores/reportSettingsStore';
 import { useElt, ELT_FIXED_LIMITS } from '@/stores/eltStore';
+import { GlobalRegulatoryBanner, RegulatoryStatus, RegulatorySystem } from '@/components/RegulatoryAlerts';
 
 const COLORS = {
   primary: '#0033A0',
