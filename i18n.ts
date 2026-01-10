@@ -273,6 +273,24 @@ const translations: Record<'en' | 'fr', Translations> = {
     tab_profile: 'Profil',
     // Profile
     profile: 'Profil',
+    // TC AD/SB
+    tc_adsb_title: 'AD/SB Transport Canada',
+    tc_adsb_subtitle: 'Informatif seulement — vérifiez avec les registres officiels et votre TEA.',
+    tc_adsb_new_alert: 'Nouvelle AD publiée depuis la dernière mise à jour du carnet',
+    tc_adsb_ad_section: 'Consignes de navigabilité (AD)',
+    tc_adsb_sb_section: 'Bulletins de service (SB)',
+    tc_adsb_missing: 'Manquant',
+    tc_adsb_due_soon: 'Échéance proche',
+    tc_adsb_ok: 'OK',
+    tc_adsb_new_since_logbook: 'Nouveau depuis le dernier carnet',
+    tc_adsb_last_recorded: 'Dernière inscription',
+    tc_adsb_next_due: 'Prochaine échéance',
+    tc_adsb_open_source: 'Voir source',
+    tc_adsb_no_items: 'Aucun élément trouvé',
+    tc_adsb_disclaimer: 'Les informations AD et SB de Transport Canada sont fournies à titre de référence uniquement. AeroLogix ne détermine pas la conformité ou la navigabilité des aéronefs.',
+    tc_adsb_info_only: 'Informatif seulement',
+    tc_adsb_loading: 'Chargement des données TC...',
+    tc_adsb_error: 'Échec du chargement des données TC',
   },
 };
 
