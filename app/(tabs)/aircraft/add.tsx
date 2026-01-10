@@ -510,10 +510,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
+  fieldLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
   fieldLabel: {
     fontSize: 14,
     color: COLORS.textMuted,
-    marginBottom: 6,
   },
   fieldInput: {
     fontSize: 16,
@@ -525,6 +530,27 @@ const styles = StyleSheet.create({
     color: COLORS.hint,
     marginTop: 4,
     fontStyle: 'italic',
+  },
+  // TC Lookup indicators
+  lookupIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  lookupText: {
+    fontSize: 12,
+    color: COLORS.primary,
+  },
+  lookupSuccess: {
+    backgroundColor: COLORS.successBg,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  lookupSuccessText: {
+    fontSize: 12,
+    color: COLORS.success,
+    fontWeight: '600',
   },
   // Disclaimer
   disclaimer: {
