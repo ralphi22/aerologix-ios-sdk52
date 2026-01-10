@@ -57,7 +57,7 @@ function FormField({
 }: FormFieldProps) {
   return (
     <View style={styles.fieldContainer}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={[styles.fieldLabel, { marginBottom: 6 }]}>{label}</Text>
       <TextInput
         style={styles.fieldInput}
         value={value}
