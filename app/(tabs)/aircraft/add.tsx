@@ -82,8 +82,11 @@ function SectionHeader({ title }: { title: string }) {
 
 export default function AddAircraftScreen() {
   const router = useRouter();
+  const lang = getLanguage();
   const { addAircraft } = useAircraftLocalStore();
   const [isSaving, setIsSaving] = useState(false);
+  const [isLookingUp, setIsLookingUp] = useState(false);
+  const [tcLookupDone, setTcLookupDone] = useState(false);
 
   // Form state
   const [registration, setRegistration] = useState('');
@@ -106,6 +109,62 @@ export default function AddAircraftScreen() {
   const [airframeHours, setAirframeHours] = useState('');
   const [engineHours, setEngineHours] = useState('');
   const [propellerHours, setPropellerHours] = useState('');
+  // TC Lookup additional fields
+  const [designator, setDesignator] = useState('');
+  const [firstOwnerGiven, setFirstOwnerGiven] = useState('');
+  const [firstOwnerFamily, setFirstOwnerFamily] = useState('');
+
+  // Auto-fetch from Transport Canada registry
+  const fetchFromTC = useCallback(async (reg: string) => {
+    if (reg.length < 4 || isLookingUp || tcLookupDone) return;
+
+    setIsLookingUp(true);
+    try {
+      const response = await api.get(`/api/tc/lookup?registration=${reg}`);
+      const data = response.data;
+
+      if (data) {
+        // Auto-fill fields from TC registry
+        if (data.manufacturer) setManufacturer(data.manufacturer);
+        if (data.model) setModel(data.model);
+        if (data.designator) setDesignator(data.designator);
+        if (data.common_name) setCommonName(data.common_name);
+        if (data.serial_number) setSerialNumber(data.serial_number);
+        if (data.year_manufacture) setYearManufacture(String(data.year_manufacture));
+        if (data.country_manufacture) setCountryManufacture(data.country_manufacture);
+        if (data.category) setCategory(data.category);
+        if (data.engine_type) setEngineType(data.engine_type);
+        if (data.max_weight) setMaxWeight(data.max_weight);
+        if (data.first_owner_given_name) setFirstOwnerGiven(data.first_owner_given_name);
+        if (data.first_owner_family_name) setFirstOwnerFamily(data.first_owner_family_name);
+        if (data.city) setCity(data.city);
+        if (data.country) setCountry(data.country || 'Canada');
+        
+        setTcLookupDone(true);
+      }
+    } catch (error) {
+      // Silently fail - TC lookup is optional
+      console.log('TC lookup failed:', error);
+    } finally {
+      setIsLookingUp(false);
+    }
+  }, [isLookingUp, tcLookupDone]);
+
+  // Handle registration change with auto-lookup
+  const handleRegistrationChange = (text: string) => {
+    const upperText = text.toUpperCase();
+    setRegistration(upperText);
+    
+    // Reset lookup state if registration changes significantly
+    if (upperText.length < 4) {
+      setTcLookupDone(false);
+    }
+    
+    // Trigger TC lookup when we have enough characters
+    if (upperText.length >= 5 && !tcLookupDone) {
+      fetchFromTC(upperText);
+    }
+  };
 
   const handleSave = async () => {
     // Basic validation
