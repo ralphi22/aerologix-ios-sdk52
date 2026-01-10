@@ -15,6 +15,7 @@ export default function MaintenanceLayout() {
       <Stack.Screen name="invoices" />
       <Stack.Screen name="invoice-detail" />
       <Stack.Screen name="ad-sb" />
+      <Stack.Screen name="adsb-tc" />
       <Stack.Screen name="stc" />
     </Stack>
   );
