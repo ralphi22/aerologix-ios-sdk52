@@ -59,6 +59,14 @@ export default function AdSbScreen() {
   const adCount = aircraftAdSbs.filter((a) => a.type === 'AD').length;
   const sbCount = aircraftAdSbs.filter((a) => a.type === 'SB').length;
 
+  // Navigate to TC AD/SB screen
+  const handleNavigateToTC = () => {
+    router.push({
+      pathname: '/(tabs)/aircraft/maintenance/adsb-tc',
+      params: { aircraftId, registration },
+    });
+  };
+
   const handleDelete = (id: string, number: string) => {
     Alert.alert(
       lang === 'fr' ? 'Supprimer' : 'Delete',
