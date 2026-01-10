@@ -1,9 +1,10 @@
 /**
  * Add Aircraft Screen - Complete form
  * Syncs with backend on save
+ * Auto-fills from Transport Canada registry
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,8 +19,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { t } from '@/i18n';
+import { t, getLanguage } from '@/i18n';
 import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
+import api from '@/services/api';
 
 const COLORS = {
   primary: '#0033A0',
@@ -30,6 +32,8 @@ const COLORS = {
   border: '#E0E0E0',
   sectionBg: '#FAFAFA',
   hint: '#9E9E9E',
+  success: '#28A745',
+  successBg: '#E8F5E9',
 };
 
 interface FormFieldProps {
