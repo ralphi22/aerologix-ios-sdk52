@@ -269,7 +269,7 @@ export default function EltScreen() {
                   style={[
                     styles.progressBarFill,
                     {
-                      width: `${testProgress.percent}%`,
+                      width: `${Math.min(testProgress.percent, 100)}%`,
                       backgroundColor: testProgress.status === 'operational' ? COLORS.green : testProgress.status === 'attention' ? COLORS.orange : COLORS.red,
                     },
                   ]}
@@ -284,6 +284,8 @@ export default function EltScreen() {
                 {formatDaysRemaining(testProgress.daysRemaining)}
               </Text>
             </View>
+            {/* Regulatory status - only shows when ≥100% */}
+            <RegulatoryStatus system="elt" percent={testProgress.percent} />
           </View>
 
           {/* Battery Progress */}
