@@ -75,7 +75,25 @@ type TranslationKey =
   | 'tab_assistant'
   | 'tab_profile'
   // Profile
-  | 'profile';
+  | 'profile'
+  // TC AD/SB
+  | 'tc_adsb_title'
+  | 'tc_adsb_subtitle'
+  | 'tc_adsb_new_alert'
+  | 'tc_adsb_ad_section'
+  | 'tc_adsb_sb_section'
+  | 'tc_adsb_missing'
+  | 'tc_adsb_due_soon'
+  | 'tc_adsb_ok'
+  | 'tc_adsb_new_since_logbook'
+  | 'tc_adsb_last_recorded'
+  | 'tc_adsb_next_due'
+  | 'tc_adsb_open_source'
+  | 'tc_adsb_no_items'
+  | 'tc_adsb_disclaimer'
+  | 'tc_adsb_info_only'
+  | 'tc_adsb_loading'
+  | 'tc_adsb_error';
 
 type Translations = Record<TranslationKey, string>;
 
