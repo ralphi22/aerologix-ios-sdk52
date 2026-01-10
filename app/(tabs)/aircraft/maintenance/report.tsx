@@ -125,6 +125,8 @@ interface CriticalElementCardProps {
   limitLabel: string;
   percent: number;
   status: 'ok' | 'warning' | 'exceeded';
+  regulatorySystem?: RegulatorySystem;
+  limitationText?: string;
 }
 
 function CriticalElementCard({
@@ -138,6 +140,8 @@ function CriticalElementCard({
   limitLabel,
   percent,
   status,
+  regulatorySystem,
+  limitationText,
 }: CriticalElementCardProps) {
   return (
     <View style={styles.card}>
@@ -162,6 +166,14 @@ function CriticalElementCard({
           <Text style={styles.cardValue}>{limitValue}</Text>
         </View>
       </View>
+      {/* Regulatory status - only shows when ≥100% */}
+      {regulatorySystem && (
+        <RegulatoryStatus 
+          system={regulatorySystem} 
+          percent={percent} 
+          limitationText={limitationText}
+        />
+      )}
     </View>
   );
 }
