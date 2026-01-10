@@ -127,9 +127,14 @@ export default function AdSbScreen() {
           <Text style={styles.headerTitle}>AD / SB</Text>
           <Text style={styles.headerSubtitle}>{registration || 'Aircraft'}</Text>
         </View>
-        <TouchableOpacity onPress={() => setShowAddModal(true)} style={styles.headerAdd}>
-          <Text style={styles.headerAddText}>+</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={handleNavigateToTC} style={styles.headerTcButton}>
+            <Text style={styles.headerTcText}>🇨🇦 TC</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowAddModal(true)} style={styles.headerAdd}>
+            <Text style={styles.headerAddText}>+</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Count Badges */}
@@ -140,6 +145,15 @@ export default function AdSbScreen() {
         <View style={[styles.countBadge, { backgroundColor: COLORS.orange }]}>
           <Text style={[styles.countText, { color: '#E65100' }]}>SB: {sbCount}</Text>
         </View>
+        {/* TC AD/SB Button */}
+        <TouchableOpacity 
+          style={[styles.countBadge, styles.tcBadge]} 
+          onPress={handleNavigateToTC}
+        >
+          <Text style={styles.tcBadgeText}>
+            {lang === 'fr' ? '🇨🇦 TC AD/SB' : '🇨🇦 TC AD/SB'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
