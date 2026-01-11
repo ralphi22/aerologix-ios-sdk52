@@ -48,5 +48,8 @@
     "@expo/cli": "0.22.27",
     "@types/react": "~18.3.12",
     "eslint-config-expo": "~8.0.1"
+  },
+  "overrides": {
+    "expo-modules-core": "2.2.3"
   }
 }
