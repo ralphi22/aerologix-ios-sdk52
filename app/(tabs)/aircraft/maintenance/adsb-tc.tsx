@@ -652,6 +652,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
+  sourceButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sourceButtonIcon: {
+    fontSize: 14,
+    marginRight: 6,
+  },
   sourceButtonText: {
     color: COLORS.blue,
     fontSize: 14,
