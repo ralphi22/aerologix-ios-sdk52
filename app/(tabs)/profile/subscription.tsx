@@ -69,7 +69,10 @@ export default function SubscriptionScreen() {
   const { user, loadUser } = useAuthStore();
 
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showPlansModal, setShowPlansModal] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>('monthly');
 
   // Subscription info
   const planCode = user?.plan_code || user?.subscription?.plan || 'BASIC';
@@ -114,12 +117,96 @@ export default function SubscriptionScreen() {
   };
 
   const handleSubscribe = () => {
-    // Navigate to plans screen (placeholder for now)
-    Alert.alert(
-      lang === 'fr' ? 'Bientôt disponible' : 'Coming Soon',
-      lang === 'fr'
-        ? 'La page des forfaits sera disponible prochainement.'
-        : 'The plans page will be available soon.'
+    setShowPlansModal(true);
+  };
+
+  const handleSelectPlan = async (planId: PlanId) => {
+    setIsCheckingOut(true);
+    try {
+      const result = await openCheckout(planId, selectedBillingCycle);
+      if (result.success) {
+        await loadUser(); // Refresh user data after checkout
+        setShowPlansModal(false);
+        Alert.alert(
+          lang === 'fr' ? 'Succès' : 'Success',
+          lang === 'fr'
+            ? 'Votre abonnement a été activé !'
+            : 'Your subscription has been activated!'
+        );
+      } else if (result.error) {
+        Alert.alert(
+          lang === 'fr' ? 'Erreur' : 'Error',
+          result.error
+        );
+      }
+    } catch (error: any) {
+      Alert.alert(
+        lang === 'fr' ? 'Erreur' : 'Error',
+        error?.message || 'An error occurred'
+      );
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
+  // Plan card component
+  const PlanCard = ({ planId }: { planId: PlanId }) => {
+    const plan = PLAN_PRICING[planId];
+    const price = selectedBillingCycle === 'monthly' ? plan.monthly : plan.yearly;
+    const savings = getYearlySavings(planId);
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.planCardModal,
+          { borderColor: plan.color, borderWidth: plan.popular ? 2 : 1 }
+        ]}
+        onPress={() => handleSelectPlan(planId)}
+        disabled={isCheckingOut}
+      >
+        {plan.popular && (
+          <View style={[styles.popularBadge, { backgroundColor: plan.color }]}>
+            <Text style={styles.popularBadgeText}>
+              {lang === 'fr' ? 'POPULAIRE' : 'POPULAR'}
+            </Text>
+          </View>
+        )}
+        
+        <Text style={[styles.planCardTitle, { color: plan.color }]}>{plan.name}</Text>
+        <Text style={styles.planCardDescription}>{plan.description}</Text>
+        
+        <View style={styles.priceContainer}>
+          <Text style={styles.priceAmount}>{price.toFixed(2)}$</Text>
+          <Text style={styles.pricePeriod}>
+            CAD / {selectedBillingCycle === 'monthly' 
+              ? (lang === 'fr' ? 'mois' : 'month') 
+              : (lang === 'fr' ? 'an' : 'year')}
+          </Text>
+        </View>
+        
+        {selectedBillingCycle === 'yearly' && savings > 0 && (
+          <View style={styles.savingsBadge}>
+            <Text style={styles.savingsText}>
+              {lang === 'fr' ? `Économisez ${savings}%` : `Save ${savings}%`}
+            </Text>
+          </View>
+        )}
+        
+        <View style={styles.featuresContainer}>
+          {plan.features.map((feature, index) => (
+            <View key={index} style={styles.featureRow}>
+              <Ionicons name="checkmark-circle" size={18} color={plan.color} />
+              <Text style={styles.featureText}>{feature}</Text>
+            </View>
+          ))}
+        </View>
+        
+        <View style={[styles.selectButton, { backgroundColor: plan.color }]}>
+          <Text style={styles.selectButtonText}>
+            {lang === 'fr' ? 'Sélectionner' : 'Select'}
+          </Text>
+        </View>
+      </TouchableOpacity>
     );
   };
 
