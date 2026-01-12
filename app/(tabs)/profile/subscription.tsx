@@ -377,6 +377,125 @@ export default function SubscriptionScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Plans Selection Modal */}
+      <Modal
+        visible={showPlansModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => !isCheckingOut && setShowPlansModal(false)}
+      >
+        <View style={styles.plansModalOverlay}>
+          <View style={styles.plansModalContent}>
+            {/* Modal Header */}
+            <View style={styles.plansModalHeader}>
+              <Text style={styles.plansModalTitle}>
+                {lang === 'fr' ? 'Choisir un forfait' : 'Choose a Plan'}
+              </Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowPlansModal(false)}
+                disabled={isCheckingOut}
+              >
+                <Ionicons name="close" size={24} color={COLORS.textDark} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Billing Cycle Toggle */}
+            <View style={styles.billingToggle}>
+              <TouchableOpacity
+                style={[
+                  styles.billingOption,
+                  selectedBillingCycle === 'monthly' && styles.billingOptionActive
+                ]}
+                onPress={() => setSelectedBillingCycle('monthly')}
+              >
+                <Text style={[
+                  styles.billingOptionText,
+                  selectedBillingCycle === 'monthly' && styles.billingOptionTextActive
+                ]}>
+                  {lang === 'fr' ? 'Mensuel' : 'Monthly'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.billingOption,
+                  selectedBillingCycle === 'yearly' && styles.billingOptionActive
+                ]}
+                onPress={() => setSelectedBillingCycle('yearly')}
+              >
+                <Text style={[
+                  styles.billingOptionText,
+                  selectedBillingCycle === 'yearly' && styles.billingOptionTextActive
+                ]}>
+                  {lang === 'fr' ? 'Annuel' : 'Yearly'}
+                </Text>
+                <View style={styles.saveBadge}>
+                  <Text style={styles.saveBadgeText}>-17%</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* Loading overlay */}
+            {isCheckingOut && (
+              <View style={styles.loadingOverlay}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={styles.loadingText}>
+                  {lang === 'fr' ? 'Redirection vers Stripe...' : 'Redirecting to Stripe...'}
+                </Text>
+              </View>
+            )}
+
+            {/* Plans List */}
+            <ScrollView 
+              style={styles.plansScrollView}
+              contentContainerStyle={styles.plansScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Free Plan */}
+              <View style={styles.freePlanCard}>
+                <View style={styles.freePlanHeader}>
+                  <Text style={styles.freePlanTitle}>Basic</Text>
+                  <Text style={styles.freePlanPrice}>
+                    {lang === 'fr' ? 'Gratuit' : 'Free'}
+                  </Text>
+                </View>
+                <Text style={styles.freePlanDescription}>
+                  {lang === 'fr' 
+                    ? '1 aéronef, fonctionnalités de base'
+                    : '1 aircraft, basic features'}
+                </Text>
+                <View style={styles.freePlanFeatures}>
+                  <View style={styles.featureRow}>
+                    <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                    <Text style={styles.featureTextSmall}>
+                      {lang === 'fr' ? '1 aéronef' : '1 aircraft'}
+                    </Text>
+                  </View>
+                  <View style={styles.featureRow}>
+                    <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                    <Text style={styles.featureTextSmall}>
+                      {lang === 'fr' ? '5 OCR/mois' : '5 OCR/month'}
+                    </Text>
+                  </View>
+                </View>
+                {planCode === 'BASIC' && (
+                  <View style={styles.currentPlanBadge}>
+                    <Text style={styles.currentPlanText}>
+                      {lang === 'fr' ? 'Forfait actuel' : 'Current Plan'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Paid Plans */}
+              <PlanCard planId="solo" />
+              <PlanCard planId="pro" />
+              <PlanCard planId="fleet" />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
