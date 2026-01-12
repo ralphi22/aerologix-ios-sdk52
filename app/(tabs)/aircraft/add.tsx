@@ -689,6 +689,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginLeft: 8,
   },
+  tcLookupButtonDisabled: {
+    opacity: 0.5,
+  },
   tcLookupButtonText: {
     fontSize: 14,
     color: COLORS.primary,
