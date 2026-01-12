@@ -1,9 +1,11 @@
 /**
  * Subscription Management Screen
- * Allows users to manage their Stripe subscription
+ * Displays plan_code + limits from user store
+ * Launches Stripe Checkout via backend
+ * After success: GET /api/auth/me -> update store
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,19 +16,22 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getLanguage } from '@/i18n';
 import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { 
-  PLAN_PRICING, 
-  PlanId, 
+  PLANS, 
+  PAID_PLANS,
+  PlanCode, 
   BillingCycle, 
   openCheckout,
+  formatLimit,
   formatPrice,
-  getYearlySavings 
+  getYearlySavings,
+  cancelSubscription,
 } from '@/services/paymentService';
 
 const COLORS = {
@@ -44,16 +49,6 @@ const COLORS = {
   orange: '#F59E0B',
 };
 
-// Plan display names
-const PLAN_DISPLAY_NAMES: Record<string, { en: string; fr: string }> = {
-  BASIC: { en: 'Basic (Free)', fr: 'Basic (Gratuit)' },
-  PILOT: { en: 'Pilot', fr: 'Pilot' },
-  PILOT_PRO: { en: 'Pilot Pro', fr: 'Pilot Pro' },
-  MAINTENANCE_PRO: { en: 'Pilot Pro', fr: 'Pilot Pro' },
-  FLEET: { en: 'Fleet', fr: 'Fleet' },
-  FLEET_AI: { en: 'Fleet', fr: 'Fleet' },
-};
-
 // Status display
 const STATUS_DISPLAY: Record<string, { en: string; fr: string; color: string }> = {
   active: { en: 'Active', fr: 'Actif', color: COLORS.success },
@@ -65,30 +60,49 @@ const STATUS_DISPLAY: Record<string, { en: string; fr: string; color: string }> 
 
 export default function SubscriptionScreen() {
   const router = useRouter();
-  const lang = getLanguage();
+  const lang = getLanguage() as 'en' | 'fr';
   const { user, loadUser } = useAuthStore();
 
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showPlansModal, setShowPlansModal] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>('monthly');
 
-  // Subscription info
-  const planCode = user?.plan_code || user?.subscription?.plan || 'BASIC';
-  const subscriptionStatus = user?.subscription?.status || 'inactive';
-  const billingCycle = user?.subscription?.billing_cycle || '';
-  const stripeSubscriptionId = user?.subscription?.stripe_subscription_id;
-  const currentPeriodEnd = user?.subscription?.current_period_end;
+  // User data from store
+  const planCode = (user?.plan_code || 'BASIC') as PlanCode;
+  const limits = user?.limits;
+  const subscription = user?.subscription;
+  const subscriptionStatus = subscription?.status || 'inactive';
+  const billingCycle = subscription?.billing_cycle || '';
+  const stripeSubscriptionId = subscription?.stripe_subscription_id;
+  const currentPeriodEnd = subscription?.current_period_end;
 
-  // Display values
-  const planDisplay = PLAN_DISPLAY_NAMES[planCode]?.[lang] || PLAN_DISPLAY_NAMES[planCode]?.en || planCode;
+  // Current plan info
+  const currentPlan = PLANS[planCode] || PLANS.BASIC;
   const statusInfo = STATUS_DISPLAY[subscriptionStatus] || STATUS_DISPLAY.inactive;
   const statusDisplay = statusInfo[lang] || statusInfo.en;
 
   const isActive = subscriptionStatus === 'active' || subscriptionStatus === 'trialing';
   const canCancel = isActive && stripeSubscriptionId;
   const canSubscribe = !isActive || planCode === 'BASIC';
+
+  // Refresh user data on mount and return from checkout
+  const refreshUser = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await loadUser();
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [loadUser]);
+
+  useEffect(() => {
+    refreshUser();
+  }, []);
 
   const handleBack = () => {
     router.back();
@@ -97,7 +111,7 @@ export default function SubscriptionScreen() {
   const handleCancelSubscription = async () => {
     setIsCanceling(true);
     try {
-      await api.post('/api/payments/cancel');
+      await cancelSubscription();
       await loadUser(); // Refresh user data
       setShowCancelModal(false);
       Alert.alert(
@@ -107,12 +121,10 @@ export default function SubscriptionScreen() {
           : 'Your subscription has been canceled. You will retain access until the end of the current period.'
       );
     } catch (error: any) {
-      setIsCanceling(false);
       const errorMessage = error?.response?.data?.detail || error?.message || 'An error occurred.';
-      Alert.alert(
-        lang === 'fr' ? 'Erreur' : 'Error',
-        errorMessage
-      );
+      Alert.alert(lang === 'fr' ? 'Erreur' : 'Error', errorMessage);
+    } finally {
+      setIsCanceling(false);
     }
   };
 
@@ -120,24 +132,35 @@ export default function SubscriptionScreen() {
     setShowPlansModal(true);
   };
 
-  const handleSelectPlan = async (planId: PlanId) => {
+  const handleSelectPlan = async (selectedPlanCode: PlanCode) => {
+    if (selectedPlanCode === 'BASIC') return;
+    
     setIsCheckingOut(true);
     try {
-      const result = await openCheckout(planId, selectedBillingCycle);
+      const result = await openCheckout(selectedPlanCode, selectedBillingCycle);
+      
       if (result.success) {
-        await loadUser(); // Refresh user data after checkout
+        // Close modal
         setShowPlansModal(false);
+        
+        // Alert user to return after checkout
         Alert.alert(
-          lang === 'fr' ? 'Succès' : 'Success',
+          lang === 'fr' ? 'Checkout ouvert' : 'Checkout Opened',
           lang === 'fr'
-            ? 'Votre abonnement a été activé !'
-            : 'Your subscription has been activated!'
+            ? 'Complétez le paiement dans votre navigateur. Tirez vers le bas pour rafraîchir après le paiement.'
+            : 'Complete payment in your browser. Pull down to refresh after payment.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Refresh user data after a delay
+                setTimeout(() => refreshUser(), 2000);
+              }
+            }
+          ]
         );
       } else if (result.error) {
-        Alert.alert(
-          lang === 'fr' ? 'Erreur' : 'Error',
-          result.error
-        );
+        Alert.alert(lang === 'fr' ? 'Erreur' : 'Error', result.error);
       }
     } catch (error: any) {
       Alert.alert(
@@ -147,67 +170,6 @@ export default function SubscriptionScreen() {
     } finally {
       setIsCheckingOut(false);
     }
-  };
-
-  // Plan card component
-  const PlanCard = ({ planId }: { planId: PlanId }) => {
-    const plan = PLAN_PRICING[planId];
-    const price = selectedBillingCycle === 'monthly' ? plan.monthly : plan.yearly;
-    const savings = getYearlySavings(planId);
-    
-    return (
-      <TouchableOpacity
-        style={[
-          styles.planCardModal,
-          { borderColor: plan.color, borderWidth: plan.popular ? 2 : 1 }
-        ]}
-        onPress={() => handleSelectPlan(planId)}
-        disabled={isCheckingOut}
-      >
-        {plan.popular && (
-          <View style={[styles.popularBadge, { backgroundColor: plan.color }]}>
-            <Text style={styles.popularBadgeText}>
-              {lang === 'fr' ? 'POPULAIRE' : 'POPULAR'}
-            </Text>
-          </View>
-        )}
-        
-        <Text style={[styles.planCardTitle, { color: plan.color }]}>{plan.name}</Text>
-        <Text style={styles.planCardDescription}>{plan.description}</Text>
-        
-        <View style={styles.priceContainer}>
-          <Text style={styles.priceAmount}>{price.toFixed(2)}$</Text>
-          <Text style={styles.pricePeriod}>
-            CAD / {selectedBillingCycle === 'monthly' 
-              ? (lang === 'fr' ? 'mois' : 'month') 
-              : (lang === 'fr' ? 'an' : 'year')}
-          </Text>
-        </View>
-        
-        {selectedBillingCycle === 'yearly' && savings > 0 && (
-          <View style={styles.savingsBadge}>
-            <Text style={styles.savingsText}>
-              {lang === 'fr' ? `Économisez ${savings}%` : `Save ${savings}%`}
-            </Text>
-          </View>
-        )}
-        
-        <View style={styles.featuresContainer}>
-          {plan.features.map((feature, index) => (
-            <View key={index} style={styles.featureRow}>
-              <Ionicons name="checkmark-circle" size={18} color={plan.color} />
-              <Text style={styles.featureText}>{feature}</Text>
-            </View>
-          ))}
-        </View>
-        
-        <View style={[styles.selectButton, { backgroundColor: plan.color }]}>
-          <Text style={styles.selectButtonText}>
-            {lang === 'fr' ? 'Sélectionner' : 'Select'}
-          </Text>
-        </View>
-      </TouchableOpacity>
-    );
   };
 
   // Format date
@@ -225,12 +187,123 @@ export default function SubscriptionScreen() {
     }
   };
 
+  // Plan card for modal
+  const PlanCard = ({ code }: { code: PlanCode }) => {
+    const plan = PLANS[code];
+    const price = selectedBillingCycle === 'monthly' ? plan.monthly : plan.yearly;
+    const savings = getYearlySavings(code);
+    const isCurrentPlan = code === planCode;
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.planCardModal,
+          { borderColor: plan.color, borderWidth: plan.popular ? 2 : 1 },
+          isCurrentPlan && styles.currentPlanCard,
+        ]}
+        onPress={() => !isCurrentPlan && handleSelectPlan(code)}
+        disabled={isCheckingOut || isCurrentPlan}
+        activeOpacity={0.7}
+      >
+        {plan.popular && (
+          <View style={[styles.popularBadge, { backgroundColor: plan.color }]}>
+            <Text style={styles.popularBadgeText}>
+              {lang === 'fr' ? 'POPULAIRE' : 'POPULAR'}
+            </Text>
+          </View>
+        )}
+        
+        {isCurrentPlan && (
+          <View style={styles.currentBadge}>
+            <Text style={styles.currentBadgeText}>
+              {lang === 'fr' ? 'ACTUEL' : 'CURRENT'}
+            </Text>
+          </View>
+        )}
+        
+        <Text style={[styles.planCardTitle, { color: plan.color }]}>
+          {lang === 'fr' ? plan.nameFr : plan.name}
+        </Text>
+        <Text style={styles.planCardDescription}>
+          {lang === 'fr' ? plan.descriptionFr : plan.description}
+        </Text>
+        
+        <View style={styles.priceContainer}>
+          <Text style={styles.priceAmount}>
+            {price === 0 ? (lang === 'fr' ? 'Gratuit' : 'Free') : `${price.toFixed(2)}$`}
+          </Text>
+          {price > 0 && (
+            <Text style={styles.pricePeriod}>
+              CAD / {selectedBillingCycle === 'monthly' 
+                ? (lang === 'fr' ? 'mois' : 'month') 
+                : (lang === 'fr' ? 'an' : 'year')}
+            </Text>
+          )}
+        </View>
+        
+        {selectedBillingCycle === 'yearly' && savings > 0 && (
+          <View style={styles.savingsBadge}>
+            <Text style={styles.savingsText}>
+              {lang === 'fr' ? `Économisez ${savings}%` : `Save ${savings}%`}
+            </Text>
+          </View>
+        )}
+        
+        {/* Limits */}
+        <View style={styles.limitsContainer}>
+          <View style={styles.limitRow}>
+            <Ionicons name="airplane" size={16} color={plan.color} />
+            <Text style={styles.limitText}>
+              {lang === 'fr' ? 'Aéronefs: ' : 'Aircraft: '}
+              <Text style={styles.limitValue}>
+                {formatLimit(plan.limits.max_aircrafts, lang)}
+              </Text>
+            </Text>
+          </View>
+          <View style={styles.limitRow}>
+            <Ionicons name="scan" size={16} color={plan.color} />
+            <Text style={styles.limitText}>
+              OCR/mois: 
+              <Text style={styles.limitValue}>
+                {formatLimit(plan.limits.ocr_per_month, lang)}
+              </Text>
+            </Text>
+          </View>
+          {plan.limits.tea_amo_sharing && (
+            <View style={styles.limitRow}>
+              <Ionicons name="share-social" size={16} color={plan.color} />
+              <Text style={styles.limitText}>
+                {lang === 'fr' ? 'Partage TEA/AMO' : 'AME Sharing'}
+              </Text>
+            </View>
+          )}
+          {plan.limits.gps_logbook && (
+            <View style={styles.limitRow}>
+              <Ionicons name="location" size={16} color={plan.color} />
+              <Text style={styles.limitText}>
+                {lang === 'fr' ? 'Carnet GPS' : 'GPS Logbook'}
+              </Text>
+            </View>
+          )}
+        </View>
+        
+        {!isCurrentPlan && code !== 'BASIC' && (
+          <View style={[styles.selectButton, { backgroundColor: plan.color }]}>
+            <Text style={styles.selectButtonText}>
+              {lang === 'fr' ? 'Sélectionner' : 'Select'}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <Text style={styles.backText}>‹</Text>
+          <Ionicons name="chevron-back" size={28} color={COLORS.white} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
           {lang === 'fr' ? 'Gérer l\'abonnement' : 'Manage Subscription'}
@@ -238,61 +311,126 @@ export default function SubscriptionScreen() {
         <View style={styles.backButton} />
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={refreshUser}
+            colors={[COLORS.primary]}
+          />
+        }
+      >
         {/* Current Plan Card */}
-        <View style={styles.planCard}>
+        <View style={[styles.planCard, { borderLeftColor: currentPlan.color }]}>
           <Text style={styles.planLabel}>
             {lang === 'fr' ? 'Forfait actuel' : 'Current Plan'}
           </Text>
-          <Text style={styles.planName}>{planDisplay}</Text>
+          <Text style={[styles.planName, { color: currentPlan.color }]}>
+            {lang === 'fr' ? currentPlan.nameFr : currentPlan.name}
+          </Text>
           <View style={[styles.statusBadge, { backgroundColor: statusInfo.color }]}>
             <Text style={styles.statusText}>{statusDisplay}</Text>
           </View>
         </View>
 
-        {/* Subscription Details */}
-        <View style={styles.detailsCard}>
-          {billingCycle && (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>
-                {lang === 'fr' ? 'Cycle de facturation' : 'Billing Cycle'}
-              </Text>
-              <Text style={styles.detailValue}>
-                {billingCycle === 'yearly'
-                  ? (lang === 'fr' ? 'Annuel' : 'Yearly')
-                  : (lang === 'fr' ? 'Mensuel' : 'Monthly')}
-              </Text>
+        {/* Current Limits from user.limits */}
+        {limits && (
+          <View style={styles.limitsCard}>
+            <Text style={styles.limitsTitle}>
+              {lang === 'fr' ? 'Vos limites' : 'Your Limits'}
+            </Text>
+            
+            <View style={styles.limitItem}>
+              <View style={styles.limitIconContainer}>
+                <Ionicons name="airplane" size={20} color={COLORS.primary} />
+              </View>
+              <View style={styles.limitInfo}>
+                <Text style={styles.limitLabel}>
+                  {lang === 'fr' ? 'Aéronefs max' : 'Max Aircraft'}
+                </Text>
+                <Text style={styles.limitValueLarge}>
+                  {formatLimit(limits.max_aircrafts, lang)}
+                </Text>
+              </View>
             </View>
-          )}
 
-          {currentPeriodEnd && isActive && (
-            <>
-              <View style={styles.detailDivider} />
+            <View style={styles.limitDivider} />
+
+            <View style={styles.limitItem}>
+              <View style={styles.limitIconContainer}>
+                <Ionicons name="scan" size={20} color={COLORS.primary} />
+              </View>
+              <View style={styles.limitInfo}>
+                <Text style={styles.limitLabel}>
+                  {lang === 'fr' ? 'OCR par mois' : 'OCR per Month'}
+                </Text>
+                <Text style={styles.limitValueLarge}>
+                  {formatLimit(limits.ocr_per_month, lang)}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.limitDivider} />
+
+            {/* Feature toggles */}
+            <View style={styles.featuresGrid}>
+              <FeatureItem 
+                icon="location" 
+                label={lang === 'fr' ? 'GPS Logbook' : 'GPS Logbook'} 
+                enabled={limits.gps_logbook} 
+              />
+              <FeatureItem 
+                icon="share-social" 
+                label={lang === 'fr' ? 'Partage TEA' : 'AME Sharing'} 
+                enabled={limits.tea_amo_sharing} 
+              />
+              <FeatureItem 
+                icon="receipt" 
+                label={lang === 'fr' ? 'Factures' : 'Invoices'} 
+                enabled={limits.invoices} 
+              />
+              <FeatureItem 
+                icon="calculator" 
+                label={lang === 'fr' ? 'Coût/heure' : 'Cost/Hour'} 
+                enabled={limits.cost_per_hour} 
+              />
+            </View>
+          </View>
+        )}
+
+        {/* Subscription Details */}
+        {(billingCycle || currentPeriodEnd || stripeSubscriptionId) && (
+          <View style={styles.detailsCard}>
+            {billingCycle && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>
-                  {lang === 'fr' ? 'Prochaine facturation' : 'Next Billing Date'}
+                  {lang === 'fr' ? 'Cycle de facturation' : 'Billing Cycle'}
                 </Text>
                 <Text style={styles.detailValue}>
-                  {formatDate(currentPeriodEnd)}
+                  {billingCycle === 'yearly'
+                    ? (lang === 'fr' ? 'Annuel' : 'Yearly')
+                    : (lang === 'fr' ? 'Mensuel' : 'Monthly')}
                 </Text>
               </View>
-            </>
-          )}
+            )}
 
-          {stripeSubscriptionId && (
-            <>
-              <View style={styles.detailDivider} />
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>
-                  {lang === 'fr' ? 'ID Abonnement' : 'Subscription ID'}
-                </Text>
-                <Text style={styles.detailValueSmall}>
-                  {stripeSubscriptionId.slice(0, 20)}...
-                </Text>
-              </View>
-            </>
-          )}
-        </View>
+            {currentPeriodEnd && isActive && (
+              <>
+                <View style={styles.detailDivider} />
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>
+                    {lang === 'fr' ? 'Prochaine facturation' : 'Next Billing'}
+                  </Text>
+                  <Text style={styles.detailValue}>
+                    {formatDate(currentPeriodEnd)}
+                  </Text>
+                </View>
+              </>
+            )}
+          </View>
+        )}
 
         {/* Action Buttons */}
         <View style={styles.actionsSection}>
@@ -303,7 +441,9 @@ export default function SubscriptionScreen() {
             >
               <Ionicons name="rocket-outline" size={20} color={COLORS.white} />
               <Text style={styles.subscribeButtonText}>
-                {lang === 'fr' ? 'Choisir un forfait' : 'Choose a Plan'}
+                {planCode === 'BASIC' 
+                  ? (lang === 'fr' ? 'Passer à un forfait payant' : 'Upgrade to Paid Plan')
+                  : (lang === 'fr' ? 'Changer de forfait' : 'Change Plan')}
               </Text>
             </TouchableOpacity>
           )}
@@ -325,8 +465,8 @@ export default function SubscriptionScreen() {
           <Ionicons name="information-circle-outline" size={20} color={COLORS.textMuted} />
           <Text style={styles.infoNoteText}>
             {lang === 'fr'
-              ? 'Les paiements sont gérés de manière sécurisée par Stripe.'
-              : 'Payments are securely managed by Stripe.'}
+              ? 'Les paiements sont gérés de manière sécurisée par Stripe. Tirez vers le bas pour rafraîchir après le paiement.'
+              : 'Payments are securely managed by Stripe. Pull down to refresh after payment.'}
           </Text>
         </View>
       </ScrollView>
@@ -441,7 +581,7 @@ export default function SubscriptionScreen() {
               <View style={styles.loadingOverlay}>
                 <ActivityIndicator size="large" color={COLORS.primary} />
                 <Text style={styles.loadingText}>
-                  {lang === 'fr' ? 'Redirection vers Stripe...' : 'Redirecting to Stripe...'}
+                  {lang === 'fr' ? 'Ouverture du checkout...' : 'Opening checkout...'}
                 </Text>
               </View>
             )}
@@ -453,50 +593,33 @@ export default function SubscriptionScreen() {
               showsVerticalScrollIndicator={false}
             >
               {/* Free Plan */}
-              <View style={styles.freePlanCard}>
-                <View style={styles.freePlanHeader}>
-                  <Text style={styles.freePlanTitle}>Basic</Text>
-                  <Text style={styles.freePlanPrice}>
-                    {lang === 'fr' ? 'Gratuit' : 'Free'}
-                  </Text>
-                </View>
-                <Text style={styles.freePlanDescription}>
-                  {lang === 'fr' 
-                    ? '1 aéronef, fonctionnalités de base'
-                    : '1 aircraft, basic features'}
-                </Text>
-                <View style={styles.freePlanFeatures}>
-                  <View style={styles.featureRow}>
-                    <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
-                    <Text style={styles.featureTextSmall}>
-                      {lang === 'fr' ? '1 aéronef' : '1 aircraft'}
-                    </Text>
-                  </View>
-                  <View style={styles.featureRow}>
-                    <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
-                    <Text style={styles.featureTextSmall}>
-                      {lang === 'fr' ? '5 OCR/mois' : '5 OCR/month'}
-                    </Text>
-                  </View>
-                </View>
-                {planCode === 'BASIC' && (
-                  <View style={styles.currentPlanBadge}>
-                    <Text style={styles.currentPlanText}>
-                      {lang === 'fr' ? 'Forfait actuel' : 'Current Plan'}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
+              <PlanCard code="BASIC" />
+              
               {/* Paid Plans */}
-              <PlanCard planId="solo" />
-              <PlanCard planId="pro" />
-              <PlanCard planId="fleet" />
+              {PAID_PLANS.map((code) => (
+                <PlanCard key={code} code={code} />
+              ))}
             </ScrollView>
           </View>
         </View>
       </Modal>
     </SafeAreaView>
+  );
+}
+
+// Feature item component
+function FeatureItem({ icon, label, enabled }: { icon: string; label: string; enabled: boolean }) {
+  return (
+    <View style={styles.featureItem}>
+      <Ionicons 
+        name={enabled ? 'checkmark-circle' : 'close-circle'} 
+        size={18} 
+        color={enabled ? COLORS.success : COLORS.textMuted} 
+      />
+      <Text style={[styles.featureLabel, !enabled && styles.featureDisabled]}>
+        {label}
+      </Text>
+    </View>
   );
 }
 
@@ -519,11 +642,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  backText: {
-    fontSize: 32,
-    color: COLORS.white,
-    fontWeight: '300',
-  },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
@@ -536,13 +654,14 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  // Plan card
+  // Current Plan card
   planCard: {
     backgroundColor: COLORS.primary,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
     marginBottom: 16,
+    borderLeftWidth: 4,
   },
   planLabel: {
     fontSize: 14,
@@ -566,6 +685,68 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.white,
   },
+  // Limits card
+  limitsCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  limitsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.textDark,
+    marginBottom: 16,
+  },
+  limitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  limitIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  limitInfo: {
+    flex: 1,
+  },
+  limitLabel: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+  },
+  limitValueLarge: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.textDark,
+  },
+  limitDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+  },
+  featuresGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 16,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '50%',
+    paddingVertical: 6,
+  },
+  featureLabel: {
+    fontSize: 13,
+    color: COLORS.textDark,
+    marginLeft: 6,
+  },
+  featureDisabled: {
+    color: COLORS.textMuted,
+  },
   // Details card
   detailsCard: {
     backgroundColor: COLORS.white,
@@ -588,19 +769,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.textDark,
   },
-  detailValueSmall: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: COLORS.textMuted,
-    fontFamily: 'monospace',
-  },
   detailDivider: {
     height: 1,
     backgroundColor: COLORS.border,
   },
   // Actions
   actionsSection: {
-    gap: 12,
     marginBottom: 24,
   },
   subscribeButton: {
@@ -610,12 +784,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 16,
     borderRadius: 12,
-    gap: 8,
+    marginBottom: 12,
   },
   subscribeButtonText: {
     color: COLORS.white,
     fontSize: 16,
     fontWeight: '600',
+    marginLeft: 8,
   },
   cancelButton: {
     backgroundColor: COLORS.white,
@@ -634,7 +809,6 @@ const styles = StyleSheet.create({
   infoNote: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     padding: 12,
     backgroundColor: COLORS.white,
     borderRadius: 8,
@@ -644,8 +818,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textMuted,
     lineHeight: 18,
+    marginLeft: 8,
   },
-  // Modal
+  // Cancel Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -676,7 +851,6 @@ const styles = StyleSheet.create({
   },
   modalButtons: {
     flexDirection: 'row',
-    gap: 12,
   },
   modalButton: {
     flex: 1,
@@ -685,6 +859,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
+    marginHorizontal: 6,
   },
   modalCancelButton: {
     backgroundColor: COLORS.background,
@@ -806,55 +981,7 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingTop: 8,
   },
-  // Free Plan Card
-  freePlanCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  freePlanHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  freePlanTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.textDark,
-  },
-  freePlanPrice: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.success,
-  },
-  freePlanDescription: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    marginBottom: 12,
-  },
-  freePlanFeatures: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  currentPlanBadge: {
-    marginTop: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  currentPlanText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.white,
-  },
-  // Paid Plan Card
+  // Plan Card in Modal
   planCardModal: {
     backgroundColor: COLORS.white,
     borderRadius: 16,
@@ -862,6 +989,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     position: 'relative',
     overflow: 'hidden',
+  },
+  currentPlanCard: {
+    opacity: 0.6,
   },
   popularBadge: {
     position: 'absolute',
@@ -872,6 +1002,20 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '45deg' }],
   },
   popularBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.white,
+  },
+  currentBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: COLORS.textMuted,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  currentBadgeText: {
     fontSize: 10,
     fontWeight: '700',
     color: COLORS.white,
@@ -914,24 +1058,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#15803D',
   },
-  featuresContainer: {
+  limitsContainer: {
     marginBottom: 16,
   },
-  featureRow: {
+  limitRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
   },
-  featureText: {
+  limitText: {
     fontSize: 14,
-    color: COLORS.textDark,
-    marginLeft: 8,
-    flex: 1,
-  },
-  featureTextSmall: {
-    fontSize: 13,
     color: COLORS.textMuted,
-    marginLeft: 6,
+    marginLeft: 8,
+  },
+  limitValue: {
+    fontWeight: '600',
+    color: COLORS.textDark,
   },
   selectButton: {
     paddingVertical: 14,
