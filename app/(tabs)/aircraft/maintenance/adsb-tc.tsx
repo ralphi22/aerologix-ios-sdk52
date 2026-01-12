@@ -2,9 +2,11 @@
  * TC AD/SB Screen - Transport Canada Airworthiness Directives & Service Bulletins
  * Compares OCR-captured data with TC database
  * TC-SAFE: Information only, no compliance decisions
+ * 
+ * Fixed for iOS Fabric (RN 0.73+) layout stability
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +15,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { t, getLanguage } from '@/i18n';
