@@ -1,17 +1,21 @@
 const p = require('../package.json');
 
+const expo = p.dependencies.expo;
+const react = p.dependencies.react;
+const rn = p.dependencies['react-native'];
+
 const ok =
-  p.dependencies.expo?.startsWith('~52.') &&
-  p.dependencies.react === '18.2.0' &&
-  p.dependencies['react-native'].startsWith('0.73');
+  expo?.startsWith('~52.') &&
+  react?.startsWith('18.3') &&
+  rn?.startsWith('0.76');
 
 if (!ok) {
   console.error('❌ SDK VIOLATION', {
-    expo: p.dependencies.expo,
-    react: p.dependencies.react,
-    rn: p.dependencies['react-native'],
+    expo,
+    react,
+    rn
   });
   process.exit(1);
 }
 
-console.log('✅ SDK 52 OK');
+console.log('✅ SDK 52 OK', { expo, react, rn });
