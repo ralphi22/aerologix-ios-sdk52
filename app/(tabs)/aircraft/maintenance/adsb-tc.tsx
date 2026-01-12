@@ -549,12 +549,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    gap: 8,
+    flexWrap: 'wrap',
   },
   typeBadge: {
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 6,
+    marginRight: 8,
   },
   typeBadgeText: {
     fontSize: 12,
@@ -564,6 +565,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 6,
+    marginRight: 8,
   },
   statusText: {
     fontSize: 12,
