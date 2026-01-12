@@ -4,7 +4,7 @@
  * TC Lookup fills ONLY: manufacturer, model, first_owner_given, first_owner_family
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
