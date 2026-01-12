@@ -539,6 +539,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  // Section color variations - static styles for iOS Fabric stability
+  adSectionHeader: {
+    backgroundColor: COLORS.redBg,
+  },
+  adSectionTitle: {
+    color: COLORS.red,
+  },
+  adSectionCountText: {
+    color: COLORS.red,
+  },
+  sbSectionHeader: {
+    backgroundColor: COLORS.blueBg,
+  },
+  sbSectionTitle: {
+    color: COLORS.blue,
+  },
+  sbSectionCountText: {
+    color: COLORS.blue,
+  },
   emptySection: {
     backgroundColor: COLORS.white,
     padding: 24,
