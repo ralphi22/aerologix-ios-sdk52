@@ -478,6 +478,17 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollViewContent: {
+    flexGrow: 1,
+  },
+  // Items container - wraps mapped items for stable layout
+  itemsContainer: {
+    flexDirection: 'column',
+  },
+  // Bottom spacer - fixed height for iOS scroll end
+  bottomSpacer: {
+    height: 40,
+  },
   // Alert banner
   alertBanner: {
     flexDirection: 'row',
