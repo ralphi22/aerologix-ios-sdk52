@@ -1,12 +1,19 @@
 {
   "cli": {
-    "version": ">= 16.28.0"
+    "version": "0.22.27",
+    "appVersionSource": "remote"
   },
   "build": {
     "testflight": {
       "ios": {
         "distribution": "store",
         "autoIncrement": true
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": false
       }
     }
   },
