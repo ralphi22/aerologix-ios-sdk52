@@ -223,11 +223,139 @@ export default function TcAdSbScreen() {
     );
   }, [lang]);
 
+  // Memoize whether we have any items to display
+  const hasAnyItems = useMemo(() => {
+    return adItems.length > 0 || sbItems.length > 0;
+  }, [adItems.length, sbItems.length]);
+
+  // Render content based on state - mutually exclusive conditions for iOS Fabric
+  const renderContent = useCallback(() => {
+    // Loading state
+    if (isLoading) {
+      return (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>{t('tc_adsb_loading')}</Text>
+        </View>
+      );
+    }
+
+    // Error state
+    if (error) {
+      return (
+        <View style={styles.centerContainer}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => {
+              setError(null);
+              setIsLoading(true);
+              api.get(`/api/adsb/compare/${aircraftId}`)
+                .then(res => setData(res.data))
+                .catch(err => setError(err?.message || t('tc_adsb_error')))
+                .finally(() => setIsLoading(false));
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.retryButtonText}>
+              {lang === 'fr' ? 'Réessayer' : 'Retry'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    // No data yet
+    if (!data) {
+      return (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      );
+    }
+
+    // Data loaded - render ScrollView with content
+    return (
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollViewContent}
+        bounces={true}
+        overScrollMode="always"
+        removeClippedSubviews={Platform.OS === 'ios'}
+      >
+        {/* New items alert */}
+        {hasNewItems ? (
+          <View style={styles.alertBanner}>
+            <Text style={styles.alertIcon}>⚠️</Text>
+            <Text style={styles.alertText}>{t('tc_adsb_new_alert')}</Text>
+          </View>
+        ) : null}
+
+        {/* AD Section */}
+        <View style={styles.section}>
+          <View style={[styles.sectionHeader, styles.adSectionHeader]}>
+            <Text style={[styles.sectionTitle, styles.adSectionTitle]}>
+              {t('tc_adsb_ad_section')}
+            </Text>
+            <View style={styles.sectionCount}>
+              <Text style={[styles.sectionCountText, styles.adSectionCountText]}>{adItems.length}</Text>
+            </View>
+          </View>
+          
+          {adItems.length > 0 ? (
+            <View style={styles.itemsContainer}>
+              {adItems.map(renderItem)}
+            </View>
+          ) : (
+            <View style={styles.emptySection}>
+              <Text style={styles.emptyText}>{t('tc_adsb_no_items')}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* SB Section */}
+        <View style={styles.section}>
+          <View style={[styles.sectionHeader, styles.sbSectionHeader]}>
+            <Text style={[styles.sectionTitle, styles.sbSectionTitle]}>
+              {t('tc_adsb_sb_section')}
+            </Text>
+            <View style={styles.sectionCount}>
+              <Text style={[styles.sectionCountText, styles.sbSectionCountText]}>{sbItems.length}</Text>
+            </View>
+          </View>
+          
+          {sbItems.length > 0 ? (
+            <View style={styles.itemsContainer}>
+              {sbItems.map(renderItem)}
+            </View>
+          ) : (
+            <View style={styles.emptySection}>
+              <Text style={styles.emptyText}>{t('tc_adsb_no_items')}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Disclaimer */}
+        <View style={styles.disclaimer}>
+          <Text style={styles.disclaimerIcon}>⚠️</Text>
+          <Text style={styles.disclaimerText}>
+            {data.disclaimer || t('tc_adsb_disclaimer')}
+          </Text>
+        </View>
+
+        {/* Bottom spacing */}
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
+    );
+  }, [isLoading, error, data, hasNewItems, adItems, sbItems, renderItem, lang, aircraftId]);
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.headerBack} activeOpacity={0.7}>
           <Text style={styles.headerBackText}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
@@ -242,108 +370,8 @@ export default function TcAdSbScreen() {
         <Text style={styles.subtitleText}>{t('tc_adsb_subtitle')}</Text>
       </View>
 
-      {/* Loading state */}
-      {isLoading && (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>{t('tc_adsb_loading')}</Text>
-        </View>
-      )}
-
-      {/* Error state */}
-      {error && !isLoading && (
-        <View style={styles.centerContainer}>
-          <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity 
-            style={styles.retryButton}
-            onPress={() => {
-              setError(null);
-              setIsLoading(true);
-              // Refetch
-              api.get(`/api/adsb/compare/${aircraftId}`)
-                .then(res => setData(res.data))
-                .catch(err => setError(err?.message || t('tc_adsb_error')))
-                .finally(() => setIsLoading(false));
-            }}
-          >
-            <Text style={styles.retryButtonText}>
-              {lang === 'fr' ? 'Réessayer' : 'Retry'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Content */}
-      {!isLoading && !error && data && (
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* New items alert */}
-          {hasNewItems && (
-            <View style={styles.alertBanner}>
-              <Text style={styles.alertIcon}>⚠️</Text>
-              <Text style={styles.alertText}>{t('tc_adsb_new_alert')}</Text>
-            </View>
-          )}
-
-          {/* AD Section */}
-          <View style={styles.section}>
-            <View style={[styles.sectionHeader, { backgroundColor: COLORS.redBg }]}>
-              <Text style={[styles.sectionTitle, { color: COLORS.red }]}>
-                {t('tc_adsb_ad_section')}
-              </Text>
-              <View style={styles.sectionCount}>
-                <Text style={[styles.sectionCountText, { color: COLORS.red }]}>{adItems.length}</Text>
-              </View>
-            </View>
-            
-            {adItems.length > 0 ? (
-              adItems.map(renderItem)
-            ) : (
-              <View style={styles.emptySection}>
-                <Text style={styles.emptyText}>{t('tc_adsb_no_items')}</Text>
-              </View>
-            )}
-          </View>
-
-          {/* SB Section */}
-          <View style={styles.section}>
-            <View style={[styles.sectionHeader, { backgroundColor: COLORS.blueBg }]}>
-              <Text style={[styles.sectionTitle, { color: COLORS.blue }]}>
-                {t('tc_adsb_sb_section')}
-              </Text>
-              <View style={styles.sectionCount}>
-                <Text style={[styles.sectionCountText, { color: COLORS.blue }]}>{sbItems.length}</Text>
-              </View>
-            </View>
-            
-            {sbItems.length > 0 ? (
-              sbItems.map(renderItem)
-            ) : (
-              <View style={styles.emptySection}>
-                <Text style={styles.emptyText}>{t('tc_adsb_no_items')}</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Disclaimer */}
-          <View style={styles.disclaimer}>
-            <Text style={styles.disclaimerIcon}>⚠️</Text>
-            <Text style={styles.disclaimerText}>
-              {data.disclaimer || t('tc_adsb_disclaimer')}
-            </Text>
-          </View>
-
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      )}
-
-      {/* Empty state */}
-      {!isLoading && !error && data && adItems.length === 0 && sbItems.length === 0 && (
-        <View style={styles.centerContainer}>
-          <Text style={styles.emptyIcon}>📋</Text>
-          <Text style={styles.emptyStateText}>{t('tc_adsb_no_items')}</Text>
-        </View>
-      )}
+      {/* Main content - single render path */}
+      {renderContent()}
     </View>
   );
 }
