@@ -132,13 +132,27 @@ export default function AddAircraftScreen() {
   const [firstOwnerGiven, setFirstOwnerGiven] = useState('');
   const [firstOwnerFamily, setFirstOwnerFamily] = useState('');
 
+  // Validate Canadian registration format: C-XXXX (exactly 6 characters)
+  const isValidCanadianRegistration = useCallback((reg: string): boolean => {
+    const normalized = reg.toUpperCase().trim();
+    return /^C-[A-Z0-9]{4}$/.test(normalized);
+  }, []);
+
   // TC Lookup - STRICT: ONLY fills manufacturer, model, first_owner_given, first_owner_family
+  // Only called when registration is valid (C-XXXX format)
   const fetchFromTC = useCallback(async (reg: string) => {
-    if (reg.length < 5 || tcLookupStatus === 'loading') return;
+    const normalized = reg.toUpperCase().trim();
+    
+    // STRICT validation: only call TC API with valid Canadian registration
+    if (!isValidCanadianRegistration(normalized)) {
+      return;
+    }
+    
+    if (tcLookupStatus === 'loading') return;
 
     setTcLookupStatus('loading');
     try {
-      const response = await api.get(`/api/tc/lookup?registration=${reg}`);
+      const response = await api.get(`/api/tc/lookup?registration=${normalized}`);
       const data = response.data;
 
       if (data) {
@@ -160,31 +174,56 @@ export default function AddAircraftScreen() {
         setTcLookupStatus('error');
       }
     }
-  }, [tcLookupStatus]);
+  }, [tcLookupStatus, isValidCanadianRegistration]);
 
-  // Handle registration change with auto-lookup
+  // Debounced TC lookup ref - stores timeout ID for cleanup
+  const tcLookupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Handle registration change with debounced auto-lookup
   const handleRegistrationChange = (text: string) => {
-    const upperText = text.toUpperCase();
+    const upperText = text.toUpperCase().trim();
     setRegistration(upperText);
     
-    // Reset lookup state if registration changes significantly
-    if (upperText.length < 5) {
-      setTcLookupStatus('idle');
-      setTcLookupDone(false);
+    // Cancel any pending TC lookup
+    if (tcLookupTimeoutRef.current) {
+      clearTimeout(tcLookupTimeoutRef.current);
+      tcLookupTimeoutRef.current = null;
     }
     
-    // Trigger TC lookup when we have enough characters
-    if (upperText.length >= 5 && !tcLookupDone && tcLookupStatus !== 'loading') {
-      fetchFromTC(upperText);
+    // Reset lookup state if registration is not valid format
+    if (!isValidCanadianRegistration(upperText)) {
+      // Only reset to idle, don't show errors for incomplete input
+      if (tcLookupStatus !== 'idle') {
+        setTcLookupStatus('idle');
+      }
+      setTcLookupDone(false);
+      return;
+    }
+    
+    // Valid registration format - trigger debounced TC lookup
+    if (!tcLookupDone && tcLookupStatus !== 'loading') {
+      tcLookupTimeoutRef.current = setTimeout(() => {
+        fetchFromTC(upperText);
+      }, 500); // 500ms debounce
     }
   };
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (tcLookupTimeoutRef.current) {
+        clearTimeout(tcLookupTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Manual TC lookup trigger
   const handleTCLookup = () => {
-    if (registration.length >= 5) {
+    const normalized = registration.toUpperCase().trim();
+    if (isValidCanadianRegistration(normalized)) {
       setTcLookupDone(false);
       setTcLookupStatus('idle');
-      fetchFromTC(registration);
+      fetchFromTC(normalized);
     }
   };
 
