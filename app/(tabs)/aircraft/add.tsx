@@ -351,11 +351,15 @@ export default function AddAircraftScreen() {
                   placeholder="C-FABC"
                   placeholderTextColor={COLORS.textMuted}
                   autoCapitalize="characters"
+                  maxLength={6}
                 />
                 <TouchableOpacity 
-                  style={styles.tcLookupButton}
+                  style={[
+                    styles.tcLookupButton,
+                    (!isValidCanadianRegistration(registration) || tcLookupStatus === 'loading') && styles.tcLookupButtonDisabled
+                  ]}
                   onPress={handleTCLookup}
-                  disabled={registration.length < 5 || tcLookupStatus === 'loading'}
+                  disabled={!isValidCanadianRegistration(registration) || tcLookupStatus === 'loading'}
                 >
                   <Text style={styles.tcLookupButtonText}>🔍 TC</Text>
                 </TouchableOpacity>
