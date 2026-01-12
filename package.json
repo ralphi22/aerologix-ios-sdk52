@@ -17,7 +17,7 @@
     "@react-navigation/elements": "^2.0.0",
     "@react-navigation/native": "^7.0.0",
     "axios": "^1.13.2",
-    "expo": "~52.0.0",
+    "expo": "~52.0.48",
     "expo-constants": "~17.0.3",
     "expo-font": "~13.0.1",
     "expo-haptics": "~14.0.0",
@@ -25,6 +25,7 @@
     "expo-image-picker": "~16.0.3",
     "expo-linear-gradient": "~14.0.1",
     "expo-linking": "~7.0.3",
+    "expo-modules-core": "1.11.14",
     "expo-router": "4.0.20",
     "expo-secure-store": "~14.0.0",
     "expo-splash-screen": "~0.29.18",
@@ -50,6 +51,6 @@
     "eslint-config-expo": "~8.0.1"
   },
   "overrides": {
-    "expo-modules-core": "2.2.3"
+    "expo-modules-core": "1.11.14"
   }
 }
