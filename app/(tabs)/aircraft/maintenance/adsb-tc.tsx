@@ -141,14 +141,17 @@ export default function TcAdSbScreen() {
     }
   };
 
-  // Render single item card
-  const renderItem = (item: ADSBItem) => {
+  // Memoized render function for single item card - prevents unnecessary re-renders on iOS Fabric
+  const renderItem = useCallback((item: ADSBItem) => {
     const statusStyle = getStatusStyle(item.status, item.type);
     const isAD = item.type === 'AD';
     
+    // Generate stable unique key
+    const itemKey = item.id ? `item-${item.id}` : `ref-${item.ref}`;
+    
     return (
-      <View key={item.id || item.ref} style={styles.card}>
-        {/* Header row */}
+      <View key={itemKey} style={styles.card}>
+        {/* Header row - replaced gap with marginRight for iOS Fabric stability */}
         <View style={styles.cardHeader}>
           <View style={[styles.typeBadge, { backgroundColor: isAD ? COLORS.redBg : COLORS.blueBg }]}>
             <Text style={[styles.typeBadgeText, { color: isAD ? COLORS.red : COLORS.blue }]}>
@@ -160,59 +163,65 @@ export default function TcAdSbScreen() {
               {getStatusText(item.status)}
             </Text>
           </View>
-          {item.is_new && (
+          {item.is_new ? (
             <View style={styles.newBadge}>
               <Text style={styles.newBadgeText}>NEW</Text>
             </View>
-          )}
+          ) : null}
         </View>
 
         {/* Ref & Title */}
         <Text style={styles.cardRef}>{item.ref}</Text>
-        <Text style={styles.cardTitle}>{item.title}</Text>
+        <Text style={styles.cardTitle} numberOfLines={3}>{item.title}</Text>
 
-        {/* Dates */}
-        <View style={styles.datesContainer}>
-          {item.last_recorded_date && (
-            <View style={styles.dateRow}>
-              <Text style={styles.dateLabel}>{t('tc_adsb_last_recorded')}:</Text>
-              <Text style={styles.dateValue}>{item.last_recorded_date}</Text>
-            </View>
-          )}
-          {item.next_due && (
-            <View style={styles.dateRow}>
-              <Text style={styles.dateLabel}>{t('tc_adsb_next_due')}:</Text>
-              <Text style={[styles.dateValue, item.status === 'due_soon' && { color: COLORS.orange }]}>
-                {item.next_due}
-              </Text>
-            </View>
-          )}
-          {(item.recurrence_years || item.recurrence_hours) && (
-            <View style={styles.dateRow}>
-              <Text style={styles.dateLabel}>
-                {lang === 'fr' ? 'Récurrence:' : 'Recurrence:'}
-              </Text>
-              <Text style={styles.dateValue}>
-                {item.recurrence_years ? `${item.recurrence_years} ${lang === 'fr' ? 'ans' : 'years'}` : ''}
-                {item.recurrence_years && item.recurrence_hours ? ' / ' : ''}
-                {item.recurrence_hours ? `${item.recurrence_hours}h` : ''}
-              </Text>
-            </View>
-          )}
-        </View>
+        {/* Dates - only render if there are dates */}
+        {(item.last_recorded_date || item.next_due || item.recurrence_years || item.recurrence_hours) ? (
+          <View style={styles.datesContainer}>
+            {item.last_recorded_date ? (
+              <View style={styles.dateRow}>
+                <Text style={styles.dateLabel}>{t('tc_adsb_last_recorded')}:</Text>
+                <Text style={styles.dateValue}>{item.last_recorded_date}</Text>
+              </View>
+            ) : null}
+            {item.next_due ? (
+              <View style={styles.dateRow}>
+                <Text style={styles.dateLabel}>{t('tc_adsb_next_due')}:</Text>
+                <Text style={[styles.dateValue, item.status === 'due_soon' ? { color: COLORS.orange } : undefined]}>
+                  {item.next_due}
+                </Text>
+              </View>
+            ) : null}
+            {(item.recurrence_years || item.recurrence_hours) ? (
+              <View style={styles.dateRow}>
+                <Text style={styles.dateLabel}>
+                  {lang === 'fr' ? 'Récurrence:' : 'Recurrence:'}
+                </Text>
+                <Text style={styles.dateValue}>
+                  {item.recurrence_years ? `${item.recurrence_years} ${lang === 'fr' ? 'ans' : 'years'}` : ''}
+                  {item.recurrence_years && item.recurrence_hours ? ' / ' : ''}
+                  {item.recurrence_hours ? `${item.recurrence_hours}h` : ''}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
-        {/* Open source button */}
-        {item.tc_url && (
+        {/* Open source button - separated emoji into own Text for iOS stability */}
+        {item.tc_url ? (
           <TouchableOpacity 
             style={styles.sourceButton}
             onPress={() => handleOpenSource(item.tc_url)}
+            activeOpacity={0.7}
           >
-            <Text style={styles.sourceButtonText}>🔗 {t('tc_adsb_open_source')}</Text>
+            <View style={styles.sourceButtonContent}>
+              <Text style={styles.sourceButtonIcon}>🔗</Text>
+              <Text style={styles.sourceButtonText}>{t('tc_adsb_open_source')}</Text>
+            </View>
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
     );
-  };
+  }, [lang]);
 
   return (
     <View style={styles.container}>
