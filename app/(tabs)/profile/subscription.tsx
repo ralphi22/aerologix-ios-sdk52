@@ -20,6 +20,14 @@ import { getLanguage } from '@/i18n';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
+import { 
+  PLAN_PRICING, 
+  PlanId, 
+  BillingCycle, 
+  openCheckout,
+  formatPrice,
+  getYearlySavings 
+} from '@/services/paymentService';
 
 const COLORS = {
   primary: '#0033A0',
@@ -31,6 +39,9 @@ const COLORS = {
   danger: '#DC3545',
   success: '#28A745',
   warning: '#FFC107',
+  purple: '#8B5CF6',
+  blue: '#3B82F6',
+  orange: '#F59E0B',
 };
 
 // Plan display names
