@@ -185,9 +185,10 @@ export default function EditAircraftScreen() {
   const [propellerHours, setPropellerHours] = useState('');
   const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
   
-  // TC Lookup additional fields (First Owner)
-  const [firstOwnerGiven, setFirstOwnerGiven] = useState('');
-  const [firstOwnerFamily, setFirstOwnerFamily] = useState('');
+  // TC Owner fields (from TC Registry lookup)
+  const [ownerName, setOwnerName] = useState('');
+  const [ownerCity, setOwnerCity] = useState('');
+  const [ownerProvince, setOwnerProvince] = useState('');
 
   // Load aircraft data
   useEffect(() => {
