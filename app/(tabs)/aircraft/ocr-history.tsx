@@ -1,6 +1,11 @@
 /**
  * OCR History Screen - View all scanned documents from backend
  * TC-SAFE: Read-only access to scanned documents
+ * 
+ * ENHANCED UX:
+ * - "Apply to aircraft" mandatory banner for maintenance_report + COMPLETED
+ * - Detected components preview before Apply
+ * - Explanatory UI for the OCR → Apply → Critical Components flow
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -17,7 +22,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { getLanguage } from '@/i18n';
-import ocrService, { OCRScanResponse, DocumentType } from '@/services/ocrService';
+import ocrService, { OCRScanResponse, DocumentType, ExtractedMaintenanceData } from '@/services/ocrService';
 import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
 import { useMaintenanceData } from '@/stores/maintenanceDataStore';
 
@@ -42,6 +47,12 @@ const COLORS = {
   teal: '#00897B',
   tealLight: '#E0F2F1',
 };
+
+// Critical component types that will be detected
+const CRITICAL_COMPONENT_TYPES = [
+  'ENGINE', 'MAGNETO', 'PROPELLER', 'VACUUM_PUMP', 'ALTERNATOR', 'STARTER',
+  'CYLINDER', 'TURBOCHARGER', 'FUEL_PUMP', 'OIL_PUMP'
+];
 
 const getDocTypeConfig = (type: DocumentType, lang: string) => {
   switch (type) {
@@ -89,6 +100,75 @@ const getStatusBadge = (status: string, lang: string) => {
   }
 };
 
+/**
+ * Detect potential critical components from extracted data or raw text
+ * This is purely for PREVIEW - actual detection is done by backend on Apply
+ */
+const detectComponentsPreview = (doc: OCRScanResponse): { type: string; phrase: string }[] => {
+  const detected: { type: string; phrase: string }[] = [];
+  
+  const data = doc.extracted_data;
+  const rawText = doc.raw_text || '';
+  
+  // Check parts_replaced for critical components
+  if (data?.parts_replaced && Array.isArray(data.parts_replaced)) {
+    for (const part of data.parts_replaced) {
+      const name = (part.name || '').toUpperCase();
+      const pn = (part.part_number || '').toUpperCase();
+      
+      // Engine
+      if (name.includes('ENGINE') || name.includes('MOTEUR')) {
+        detected.push({ type: 'ENGINE', phrase: part.name || part.part_number || 'Engine' });
+      }
+      // Magneto
+      if (name.includes('MAGNETO') || name.includes('MAG')) {
+        detected.push({ type: 'MAGNETO', phrase: part.name || part.part_number || 'Magneto' });
+      }
+      // Propeller
+      if (name.includes('PROPELLER') || name.includes('PROP') || name.includes('HÉLICE')) {
+        detected.push({ type: 'PROPELLER', phrase: part.name || part.part_number || 'Propeller' });
+      }
+      // Vacuum Pump
+      if (name.includes('VACUUM') || name.includes('GYRO PUMP')) {
+        detected.push({ type: 'VACUUM_PUMP', phrase: part.name || part.part_number || 'Vacuum Pump' });
+      }
+      // Alternator
+      if (name.includes('ALTERNATOR') || name.includes('ALTERNATEUR')) {
+        detected.push({ type: 'ALTERNATOR', phrase: part.name || part.part_number || 'Alternator' });
+      }
+      // Starter
+      if (name.includes('STARTER') || name.includes('DÉMARREUR')) {
+        detected.push({ type: 'STARTER', phrase: part.name || part.part_number || 'Starter' });
+      }
+    }
+  }
+  
+  // Also check raw text for mentions
+  const textUpper = rawText.toUpperCase();
+  
+  const keywords: { type: string; patterns: string[] }[] = [
+    { type: 'ENGINE', patterns: ['ENGINE OVERHAUL', 'ENGINE REPLACED', 'ENGINE INSTALLED', 'MOTEUR REMPLACÉ'] },
+    { type: 'MAGNETO', patterns: ['MAGNETO REPLACED', 'LEFT MAG', 'RIGHT MAG', 'BENDIX MAG', 'SLICK MAG'] },
+    { type: 'PROPELLER', patterns: ['PROP OVERHAUL', 'PROPELLER REPLACED', 'HÉLICE REMPLACÉE'] },
+    { type: 'VACUUM_PUMP', patterns: ['VACUUM PUMP', 'GYRO PUMP'] },
+  ];
+  
+  for (const kw of keywords) {
+    for (const pattern of kw.patterns) {
+      if (textUpper.includes(pattern) && !detected.find(d => d.type === kw.type)) {
+        // Extract surrounding context
+        const idx = textUpper.indexOf(pattern);
+        const start = Math.max(0, idx - 20);
+        const end = Math.min(rawText.length, idx + pattern.length + 20);
+        const phrase = rawText.substring(start, end).trim();
+        detected.push({ type: kw.type, phrase: phrase || pattern });
+      }
+    }
+  }
+  
+  return detected;
+};
+
 interface DocumentCardProps {
   document: OCRScanResponse;
   lang: string;
@@ -100,8 +180,25 @@ function DocumentCard({ document, lang, onPress }: DocumentCardProps) {
   const statusBadge = getStatusBadge(document.status, lang);
   const data = document.extracted_data;
   
+  // Check if this is a maintenance report that needs to be applied
+  const needsApply = document.document_type === 'maintenance_report' && 
+                     document.status === 'COMPLETED';
+  
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity 
+      style={[styles.card, needsApply && styles.cardNeedsApply]} 
+      onPress={onPress} 
+      activeOpacity={0.7}
+    >
+      {/* Needs Apply indicator */}
+      {needsApply && (
+        <View style={styles.needsApplyBanner}>
+          <Text style={styles.needsApplyText}>
+            {lang === 'fr' ? '⚠️ En attente d\'application' : '⚠️ Awaiting application'}
+          </Text>
+        </View>
+      )}
+      
       <View style={styles.cardHeader}>
         <View style={[styles.cardIconContainer, { backgroundColor: config.bgColor }]}>
           <Text style={styles.cardIcon}>{config.icon}</Text>
@@ -199,6 +296,9 @@ export default function OcrHistoryScreen() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Detected components preview
+  const [detectedComponents, setDetectedComponents] = useState<{ type: string; phrase: string }[]>([]);
 
   const loadHistory = useCallback(async () => {
     if (!aircraftId) return;
@@ -237,9 +337,23 @@ export default function OcrHistoryScreen() {
   const reportDocs = documents.filter((d) => d.document_type === 'maintenance_report');
   const invoiceDocs = documents.filter((d) => d.document_type === 'invoice');
   const otherDocs = documents.filter((d) => d.document_type === 'other' || d.document_type === 'stc');
+  
+  // Count pending applications
+  const pendingApply = documents.filter(
+    (d) => d.document_type === 'maintenance_report' && d.status === 'COMPLETED'
+  ).length;
 
   const handleDocumentPress = (doc: OCRScanResponse) => {
     setSelectedDoc(doc);
+    
+    // Detect components preview if maintenance report
+    if (doc.document_type === 'maintenance_report') {
+      const components = detectComponentsPreview(doc);
+      setDetectedComponents(components);
+    } else {
+      setDetectedComponents([]);
+    }
+    
     setShowDetailModal(true);
   };
   
@@ -254,12 +368,15 @@ export default function OcrHistoryScreen() {
       // 2. Sync aircraft data from backend (heures mises à jour)
       await refreshAircraft();
       
-      // 3. Sync maintenance data from backend (pièces, AD/SB, factures)
+      // 3. Sync maintenance data from backend (pièces, AD/SB, factures, composants critiques)
       await syncWithBackend(aircraftId);
       
       Alert.alert(
         lang === 'fr' ? 'Succès' : 'Success',
-        lang === 'fr' ? 'Données appliquées et synchronisées' : 'Data applied and synced'
+        lang === 'fr' 
+          ? 'Rapport appliqué avec succès. Les composants critiques ont été mis à jour.'
+          : 'Report applied successfully. Critical components have been updated.',
+        [{ text: 'OK' }]
       );
       
       setShowDetailModal(false);
@@ -314,12 +431,45 @@ export default function OcrHistoryScreen() {
   const renderDetailModalContent = () => {
     if (!selectedDoc) return null;
     
-    // Use 'any' type for data to handle dynamic backend fields
     const data: any = selectedDoc.extracted_data || {};
     const config = getDocTypeConfig(selectedDoc.document_type, lang);
     
+    // Check if this needs to be applied
+    const needsApply = selectedDoc.document_type === 'maintenance_report' && 
+                       selectedDoc.status === 'COMPLETED';
+    const isApplied = selectedDoc.status === 'APPLIED';
+    
     return (
       <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+        {/* ========== APPLY REQUIRED BANNER ========== */}
+        {needsApply && (
+          <View style={styles.applyRequiredBanner}>
+            <Text style={styles.applyRequiredIcon}>⚠️</Text>
+            <View style={styles.applyRequiredContent}>
+              <Text style={styles.applyRequiredTitle}>
+                {lang === 'fr' 
+                  ? 'Rapport de maintenance non appliqué' 
+                  : 'Maintenance report not applied'}
+              </Text>
+              <Text style={styles.applyRequiredSubtitle}>
+                {lang === 'fr'
+                  ? 'Les données ne sont pas encore enregistrées sur l\'aéronef'
+                  : 'Data has not been saved to aircraft yet'}
+              </Text>
+            </View>
+          </View>
+        )}
+        
+        {/* Applied success banner */}
+        {isApplied && (
+          <View style={styles.appliedBanner}>
+            <Text style={styles.appliedIcon}>✅</Text>
+            <Text style={styles.appliedText}>
+              {lang === 'fr' ? 'Rapport appliqué avec succès' : 'Report applied successfully'}
+            </Text>
+          </View>
+        )}
+        
         {/* Header Info */}
         <View style={[styles.modalTypeTag, { backgroundColor: config.bgColor }]}>
           <Text style={styles.modalTypeIcon}>{config.icon}</Text>
@@ -330,6 +480,44 @@ export default function OcrHistoryScreen() {
           {lang === 'fr' ? 'Scanné le' : 'Scanned on'} {selectedDoc.created_at?.split('T')[0]}
         </Text>
         
+        {/* ========== DETECTED COMPONENTS PREVIEW (before Apply) ========== */}
+        {needsApply && selectedDoc.document_type === 'maintenance_report' && (
+          <View style={styles.componentsPreviewSection}>
+            <Text style={styles.componentsPreviewTitle}>
+              🔧 {lang === 'fr' ? 'Composants détectés (aperçu)' : 'Detected components (preview)'}
+            </Text>
+            
+            {detectedComponents.length > 0 ? (
+              <View style={styles.componentsList}>
+                {detectedComponents.map((comp, idx) => (
+                  <View key={idx} style={styles.componentItem}>
+                    <View style={styles.componentBadge}>
+                      <Text style={styles.componentBadgeText}>{comp.type}</Text>
+                    </View>
+                    <Text style={styles.componentPhrase} numberOfLines={2}>
+                      "{comp.phrase}"
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.noComponentsBox}>
+                <Text style={styles.noComponentsText}>
+                  {lang === 'fr' 
+                    ? 'Aucun composant critique détecté dans ce rapport.'
+                    : 'No critical components detected in this report.'}
+                </Text>
+              </View>
+            )}
+            
+            <Text style={styles.componentsNote}>
+              {lang === 'fr'
+                ? 'Les composants seront créés/mis à jour lors de l\'application.'
+                : 'Components will be created/updated when applied.'}
+            </Text>
+          </View>
+        )}
+        
         {/* Maintenance Report Data */}
         {selectedDoc.document_type === 'maintenance_report' && (
           <View style={styles.dataSection}>
@@ -337,7 +525,7 @@ export default function OcrHistoryScreen() {
               {lang === 'fr' ? 'Données extraites' : 'Extracted Data'}
             </Text>
             
-            {/* AMO - check both field names */}
+            {/* AMO */}
             {(data.amo_name || data.amo) && (
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>AMO:</Text>
@@ -353,7 +541,7 @@ export default function OcrHistoryScreen() {
               </View>
             )}
             
-            {/* Date - check both field names */}
+            {/* Date */}
             {(data.date || data.report_date) && (
               <View style={styles.dataRow}>
                 <Text style={styles.dataLabel}>{lang === 'fr' ? 'Date:' : 'Date:'}</Text>
@@ -382,7 +570,7 @@ export default function OcrHistoryScreen() {
               </View>
             )}
             
-            {/* Description - check both field names */}
+            {/* Description */}
             {(data.description || data.work_performed) && (
               <View style={styles.dataRowFull}>
                 <Text style={styles.dataLabel}>{lang === 'fr' ? 'Description:' : 'Description:'}</Text>
@@ -401,7 +589,7 @@ export default function OcrHistoryScreen() {
               </View>
             )}
             
-            {/* AD/SB references - check both field names */}
+            {/* AD/SB references */}
             {((data.ad_sb_references && data.ad_sb_references.length > 0) || (data.ad_notes && data.ad_notes.length > 0)) && (
               <View style={styles.dataRowFull}>
                 <Text style={styles.dataLabel}>AD/SB:</Text>
@@ -505,22 +693,17 @@ export default function OcrHistoryScreen() {
           </View>
         )}
         
-        {/* Status */}
-        <View style={styles.statusSection}>
-          <View style={[
-            styles.statusBadge,
-            (selectedDoc as any).applied ? styles.statusApplied : styles.statusPending
-          ]}>
-            <Text style={[
-              styles.statusText,
-              (selectedDoc as any).applied ? styles.statusAppliedText : styles.statusPendingText
-            ]}>
-              {(selectedDoc as any).applied 
-                ? (lang === 'fr' ? '✓ Appliqué' : '✓ Applied')
-                : (lang === 'fr' ? '○ Non appliqué' : '○ Not applied')}
+        {/* ========== TC-SAFE DISCLAIMER ========== */}
+        {needsApply && (
+          <View style={styles.tcSafeNotice}>
+            <Text style={styles.tcSafeIcon}>ℹ️</Text>
+            <Text style={styles.tcSafeText}>
+              {lang === 'fr'
+                ? 'L\'application de ce rapport mettra à jour les composants installés et l\'historique de maintenance. Informatif seulement — vérifiez avec votre TEA/AME.'
+                : 'Applying this report will update installed components and maintenance history. Informational only — verify with your AME/TEA.'}
             </Text>
           </View>
-        </View>
+        )}
       </ScrollView>
     );
   };
@@ -571,6 +754,25 @@ export default function OcrHistoryScreen() {
             <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
           }
         >
+          {/* Pending Apply Alert */}
+          {pendingApply > 0 && (
+            <View style={styles.pendingApplyAlert}>
+              <Text style={styles.pendingApplyIcon}>⚠️</Text>
+              <View style={styles.pendingApplyContent}>
+                <Text style={styles.pendingApplyTitle}>
+                  {lang === 'fr' 
+                    ? `${pendingApply} rapport(s) en attente d'application`
+                    : `${pendingApply} report(s) awaiting application`}
+                </Text>
+                <Text style={styles.pendingApplySubtitle}>
+                  {lang === 'fr'
+                    ? 'Appliquez-les pour mettre à jour les composants critiques'
+                    : 'Apply them to update critical components'}
+                </Text>
+              </View>
+            </View>
+          )}
+          
           {/* Summary */}
           <View style={styles.summaryRow}>
             <View style={[styles.summaryCard, { backgroundColor: COLORS.tealLight }]}>
@@ -624,14 +826,35 @@ export default function OcrHistoryScreen() {
             </View>
           )}
 
-          {/* Info Notice */}
-          <View style={styles.infoNotice}>
-            <Text style={styles.infoIcon}>ℹ️</Text>
-            <Text style={styles.infoText}>
-              {lang === 'fr'
-                ? 'Les rapports de maintenance sont la source principale pour mettre à jour les compteurs de votre avion. Importez-les du plus ancien au plus récent pour un suivi optimal.'
-                : 'Maintenance reports are the primary source for updating your aircraft counters. Import them from oldest to newest for optimal tracking.'}
+          {/* Info Notice - Flow explanation */}
+          <View style={styles.flowExplanation}>
+            <Text style={styles.flowTitle}>
+              {lang === 'fr' ? '📚 Comment ça marche' : '📚 How it works'}
             </Text>
+            <View style={styles.flowStep}>
+              <Text style={styles.flowStepNumber}>1</Text>
+              <Text style={styles.flowStepText}>
+                {lang === 'fr' ? 'Scannez un rapport de maintenance' : 'Scan a maintenance report'}
+              </Text>
+            </View>
+            <View style={styles.flowStep}>
+              <Text style={styles.flowStepNumber}>2</Text>
+              <Text style={styles.flowStepText}>
+                {lang === 'fr' ? 'Vérifiez les données extraites' : 'Review extracted data'}
+              </Text>
+            </View>
+            <View style={styles.flowStep}>
+              <Text style={styles.flowStepNumber}>3</Text>
+              <Text style={styles.flowStepText}>
+                {lang === 'fr' ? 'Appliquez à l\'aéronef' : 'Apply to aircraft'}
+              </Text>
+            </View>
+            <View style={styles.flowStep}>
+              <Text style={styles.flowStepNumber}>4</Text>
+              <Text style={styles.flowStepText}>
+                {lang === 'fr' ? 'Les composants critiques sont mis à jour' : 'Critical components are updated'}
+              </Text>
+            </View>
           </View>
 
           {/* Disclaimer */}
@@ -679,7 +902,9 @@ export default function OcrHistoryScreen() {
                 )}
               </TouchableOpacity>
               
-              {!(selectedDoc as any)?.applied && (
+              {/* Show Apply button only for maintenance_report + COMPLETED */}
+              {selectedDoc?.document_type === 'maintenance_report' && 
+               selectedDoc?.status === 'COMPLETED' && (
                 <TouchableOpacity 
                   style={styles.applyButton} 
                   onPress={handleApplyData}
@@ -689,7 +914,7 @@ export default function OcrHistoryScreen() {
                     <ActivityIndicator size="small" color={COLORS.white} />
                   ) : (
                     <Text style={styles.applyButtonText}>
-                      ✓ {lang === 'fr' ? 'Appliquer' : 'Apply'}
+                      ✓ {lang === 'fr' ? 'Appliquer à l\'aéronef' : 'Apply to aircraft'}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -725,6 +950,22 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 14, color: COLORS.red, textAlign: 'center', marginBottom: 16 },
   retryButton: { backgroundColor: COLORS.primary, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 },
   retryText: { color: COLORS.white, fontSize: 14, fontWeight: '600' },
+  // Pending Apply Alert
+  pendingApplyAlert: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.redLight,
+    margin: 16,
+    marginBottom: 0,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.red,
+    alignItems: 'center',
+  },
+  pendingApplyIcon: { fontSize: 24, marginRight: 12 },
+  pendingApplyContent: { flex: 1 },
+  pendingApplyTitle: { fontSize: 14, fontWeight: '700', color: COLORS.red },
+  pendingApplySubtitle: { fontSize: 12, color: COLORS.red, opacity: 0.8, marginTop: 2 },
   // Summary
   summaryRow: { flexDirection: 'row', padding: 16, gap: 12 },
   summaryCard: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center' },
@@ -743,6 +984,9 @@ const styles = StyleSheet.create({
   listTitle: { fontSize: 16, fontWeight: '600', color: COLORS.textDark, marginBottom: 12 },
   // Card
   card: { backgroundColor: COLORS.white, borderRadius: 12, padding: 16, marginBottom: 12 },
+  cardNeedsApply: { borderWidth: 2, borderColor: COLORS.orange },
+  needsApplyBanner: { backgroundColor: COLORS.orangeLight, marginHorizontal: -16, marginTop: -16, marginBottom: 12, padding: 8, borderTopLeftRadius: 10, borderTopRightRadius: 10 },
+  needsApplyText: { fontSize: 12, fontWeight: '600', color: COLORS.orange, textAlign: 'center' },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   cardIconContainer: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   cardIcon: { fontSize: 22 },
@@ -764,22 +1008,50 @@ const styles = StyleSheet.create({
   cardFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: COLORS.background },
   scanInfo: { flex: 1, fontSize: 11, color: COLORS.textMuted },
   cardArrow: { fontSize: 18, color: COLORS.textMuted },
-  // Info Notice
-  infoNotice: { flexDirection: 'row', margin: 16, padding: 14, backgroundColor: COLORS.blue, borderRadius: 12 },
-  infoIcon: { fontSize: 14, marginRight: 10 },
-  infoText: { flex: 1, fontSize: 12, color: COLORS.primary, lineHeight: 18 },
+  // Flow Explanation
+  flowExplanation: { margin: 16, padding: 16, backgroundColor: COLORS.blue, borderRadius: 12 },
+  flowTitle: { fontSize: 14, fontWeight: '700', color: COLORS.primary, marginBottom: 12 },
+  flowStep: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  flowStepNumber: { width: 24, height: 24, borderRadius: 12, backgroundColor: COLORS.primary, color: COLORS.white, fontSize: 12, fontWeight: '700', textAlign: 'center', lineHeight: 24, marginRight: 10 },
+  flowStepText: { flex: 1, fontSize: 13, color: COLORS.primary },
   // Disclaimer
   disclaimer: { flexDirection: 'row', marginHorizontal: 16, padding: 14, backgroundColor: COLORS.yellow, borderRadius: 12, borderWidth: 1, borderColor: COLORS.yellowBorder },
   disclaimerIcon: { fontSize: 14, marginRight: 8 },
   disclaimerText: { flex: 1, fontSize: 11, color: '#5D4037', lineHeight: 16 },
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%', paddingBottom: 30 },
+  modalContent: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%', paddingBottom: 30 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textDark },
   modalClose: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' },
   modalCloseText: { fontSize: 18, color: COLORS.textMuted },
   modalScroll: { paddingHorizontal: 20, paddingTop: 16 },
+  // Apply Required Banner
+  applyRequiredBanner: { flexDirection: 'row', backgroundColor: COLORS.redLight, borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.red },
+  applyRequiredIcon: { fontSize: 28, marginRight: 12 },
+  applyRequiredContent: { flex: 1 },
+  applyRequiredTitle: { fontSize: 16, fontWeight: '700', color: COLORS.red },
+  applyRequiredSubtitle: { fontSize: 13, color: COLORS.red, opacity: 0.8, marginTop: 4 },
+  // Applied Banner
+  appliedBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.greenLight, borderRadius: 12, padding: 14, marginBottom: 16 },
+  appliedIcon: { fontSize: 24, marginRight: 12 },
+  appliedText: { fontSize: 14, fontWeight: '600', color: COLORS.green },
+  // Components Preview
+  componentsPreviewSection: { backgroundColor: COLORS.background, borderRadius: 12, padding: 16, marginBottom: 16 },
+  componentsPreviewTitle: { fontSize: 15, fontWeight: '700', color: COLORS.textDark, marginBottom: 12 },
+  componentsList: { gap: 10 },
+  componentItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 8, padding: 10 },
+  componentBadge: { backgroundColor: COLORS.tealLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginRight: 10 },
+  componentBadgeText: { fontSize: 10, fontWeight: '700', color: COLORS.teal },
+  componentPhrase: { flex: 1, fontSize: 12, color: COLORS.textMuted, fontStyle: 'italic' },
+  noComponentsBox: { backgroundColor: COLORS.white, borderRadius: 8, padding: 16, alignItems: 'center' },
+  noComponentsText: { fontSize: 13, color: COLORS.textMuted, textAlign: 'center' },
+  componentsNote: { fontSize: 11, color: COLORS.textMuted, marginTop: 10, fontStyle: 'italic' },
+  // TC-Safe Notice
+  tcSafeNotice: { flexDirection: 'row', backgroundColor: COLORS.blue, borderRadius: 10, padding: 14, marginTop: 8, marginBottom: 16 },
+  tcSafeIcon: { fontSize: 16, marginRight: 10 },
+  tcSafeText: { flex: 1, fontSize: 12, color: COLORS.primary, lineHeight: 18 },
+  // Modal Type Tag
   modalTypeTag: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginBottom: 8 },
   modalTypeIcon: { fontSize: 16, marginRight: 6 },
   modalTypeLabel: { fontSize: 14, fontWeight: '600' },
@@ -794,17 +1066,9 @@ const styles = StyleSheet.create({
   dataHighlight: { fontWeight: '700', color: COLORS.primary },
   totalCost: { fontSize: 16, color: COLORS.green },
   listItem: { fontSize: 13, color: COLORS.textDark, marginTop: 4, marginLeft: 8 },
-  statusSection: { alignItems: 'center', marginVertical: 12 },
-  statusApplied: { backgroundColor: COLORS.greenLight },
-  statusPending: { backgroundColor: COLORS.orangeLight },
-  statusAppliedText: { color: COLORS.green },
-  statusPendingText: { color: COLORS.orange },
-  // Raw data display
-  rawDataScroll: { maxHeight: 200, backgroundColor: '#1E1E1E', borderRadius: 8, padding: 12 },
-  rawDataText: { fontSize: 11, fontFamily: 'monospace', color: '#9CDCFE', lineHeight: 16 },
   modalActions: { flexDirection: 'row', padding: 20, paddingTop: 12, gap: 12 },
   deleteButton: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: COLORS.red, alignItems: 'center' },
   deleteButtonText: { fontSize: 15, color: COLORS.red, fontWeight: '600' },
-  applyButton: { flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: COLORS.primary, alignItems: 'center' },
+  applyButton: { flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: COLORS.green, alignItems: 'center' },
   applyButtonText: { fontSize: 15, color: COLORS.white, fontWeight: '600' },
 });
