@@ -431,7 +431,7 @@ export default function EditAircraftScreen() {
     router.back();
   };
 
-  // TC Lookup status message
+  // TC Lookup status message - DISCRET pour 404
   const renderTCStatus = () => {
     switch (tcLookupStatus) {
       case 'loading':
@@ -450,10 +450,11 @@ export default function EditAircraftScreen() {
           </View>
         );
       case 'not_found':
+        // ANTI-404 FRUSTRANT: Discret, pas bloquant
         return (
-          <View style={[styles.tcStatusContainer, styles.tcStatusWarning]}>
-            <Text style={styles.tcStatusWarningText}>
-              {lang === 'fr' ? 'Non trouvé dans le registre TC' : 'Not found in TC registry'}
+          <View style={[styles.tcStatusContainer, styles.tcStatusNotFound]}>
+            <Text style={styles.tcStatusNotFoundText}>
+              {lang === 'fr' ? 'Introuvable dans le registre TC' : 'Not found in TC registry'}
             </Text>
           </View>
         );
@@ -462,6 +463,15 @@ export default function EditAircraftScreen() {
           <View style={[styles.tcStatusContainer, styles.tcStatusError]}>
             <Text style={styles.tcStatusErrorText}>
               {lang === 'fr' ? 'Format d\'immatriculation canadienne invalide' : 'Invalid Canadian registration format'}
+            </Text>
+          </View>
+        );
+      case 'error':
+        // Network error - still non-blocking
+        return (
+          <View style={[styles.tcStatusContainer, styles.tcStatusNotFound]}>
+            <Text style={styles.tcStatusNotFoundText}>
+              {lang === 'fr' ? 'Recherche TC indisponible' : 'TC lookup unavailable'}
             </Text>
           </View>
         );
