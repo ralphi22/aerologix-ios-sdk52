@@ -847,6 +847,8 @@ export default function EditAircraftScreen() {
               value={serialNumber}
               onChangeText={setSerialNumber}
               placeholder="15070001"
+              tcFilled={tcLookupDone && tcLookupStatus === 'success'}
+              userEdited={userEditedFields.has('serialNumber')}
             />
           </View>
 
