@@ -1,12 +1,35 @@
 /**
- * TC AD/SB Screen - Transport Canada Airworthiness Directives & Service Bulletins
- * Compares OCR-captured data with TC database
- * TC-SAFE: Information only, no compliance decisions
+ * TC AD/SB Comparison Screen - Transport Canada Airworthiness Directives & Service Bulletins
  * 
- * ROBUST VERSION - Never crashes, handles all edge cases
- * - ErrorBoundary for crash protection
- * - Normalizes multiple API response schemas
- * - Protects all renders against undefined/null
+ * OFFICIAL API CONTRACT:
+ * GET /api/adsb/compare/{aircraft_id}
+ * Response: {
+ *   total_tc_items: number,
+ *   found_count: number,
+ *   missing_count: number,
+ *   new_tc_items: ComparisonItem[],
+ *   comparison: ComparisonItem[],
+ *   disclaimer: string
+ * }
+ * 
+ * ComparisonItem: {
+ *   ref: string,
+ *   title: string,
+ *   type: "AD" | "SB",
+ *   status: "OK" | "MISSING" | "DUE_SOON" | "NEW",
+ *   last_recorded_date?: string,
+ *   next_due?: string,
+ *   recurrence_years?: number,
+ *   recurrence_hours?: number,
+ *   tc_url?: string
+ * }
+ * 
+ * CRASH-PROOF VERSION:
+ * - ErrorBoundary for render crash protection
+ * - Strict normalization of API response
+ * - All fields protected with safe defaults
+ * - Never uses .map/.length on non-array values
+ * - TC-Safe: Informational only
  */
 
 import React, { useState, useEffect, useCallback, useMemo, Component, ReactNode } from 'react';
@@ -31,14 +54,14 @@ const COLORS = {
   textDark: '#212121',
   textMuted: '#616161',
   border: '#E0E0E0',
-  // Status colors
-  red: '#E53935',
+  // Status colors - OFFICIAL
+  red: '#E53935',      // MISSING
   redBg: '#FFEBEE',
-  orange: '#FF9800',
+  orange: '#FF9800',   // DUE_SOON
   orangeBg: '#FFF3E0',
-  green: '#43A047',
+  green: '#43A047',    // OK / Found
   greenBg: '#E8F5E9',
-  blue: '#1976D2',
+  blue: '#1976D2',     // NEW / Info
   blueBg: '#E3F2FD',
   // Alert
   alertYellow: '#FFF8E1',
@@ -70,9 +93,8 @@ class TCErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> 
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Soft log only - never crash
-    console.warn('[TC AD/SB] Render error caught:', error?.message || 'Unknown error');
-    console.warn('[TC AD/SB] Component stack:', errorInfo?.componentStack || 'N/A');
+    console.warn('[TC AD/SB] Render error caught:', error?.message || 'Unknown');
+    console.warn('[TC AD/SB] Stack:', errorInfo?.componentStack || 'N/A');
   }
 
   handleRetry = () => {
@@ -119,7 +141,6 @@ class TCErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> 
               </TouchableOpacity>
             </View>
             
-            {/* TC-Safe disclaimer */}
             <View style={errorStyles.disclaimer}>
               <Text style={errorStyles.disclaimerText}>
                 {lang === 'fr'
@@ -152,10 +173,7 @@ const errorStyles = StyleSheet.create({
     maxWidth: 400,
     width: '100%',
   },
-  icon: {
-    fontSize: 56,
-    marginBottom: 16,
-  },
+  icon: { fontSize: 56, marginBottom: 16 },
   title: {
     fontSize: 22,
     fontWeight: '700',
@@ -219,47 +237,45 @@ const errorStyles = StyleSheet.create({
 });
 
 // ============================================================
-// TYPES
+// TYPES - OFFICIAL API CONTRACT
 // ============================================================
-interface ADSBItem {
-  id: string;
+
+// Status enum from backend
+type ItemStatus = 'OK' | 'MISSING' | 'DUE_SOON' | 'NEW';
+
+// Comparison item from API
+interface ComparisonItem {
   ref: string;
   title: string;
   type: 'AD' | 'SB';
-  status: 'missing' | 'due_soon' | 'ok' | 'info';
-  found: boolean;
+  status: ItemStatus;
   last_recorded_date?: string;
   next_due?: string;
   recurrence_years?: number;
   recurrence_hours?: number;
   tc_url?: string;
-  is_new?: boolean;
 }
 
-interface CompareResponse {
-  aircraft_id: string;
-  designator: string;
-  items: ADSBItem[];
-  new_tc_items: ADSBItem[];
+// Normalized API response
+interface NormalizedResponse {
+  total_tc_items: number;
+  found_count: number;
+  missing_count: number;
+  comparison: ComparisonItem[];
+  new_tc_items: ComparisonItem[];
   disclaimer: string;
 }
 
 // ============================================================
-// SAFE DATA NORMALIZER
+// SAFE HELPERS - Never crash
 // ============================================================
 
-/**
- * Safely get string value with fallback
- */
 const safeString = (value: unknown, fallback: string = ''): string => {
   if (typeof value === 'string') return value;
   if (typeof value === 'number') return String(value);
   return fallback;
 };
 
-/**
- * Safely get number value with fallback
- */
 const safeNumber = (value: unknown, fallback: number = 0): number => {
   if (typeof value === 'number' && !isNaN(value)) return value;
   if (typeof value === 'string') {
@@ -269,91 +285,70 @@ const safeNumber = (value: unknown, fallback: number = 0): number => {
   return fallback;
 };
 
-/**
- * Safely get boolean value with fallback
- */
-const safeBool = (value: unknown, fallback: boolean = false): boolean => {
-  if (typeof value === 'boolean') return value;
-  return fallback;
-};
-
-/**
- * Safely ensure array type
- */
 const safeArray = <T>(value: unknown): T[] => {
   if (Array.isArray(value)) return value as T[];
   return [];
 };
 
+// ============================================================
+// NORMALIZER - OFFICIAL API CONTRACT
+// ============================================================
+
 /**
- * Normalize a single AD/SB item - protects all fields
+ * Normalize a single comparison item
+ * Protects all fields with safe defaults
  */
-const normalizeItem = (raw: unknown): ADSBItem | null => {
+const normalizeItem = (raw: unknown): ComparisonItem | null => {
   if (!raw || typeof raw !== 'object') return null;
   
   const item = raw as Record<string, unknown>;
   
-  // Extract reference - try multiple key patterns
-  const ref = safeString(item.ref || item.reference || item.ad_ref || item.sb_ref || item.number, '');
-  
-  // Must have at least a reference
+  // ref is REQUIRED
+  const ref = safeString(item.ref || item.reference);
   if (!ref) {
-    console.warn('[TC AD/SB] Item missing reference, skipping:', item);
+    console.warn('[TC AD/SB] Item missing ref, skipping');
     return null;
   }
   
-  // Generate stable ID
-  const id = safeString(
-    item.id || item._id || item.item_id,
-    `${ref}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-  );
+  // title with safe default
+  const title = safeString(item.title || item.description, '');
   
-  // Extract title
-  const title = safeString(
-    item.title || item.description || item.subject || item.name,
-    ref
-  );
-  
-  // Extract type (AD or SB)
-  const rawType = safeString(item.type || item.item_type, 'AD').toUpperCase();
+  // type: AD or SB
+  const rawType = safeString(item.type, 'AD').toUpperCase();
   const type: 'AD' | 'SB' = rawType === 'SB' ? 'SB' : 'AD';
   
-  // Extract status
-  const rawStatus = safeString(item.status || item.compliance_status, 'info').toLowerCase();
-  let status: 'missing' | 'due_soon' | 'ok' | 'info' = 'info';
-  if (rawStatus === 'missing' || rawStatus === 'not_found') status = 'missing';
-  else if (rawStatus === 'due_soon' || rawStatus === 'due' || rawStatus === 'pending') status = 'due_soon';
-  else if (rawStatus === 'ok' || rawStatus === 'complied' || rawStatus === 'done') status = 'ok';
+  // status: OK, MISSING, DUE_SOON, NEW
+  const rawStatus = safeString(item.status, 'OK').toUpperCase();
+  let status: ItemStatus = 'OK';
+  if (rawStatus === 'MISSING') status = 'MISSING';
+  else if (rawStatus === 'DUE_SOON') status = 'DUE_SOON';
+  else if (rawStatus === 'NEW') status = 'NEW';
+  else if (rawStatus === 'OK' || rawStatus === 'FOUND') status = 'OK';
   
   return {
-    id,
     ref,
     title,
     type,
     status,
-    found: safeBool(item.found || item.is_found || item.matched, false),
-    last_recorded_date: safeString(item.last_recorded_date || item.last_recorded || item.recorded_date || item.compliance_date, undefined),
-    next_due: safeString(item.next_due || item.due_date || item.next_compliance, undefined),
-    recurrence_years: safeNumber(item.recurrence_years || item.years_interval, undefined),
-    recurrence_hours: safeNumber(item.recurrence_hours || item.hours_interval, undefined),
-    tc_url: safeString(item.tc_url || item.url || item.source_url || item.link, undefined),
-    is_new: safeBool(item.is_new || item.new || item.isNew, false),
+    last_recorded_date: safeString(item.last_recorded_date, undefined),
+    next_due: safeString(item.next_due, undefined),
+    recurrence_years: item.recurrence_years != null ? safeNumber(item.recurrence_years, undefined) : undefined,
+    recurrence_hours: item.recurrence_hours != null ? safeNumber(item.recurrence_hours, undefined) : undefined,
+    tc_url: safeString(item.tc_url || item.url, undefined),
   };
 };
 
 /**
- * Normalize API response - handles multiple response schemas
- * Accepts:
- * - tc_items / tcItems / items_tc / items
- * - found / found_items / foundItems
- * - missing / missing_items / missingItems
- * - new_tc_items / newTcItems / new_items
+ * Normalize API response to official contract
+ * NEVER uses: data.found, data.missing, data.tc_items, data.items
+ * ONLY uses: data.comparison[], data.new_tc_items[]
  */
-const normalizeApiResponse = (data: unknown): CompareResponse => {
-  const defaultResponse: CompareResponse = {
-    aircraft_id: '',
-    designator: '',
-    items: [],
+const normalizeApiResponse = (data: unknown): NormalizedResponse => {
+  const defaultResponse: NormalizedResponse = {
+    total_tc_items: 0,
+    found_count: 0,
+    missing_count: 0,
+    comparison: [],
     new_tc_items: [],
     disclaimer: '',
   };
@@ -365,76 +360,95 @@ const normalizeApiResponse = (data: unknown): CompareResponse => {
   
   const raw = data as Record<string, unknown>;
   
-  // Extract basic fields
-  const aircraftId = safeString(raw.aircraft_id || raw.aircraftId || raw.aircraft);
-  const designator = safeString(raw.designator || raw.type_designator || raw.model);
-  const disclaimer = safeString(
-    raw.disclaimer || raw.note || raw.warning,
-    t('tc_adsb_disclaimer')
-  );
+  // Extract counts (safe)
+  const total_tc_items = safeNumber(raw.total_tc_items, 0);
+  const found_count = safeNumber(raw.found_count, 0);
+  const missing_count = safeNumber(raw.missing_count, 0);
   
-  // Extract items from multiple possible keys
-  let rawItems: unknown[] = [];
-  
-  // Try primary keys
-  const possibleItemsKeys = ['items', 'tc_items', 'tcItems', 'items_tc', 'adsb_items', 'data'];
-  for (const key of possibleItemsKeys) {
-    if (Array.isArray(raw[key])) {
-      rawItems = raw[key] as unknown[];
-      break;
-    }
-  }
-  
-  // Also merge found and missing items if present
-  const foundKeys = ['found', 'found_items', 'foundItems', 'found_in_logbook'];
-  const missingKeys = ['missing', 'missing_items', 'missingItems', 'not_found'];
-  
-  for (const key of foundKeys) {
-    if (Array.isArray(raw[key])) {
-      rawItems = [...rawItems, ...(raw[key] as unknown[])];
-    }
-  }
-  
-  for (const key of missingKeys) {
-    if (Array.isArray(raw[key])) {
-      rawItems = [...rawItems, ...(raw[key] as unknown[])];
-    }
-  }
-  
-  // Normalize items
-  const items: ADSBItem[] = [];
-  for (const rawItem of rawItems) {
+  // OFFICIAL: Extract comparison[] - this is the main array
+  const rawComparison = safeArray<unknown>(raw.comparison);
+  const comparison: ComparisonItem[] = [];
+  for (const rawItem of rawComparison) {
     const normalized = normalizeItem(rawItem);
     if (normalized) {
-      items.push(normalized);
+      comparison.push(normalized);
     }
   }
   
-  // Extract new TC items
-  let rawNewItems: unknown[] = [];
-  const newItemsKeys = ['new_tc_items', 'newTcItems', 'new_items', 'newly_published'];
-  for (const key of newItemsKeys) {
-    if (Array.isArray(raw[key])) {
-      rawNewItems = raw[key] as unknown[];
-      break;
-    }
-  }
-  
-  const newTcItems: ADSBItem[] = [];
+  // OFFICIAL: Extract new_tc_items[]
+  const rawNewItems = safeArray<unknown>(raw.new_tc_items);
+  const new_tc_items: ComparisonItem[] = [];
   for (const rawItem of rawNewItems) {
     const normalized = normalizeItem(rawItem);
     if (normalized) {
-      newTcItems.push(normalized);
+      // Mark as NEW status
+      normalized.status = 'NEW';
+      new_tc_items.push(normalized);
     }
   }
   
+  // Extract disclaimer
+  const disclaimer = safeString(
+    raw.disclaimer,
+    'Informational only — verify with official Transport Canada records and your AME/TEA.'
+  );
+  
   return {
-    aircraft_id: aircraftId,
-    designator,
-    items,
-    new_tc_items: newTcItems,
+    total_tc_items,
+    found_count,
+    missing_count,
+    comparison,
+    new_tc_items,
     disclaimer,
   };
+};
+
+// ============================================================
+// STATUS HELPERS
+// ============================================================
+
+/**
+ * Get visual style for status
+ * OK → green, DUE_SOON → orange, MISSING → red, NEW → blue
+ */
+const getStatusStyle = (status: ItemStatus, type: 'AD' | 'SB') => {
+  // SB items are always info/blue (no compliance requirement)
+  if (type === 'SB') {
+    return { bg: COLORS.blueBg, text: COLORS.blue };
+  }
+  
+  switch (status) {
+    case 'MISSING':
+      return { bg: COLORS.redBg, text: COLORS.red };
+    case 'DUE_SOON':
+      return { bg: COLORS.orangeBg, text: COLORS.orange };
+    case 'OK':
+      return { bg: COLORS.greenBg, text: COLORS.green };
+    case 'NEW':
+      return { bg: COLORS.blueBg, text: COLORS.blue };
+    default:
+      return { bg: COLORS.blueBg, text: COLORS.blue };
+  }
+};
+
+/**
+ * Get display text for status
+ * NEVER "Compliant" / "Non-compliant"
+ * Only: "Found", "Missing", "Due soon", "New"
+ */
+const getStatusText = (status: ItemStatus, lang: string): string => {
+  switch (status) {
+    case 'OK':
+      return lang === 'fr' ? 'Trouvé' : 'Found';
+    case 'MISSING':
+      return lang === 'fr' ? 'Manquant' : 'Missing';
+    case 'DUE_SOON':
+      return lang === 'fr' ? 'Bientôt dû' : 'Due soon';
+    case 'NEW':
+      return lang === 'fr' ? 'Nouveau' : 'New';
+    default:
+      return lang === 'fr' ? 'Info' : 'Info';
+  }
 };
 
 // ============================================================
@@ -447,9 +461,9 @@ function TcAdSbScreenContent() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<CompareResponse | null>(null);
+  const [data, setData] = useState<NormalizedResponse | null>(null);
 
-  // Fetch handler - can be called for retry
+  // Fetch handler
   const fetchData = useCallback(async () => {
     if (!aircraftId) {
       setError(lang === 'fr' ? 'ID avion manquant' : 'Missing aircraft ID');
@@ -463,22 +477,35 @@ function TcAdSbScreenContent() {
     try {
       const response = await api.get(`/api/adsb/compare/${aircraftId}`);
       
-      // Normalize response - handles all schemas
+      // Normalize with official contract
       const normalized = normalizeApiResponse(response.data);
       setData(normalized);
       
-      console.warn('[TC AD/SB] Data loaded:', {
-        itemsCount: normalized.items.length,
-        newItemsCount: normalized.new_tc_items.length,
+      console.warn('[TC AD/SB] Loaded:', {
+        comparison: normalized.comparison.length,
+        newItems: normalized.new_tc_items.length,
+        total: normalized.total_tc_items,
       });
     } catch (err: unknown) {
       console.warn('[TC AD/SB] Fetch error:', err);
       
-      // Extract error message safely
-      let errorMessage = t('tc_adsb_error');
+      // Handle specific error codes
+      let errorMessage = lang === 'fr' 
+        ? 'Impossible de récupérer la comparaison TC. Vérifiez la connexion et réessayez.'
+        : 'Unable to retrieve TC comparison. Verify connection and try again.';
+      
       if (err && typeof err === 'object') {
-        const errObj = err as { response?: { data?: { detail?: string } }; message?: string };
-        errorMessage = errObj?.response?.data?.detail || errObj?.message || errorMessage;
+        const errObj = err as { response?: { status?: number; data?: { detail?: string } }; message?: string };
+        
+        if (errObj?.response?.status === 401) {
+          errorMessage = lang === 'fr' ? 'Non autorisé' : 'Unauthorized';
+        } else if (errObj?.response?.status === 404) {
+          errorMessage = lang === 'fr' 
+            ? 'Aucune donnée TC disponible pour cet aéronef.'
+            : 'No TC data available for this aircraft.';
+        } else if (errObj?.response?.data?.detail) {
+          errorMessage = errObj.response.data.detail;
+        }
       }
       
       setError(errorMessage);
@@ -492,21 +519,37 @@ function TcAdSbScreenContent() {
     fetchData();
   }, [fetchData]);
 
-  // Safely filter items by type
+  // Filter items by status - SAFE (always arrays)
+  const foundItems = useMemo(() => {
+    const comparison = safeArray<ComparisonItem>(data?.comparison);
+    return comparison.filter(i => i?.status === 'OK');
+  }, [data?.comparison]);
+
+  const missingItems = useMemo(() => {
+    const comparison = safeArray<ComparisonItem>(data?.comparison);
+    return comparison.filter(i => i?.status === 'MISSING');
+  }, [data?.comparison]);
+
+  const dueSoonItems = useMemo(() => {
+    const comparison = safeArray<ComparisonItem>(data?.comparison);
+    return comparison.filter(i => i?.status === 'DUE_SOON');
+  }, [data?.comparison]);
+
+  const newTcItems = useMemo(() => {
+    const newItems = safeArray<ComparisonItem>(data?.new_tc_items);
+    return newItems.filter(i => i?.ref);
+  }, [data?.new_tc_items]);
+
+  // Separate by type
   const adItems = useMemo(() => {
-    const items = safeArray<ADSBItem>(data?.items);
-    return items.filter(item => item?.type === 'AD');
-  }, [data?.items]);
+    const comparison = safeArray<ComparisonItem>(data?.comparison);
+    return comparison.filter(i => i?.type === 'AD');
+  }, [data?.comparison]);
 
   const sbItems = useMemo(() => {
-    const items = safeArray<ADSBItem>(data?.items);
-    return items.filter(item => item?.type === 'SB');
-  }, [data?.items]);
-
-  const hasNewItems = useMemo(() => {
-    const newItems = safeArray<ADSBItem>(data?.new_tc_items);
-    return newItems.length > 0;
-  }, [data?.new_tc_items]);
+    const comparison = safeArray<ComparisonItem>(data?.comparison);
+    return comparison.filter(i => i?.type === 'SB');
+  }, [data?.comparison]);
 
   // Open TC URL
   const handleOpenSource = useCallback((url?: string) => {
@@ -517,60 +560,24 @@ function TcAdSbScreenContent() {
     }
   }, []);
 
-  // Get status style - SAFE
-  const getStatusStyle = useCallback((status: string | undefined, type: string | undefined) => {
-    // SB never shows red (info only)
-    if (type === 'SB') {
-      return { bg: COLORS.blueBg, text: COLORS.blue };
-    }
-    
-    switch (status) {
-      case 'missing':
-        return { bg: COLORS.redBg, text: COLORS.red };
-      case 'due_soon':
-        return { bg: COLORS.orangeBg, text: COLORS.orange };
-      case 'ok':
-        return { bg: COLORS.greenBg, text: COLORS.green };
-      default:
-        return { bg: COLORS.blueBg, text: COLORS.blue };
-    }
-  }, []);
-
-  // Get status text - SAFE
-  const getStatusText = useCallback((status: string | undefined) => {
-    switch (status) {
-      case 'missing':
-        return t('tc_adsb_missing');
-      case 'due_soon':
-        return t('tc_adsb_due_soon');
-      case 'ok':
-        return t('tc_adsb_ok');
-      default:
-        return t('tc_adsb_info_only');
-    }
-  }, []);
-
   // Render single item card - FULLY PROTECTED
-  const renderItem = useCallback((item: ADSBItem | null | undefined, index: number) => {
-    // Skip null/undefined items
+  const renderItem = useCallback((item: ComparisonItem | null | undefined, index: number) => {
     if (!item) return null;
     
-    // Safe extract all fields with defaults
-    const itemId = safeString(item.id, `item-${index}`);
+    // Safe extract all fields
     const itemRef = safeString(item.ref, 'N/A');
     const itemTitle = safeString(item.title, '');
     const itemType = item.type === 'SB' ? 'SB' : 'AD';
-    const itemStatus = safeString(item.status, 'info');
-    const isNew = safeBool(item.is_new);
-    const lastRecorded = item.last_recorded_date;
-    const nextDue = item.next_due;
+    const itemStatus = item.status || 'OK';
+    const lastRecorded = item.last_recorded_date || '—';
+    const nextDue = item.next_due || '—';
     const recurrenceYears = item.recurrence_years;
     const recurrenceHours = item.recurrence_hours;
     const tcUrl = item.tc_url;
     
     const statusStyle = getStatusStyle(itemStatus, itemType);
     const isAD = itemType === 'AD';
-    const itemKey = `${itemId}-${itemRef}-${index}`;
+    const itemKey = `${itemRef}-${index}`;
     
     return (
       <View key={itemKey} style={styles.card}>
@@ -583,10 +590,10 @@ function TcAdSbScreenContent() {
           </View>
           <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
             <Text style={[styles.statusText, { color: statusStyle.text }]}>
-              {getStatusText(itemStatus)}
+              {getStatusText(itemStatus, lang)}
             </Text>
           </View>
-          {isNew && (
+          {itemStatus === 'NEW' && (
             <View style={styles.newBadge}>
               <Text style={styles.newBadgeText}>NEW</Text>
             </View>
@@ -599,19 +606,26 @@ function TcAdSbScreenContent() {
           <Text style={styles.cardTitle} numberOfLines={3}>{itemTitle}</Text>
         ) : null}
 
-        {/* Dates - only render if there are dates */}
-        {(lastRecorded || nextDue || recurrenceYears || recurrenceHours) && (
+        {/* Dates - protected rendering */}
+        {(lastRecorded !== '—' || nextDue !== '—' || recurrenceYears || recurrenceHours) && (
           <View style={styles.datesContainer}>
-            {lastRecorded && (
+            {lastRecorded !== '—' && (
               <View style={styles.dateRow}>
-                <Text style={styles.dateLabel}>{t('tc_adsb_last_recorded')}:</Text>
+                <Text style={styles.dateLabel}>
+                  {lang === 'fr' ? 'Dernier enregistré:' : 'Last recorded:'}
+                </Text>
                 <Text style={styles.dateValue}>{lastRecorded}</Text>
               </View>
             )}
-            {nextDue && (
+            {nextDue !== '—' && (
               <View style={styles.dateRow}>
-                <Text style={styles.dateLabel}>{t('tc_adsb_next_due')}:</Text>
-                <Text style={[styles.dateValue, itemStatus === 'due_soon' ? { color: COLORS.orange } : undefined]}>
+                <Text style={styles.dateLabel}>
+                  {lang === 'fr' ? 'Prochaine échéance:' : 'Next due:'}
+                </Text>
+                <Text style={[
+                  styles.dateValue, 
+                  itemStatus === 'DUE_SOON' ? { color: COLORS.orange } : undefined
+                ]}>
                   {nextDue}
                 </Text>
               </View>
@@ -640,13 +654,45 @@ function TcAdSbScreenContent() {
           >
             <View style={styles.sourceButtonContent}>
               <Text style={styles.sourceButtonIcon}>🔗</Text>
-              <Text style={styles.sourceButtonText}>{t('tc_adsb_open_source')}</Text>
+              <Text style={styles.sourceButtonText}>
+                {lang === 'fr' ? 'Voir source TC' : 'View TC source'}
+              </Text>
             </View>
           </TouchableOpacity>
         )}
       </View>
     );
-  }, [lang, getStatusStyle, getStatusText, handleOpenSource]);
+  }, [lang, handleOpenSource]);
+
+  // Render summary stats
+  const renderSummary = useCallback(() => {
+    if (!data) return null;
+    
+    return (
+      <View style={styles.summaryContainer}>
+        <View style={styles.summaryRow}>
+          <View style={[styles.summaryCard, { backgroundColor: COLORS.greenBg }]}>
+            <Text style={[styles.summaryValue, { color: COLORS.green }]}>{foundItems.length}</Text>
+            <Text style={styles.summaryLabel}>{lang === 'fr' ? 'Trouvés' : 'Found'}</Text>
+          </View>
+          <View style={[styles.summaryCard, { backgroundColor: COLORS.orangeBg }]}>
+            <Text style={[styles.summaryValue, { color: COLORS.orange }]}>{dueSoonItems.length}</Text>
+            <Text style={styles.summaryLabel}>{lang === 'fr' ? 'Bientôt dûs' : 'Due soon'}</Text>
+          </View>
+          <View style={[styles.summaryCard, { backgroundColor: COLORS.redBg }]}>
+            <Text style={[styles.summaryValue, { color: COLORS.red }]}>{missingItems.length}</Text>
+            <Text style={styles.summaryLabel}>{lang === 'fr' ? 'Manquants' : 'Missing'}</Text>
+          </View>
+          {newTcItems.length > 0 && (
+            <View style={[styles.summaryCard, { backgroundColor: COLORS.blueBg }]}>
+              <Text style={[styles.summaryValue, { color: COLORS.blue }]}>{newTcItems.length}</Text>
+              <Text style={styles.summaryLabel}>{lang === 'fr' ? 'Nouveaux' : 'New'}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  }, [data, foundItems.length, dueSoonItems.length, missingItems.length, newTcItems.length, lang]);
 
   // Render content based on state
   const renderContent = useCallback(() => {
@@ -655,7 +701,9 @@ function TcAdSbScreenContent() {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>{t('tc_adsb_loading')}</Text>
+          <Text style={styles.loadingText}>
+            {lang === 'fr' ? 'Chargement...' : 'Loading...'}
+          </Text>
         </View>
       );
     }
@@ -667,7 +715,6 @@ function TcAdSbScreenContent() {
           <Text style={styles.errorIcon}>⚠️</Text>
           <Text style={styles.errorText}>{error}</Text>
           
-          {/* TC-Safe info banner */}
           <View style={styles.infoOnlyBanner}>
             <Text style={styles.infoOnlyText}>
               {lang === 'fr'
@@ -689,16 +736,35 @@ function TcAdSbScreenContent() {
       );
     }
 
-    // No data yet
-    if (!data) {
+    // Empty comparison - no TC data
+    const comparison = safeArray<ComparisonItem>(data?.comparison);
+    if (comparison.length === 0) {
       return (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.emptyIcon}>📋</Text>
+          <Text style={styles.emptyTitle}>
+            {lang === 'fr' 
+              ? 'Aucun AD/SB TC disponible pour cet aéronef.'
+              : 'No TC AD/SB available for this aircraft.'}
+          </Text>
+          <Text style={styles.emptySubtitle}>
+            {lang === 'fr'
+              ? 'Scannez des rapports de maintenance pour alimenter les données.'
+              : 'Scan maintenance reports to populate data.'}
+          </Text>
+          
+          <View style={styles.infoOnlyBanner}>
+            <Text style={styles.infoOnlyText}>
+              {lang === 'fr'
+                ? 'Informatif seulement — vérifiez avec les registres officiels et votre TEA.'
+                : 'Informational only — verify with official records and your AME/TEA.'}
+            </Text>
+          </View>
         </View>
       );
     }
 
-    // Data loaded - render ScrollView with content
+    // Data loaded - render content
     return (
       <ScrollView 
         style={styles.scrollView} 
@@ -708,11 +774,18 @@ function TcAdSbScreenContent() {
         overScrollMode="always"
         removeClippedSubviews={Platform.OS === 'ios'}
       >
-        {/* New items alert */}
-        {hasNewItems && (
+        {/* Summary stats */}
+        {renderSummary()}
+
+        {/* New TC items alert */}
+        {newTcItems.length > 0 && (
           <View style={styles.alertBanner}>
-            <Text style={styles.alertIcon}>⚠️</Text>
-            <Text style={styles.alertText}>{t('tc_adsb_new_alert')}</Text>
+            <Text style={styles.alertIcon}>🆕</Text>
+            <Text style={styles.alertText}>
+              {lang === 'fr' 
+                ? `${newTcItems.length} nouveau(x) AD/SB publiés par TC`
+                : `${newTcItems.length} new AD/SB published by TC`}
+            </Text>
           </View>
         )}
 
@@ -720,7 +793,7 @@ function TcAdSbScreenContent() {
         <View style={styles.section}>
           <View style={[styles.sectionHeader, styles.adSectionHeader]}>
             <Text style={[styles.sectionTitle, styles.adSectionTitle]}>
-              {t('tc_adsb_ad_section')}
+              {lang === 'fr' ? 'Consignes de navigabilité (AD)' : 'Airworthiness Directives (AD)'}
             </Text>
             <View style={styles.sectionCount}>
               <Text style={[styles.sectionCountText, styles.adSectionCountText]}>
@@ -735,7 +808,9 @@ function TcAdSbScreenContent() {
             </View>
           ) : (
             <View style={styles.emptySection}>
-              <Text style={styles.emptyText}>{t('tc_adsb_no_items')}</Text>
+              <Text style={styles.emptySectionText}>
+                {lang === 'fr' ? 'Aucun AD' : 'No AD'}
+              </Text>
             </View>
           )}
         </View>
@@ -744,7 +819,7 @@ function TcAdSbScreenContent() {
         <View style={styles.section}>
           <View style={[styles.sectionHeader, styles.sbSectionHeader]}>
             <Text style={[styles.sectionTitle, styles.sbSectionTitle]}>
-              {t('tc_adsb_sb_section')}
+              {lang === 'fr' ? 'Bulletins de service (SB)' : 'Service Bulletins (SB)'}
             </Text>
             <View style={styles.sectionCount}>
               <Text style={[styles.sectionCountText, styles.sbSectionCountText]}>
@@ -759,24 +834,27 @@ function TcAdSbScreenContent() {
             </View>
           ) : (
             <View style={styles.emptySection}>
-              <Text style={styles.emptyText}>{t('tc_adsb_no_items')}</Text>
+              <Text style={styles.emptySectionText}>
+                {lang === 'fr' ? 'Aucun SB' : 'No SB'}
+              </Text>
             </View>
           )}
         </View>
 
-        {/* Disclaimer */}
+        {/* Disclaimer - ALWAYS displayed */}
         <View style={styles.disclaimer}>
           <Text style={styles.disclaimerIcon}>⚠️</Text>
           <Text style={styles.disclaimerText}>
-            {safeString(data.disclaimer, t('tc_adsb_disclaimer'))}
+            {safeString(data?.disclaimer, lang === 'fr'
+              ? 'Informatif seulement — vérifiez avec les registres officiels de Transports Canada et votre TEA.'
+              : 'Informational only — verify with official Transport Canada records and your AME/TEA.')}
           </Text>
         </View>
 
-        {/* Bottom spacing */}
         <View style={styles.bottomSpacer} />
       </ScrollView>
     );
-  }, [isLoading, error, data, hasNewItems, adItems, sbItems, renderItem, fetchData, lang]);
+  }, [isLoading, error, data, newTcItems, adItems, sbItems, renderItem, renderSummary, fetchData, lang]);
 
   return (
     <View style={styles.container}>
@@ -786,7 +864,9 @@ function TcAdSbScreenContent() {
           <Text style={styles.headerBackText}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>{t('tc_adsb_title')}</Text>
+          <Text style={styles.headerTitle}>
+            {lang === 'fr' ? 'Comparaison TC AD/SB' : 'TC AD/SB Comparison'}
+          </Text>
           <Text style={styles.headerSubtitle}>{safeString(registration, 'Aircraft')}</Text>
         </View>
         <View style={styles.headerRight} />
@@ -794,7 +874,11 @@ function TcAdSbScreenContent() {
 
       {/* Subtitle */}
       <View style={styles.subtitleContainer}>
-        <Text style={styles.subtitleText}>{t('tc_adsb_subtitle')}</Text>
+        <Text style={styles.subtitleText}>
+          {lang === 'fr' 
+            ? 'Comparaison avec le registre Transport Canada'
+            : 'Comparison with Transport Canada registry'}
+        </Text>
       </View>
 
       {/* Main content */}
@@ -804,7 +888,7 @@ function TcAdSbScreenContent() {
 }
 
 // ============================================================
-// EXPORT WITH ERROR BOUNDARY WRAPPER
+// EXPORT WITH ERROR BOUNDARY
 // ============================================================
 export default function TcAdSbScreen() {
   const router = useRouter();
@@ -860,10 +944,11 @@ const styles = StyleSheet.create({
   },
   headerCenter: {
     alignItems: 'center',
+    flex: 1,
   },
   headerTitle: {
     color: COLORS.white,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
   },
   headerSubtitle: {
@@ -889,7 +974,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
   },
-  // Center container (loading, error, empty)
+  // Summary
+  summaryContainer: {
+    padding: 16,
+    paddingBottom: 8,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  summaryCard: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+  },
+  summaryValue: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  summaryLabel: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  // Center container
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -910,6 +1019,24 @@ const styles = StyleSheet.create({
     color: COLORS.red,
     textAlign: 'center',
     marginBottom: 16,
+    maxWidth: 300,
+  },
+  emptyIcon: {
+    fontSize: 56,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.textDark,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    marginBottom: 20,
   },
   infoOnlyBanner: {
     backgroundColor: COLORS.alertYellow,
@@ -938,54 +1065,38 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: COLORS.textMuted,
-  },
-  // Scroll content
+  // Scroll
   scrollView: {
     flex: 1,
   },
   scrollViewContent: {
     flexGrow: 1,
   },
-  // Items container
-  itemsContainer: {
-    flexDirection: 'column',
-  },
-  // Bottom spacer
-  bottomSpacer: {
-    height: 40,
-  },
   // Alert banner
   alertBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.alertYellow,
+    backgroundColor: COLORS.blueBg,
     marginHorizontal: 16,
-    marginTop: 16,
-    padding: 16,
+    marginBottom: 8,
+    padding: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.alertYellowBorder,
+    borderColor: '#90CAF9',
   },
   alertIcon: {
-    fontSize: 20,
-    marginRight: 12,
+    fontSize: 18,
+    marginRight: 10,
   },
   alertText: {
     flex: 1,
     fontSize: 14,
-    color: '#5D4037',
+    color: COLORS.blue,
     fontWeight: '600',
   },
   // Section
   section: {
-    marginTop: 16,
+    marginTop: 8,
     marginHorizontal: 16,
   },
   sectionHeader: {
@@ -995,86 +1106,76 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
   sectionCount: {
     backgroundColor: COLORS.white,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   sectionCountText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
-  // Section color variations
-  adSectionHeader: {
-    backgroundColor: COLORS.redBg,
-  },
-  adSectionTitle: {
-    color: COLORS.red,
-  },
-  adSectionCountText: {
-    color: COLORS.red,
-  },
-  sbSectionHeader: {
-    backgroundColor: COLORS.blueBg,
-  },
-  sbSectionTitle: {
-    color: COLORS.blue,
-  },
-  sbSectionCountText: {
-    color: COLORS.blue,
-  },
+  adSectionHeader: { backgroundColor: COLORS.redBg },
+  adSectionTitle: { color: COLORS.red },
+  adSectionCountText: { color: COLORS.red },
+  sbSectionHeader: { backgroundColor: COLORS.blueBg },
+  sbSectionTitle: { color: COLORS.blue },
+  sbSectionCountText: { color: COLORS.blue },
   emptySection: {
     backgroundColor: COLORS.white,
-    padding: 24,
+    padding: 20,
     borderRadius: 12,
     alignItems: 'center',
+    marginBottom: 12,
   },
-  emptyText: {
+  emptySectionText: {
     fontSize: 14,
     color: COLORS.textMuted,
+  },
+  itemsContainer: {
+    flexDirection: 'column',
   },
   // Card
   card: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
     flexWrap: 'wrap',
+    gap: 6,
   },
   typeBadge: {
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 6,
-    marginRight: 8,
   },
   typeBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
   statusBadge: {
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 6,
-    marginRight: 8,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   newBadge: {
-    backgroundColor: COLORS.orange,
+    backgroundColor: COLORS.blue,
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 6,
@@ -1094,26 +1195,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textMuted,
     lineHeight: 20,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   // Dates
   datesContainer: {
     backgroundColor: COLORS.background,
     borderRadius: 8,
     padding: 12,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   dateRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   dateLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.textMuted,
   },
   dateValue: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: COLORS.textDark,
   },
@@ -1127,7 +1228,6 @@ const styles = StyleSheet.create({
   sourceButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
   },
   sourceButtonIcon: {
     fontSize: 14,
@@ -1135,14 +1235,14 @@ const styles = StyleSheet.create({
   },
   sourceButtonText: {
     color: COLORS.blue,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   // Disclaimer
   disclaimer: {
     flexDirection: 'row',
     margin: 16,
-    padding: 16,
+    padding: 14,
     backgroundColor: COLORS.alertYellow,
     borderRadius: 12,
     borderWidth: 1,
@@ -1150,12 +1250,15 @@ const styles = StyleSheet.create({
   },
   disclaimerIcon: {
     fontSize: 16,
-    marginRight: 12,
+    marginRight: 10,
   },
   disclaimerText: {
     flex: 1,
     fontSize: 12,
     color: '#5D4037',
     lineHeight: 18,
+  },
+  bottomSpacer: {
+    height: 40,
   },
 });
