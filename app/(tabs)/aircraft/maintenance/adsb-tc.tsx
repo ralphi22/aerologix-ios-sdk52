@@ -3,10 +3,13 @@
  * Compares OCR-captured data with TC database
  * TC-SAFE: Information only, no compliance decisions
  * 
- * Fixed for iOS Fabric (RN 0.73+) layout stability
+ * ROBUST VERSION - Never crashes, handles all edge cases
+ * - ErrorBoundary for crash protection
+ * - Normalizes multiple API response schemas
+ * - Protects all renders against undefined/null
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Component, ReactNode } from 'react';
 import {
   View,
   Text,
@@ -42,6 +45,182 @@ const COLORS = {
   alertYellowBorder: '#FFE082',
 };
 
+// ============================================================
+// ERROR BOUNDARY - Catches render crashes
+// ============================================================
+interface ErrorBoundaryProps {
+  children: ReactNode;
+  onRetry: () => void;
+  onBack: () => void;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class TCErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Soft log only - never crash
+    console.warn('[TC AD/SB] Render error caught:', error?.message || 'Unknown error');
+    console.warn('[TC AD/SB] Component stack:', errorInfo?.componentStack || 'N/A');
+  }
+
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null });
+    this.props.onRetry();
+  };
+
+  render() {
+    const lang = getLanguage();
+    
+    if (this.state.hasError) {
+      return (
+        <View style={errorStyles.container}>
+          <View style={errorStyles.content}>
+            <Text style={errorStyles.icon}>⚠️</Text>
+            <Text style={errorStyles.title}>
+              {lang === 'fr' ? "Erreur d'affichage" : 'Display Error'}
+            </Text>
+            <Text style={errorStyles.subtitle}>
+              {lang === 'fr' 
+                ? 'Données incomplètes — vérifiez avec les registres officiels et votre TEA.'
+                : 'Incomplete data — verify with official records and your AME.'}
+            </Text>
+            
+            <View style={errorStyles.buttons}>
+              <TouchableOpacity 
+                style={errorStyles.backButton}
+                onPress={this.props.onBack}
+                activeOpacity={0.7}
+              >
+                <Text style={errorStyles.backButtonText}>
+                  {lang === 'fr' ? '← Retour' : '← Back'}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={errorStyles.retryButton}
+                onPress={this.handleRetry}
+                activeOpacity={0.7}
+              >
+                <Text style={errorStyles.retryButtonText}>
+                  {lang === 'fr' ? 'Réessayer' : 'Retry'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            
+            {/* TC-Safe disclaimer */}
+            <View style={errorStyles.disclaimer}>
+              <Text style={errorStyles.disclaimerText}>
+                {lang === 'fr'
+                  ? 'Informatif seulement — vérifiez avec les registres officiels et votre TEA.'
+                  : 'Informational only — verify with official records and your AME/TEA.'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+const errorStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  content: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    maxWidth: 400,
+    width: '100%',
+  },
+  icon: {
+    fontSize: 56,
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.textDark,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 15,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  buttons: {
+    flexDirection: 'row',
+    width: '100%',
+    marginBottom: 24,
+  },
+  backButton: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginRight: 8,
+    alignItems: 'center',
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.textDark,
+  },
+  retryButton: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginLeft: 8,
+    alignItems: 'center',
+  },
+  retryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.white,
+  },
+  disclaimer: {
+    backgroundColor: COLORS.alertYellow,
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.alertYellowBorder,
+    width: '100%',
+  },
+  disclaimerText: {
+    fontSize: 12,
+    color: '#5D4037',
+    textAlign: 'center',
+    lineHeight: 18,
+    fontStyle: 'italic',
+  },
+});
+
+// ============================================================
+// TYPES
+// ============================================================
 interface ADSBItem {
   id: string;
   ref: string;
@@ -65,7 +244,203 @@ interface CompareResponse {
   disclaimer: string;
 }
 
-export default function TcAdSbScreen() {
+// ============================================================
+// SAFE DATA NORMALIZER
+// ============================================================
+
+/**
+ * Safely get string value with fallback
+ */
+const safeString = (value: unknown, fallback: string = ''): string => {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  return fallback;
+};
+
+/**
+ * Safely get number value with fallback
+ */
+const safeNumber = (value: unknown, fallback: number = 0): number => {
+  if (typeof value === 'number' && !isNaN(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value);
+    if (!isNaN(parsed)) return parsed;
+  }
+  return fallback;
+};
+
+/**
+ * Safely get boolean value with fallback
+ */
+const safeBool = (value: unknown, fallback: boolean = false): boolean => {
+  if (typeof value === 'boolean') return value;
+  return fallback;
+};
+
+/**
+ * Safely ensure array type
+ */
+const safeArray = <T>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  return [];
+};
+
+/**
+ * Normalize a single AD/SB item - protects all fields
+ */
+const normalizeItem = (raw: unknown): ADSBItem | null => {
+  if (!raw || typeof raw !== 'object') return null;
+  
+  const item = raw as Record<string, unknown>;
+  
+  // Extract reference - try multiple key patterns
+  const ref = safeString(item.ref || item.reference || item.ad_ref || item.sb_ref || item.number, '');
+  
+  // Must have at least a reference
+  if (!ref) {
+    console.warn('[TC AD/SB] Item missing reference, skipping:', item);
+    return null;
+  }
+  
+  // Generate stable ID
+  const id = safeString(
+    item.id || item._id || item.item_id,
+    `${ref}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  );
+  
+  // Extract title
+  const title = safeString(
+    item.title || item.description || item.subject || item.name,
+    ref
+  );
+  
+  // Extract type (AD or SB)
+  const rawType = safeString(item.type || item.item_type, 'AD').toUpperCase();
+  const type: 'AD' | 'SB' = rawType === 'SB' ? 'SB' : 'AD';
+  
+  // Extract status
+  const rawStatus = safeString(item.status || item.compliance_status, 'info').toLowerCase();
+  let status: 'missing' | 'due_soon' | 'ok' | 'info' = 'info';
+  if (rawStatus === 'missing' || rawStatus === 'not_found') status = 'missing';
+  else if (rawStatus === 'due_soon' || rawStatus === 'due' || rawStatus === 'pending') status = 'due_soon';
+  else if (rawStatus === 'ok' || rawStatus === 'complied' || rawStatus === 'done') status = 'ok';
+  
+  return {
+    id,
+    ref,
+    title,
+    type,
+    status,
+    found: safeBool(item.found || item.is_found || item.matched, false),
+    last_recorded_date: safeString(item.last_recorded_date || item.last_recorded || item.recorded_date || item.compliance_date, undefined),
+    next_due: safeString(item.next_due || item.due_date || item.next_compliance, undefined),
+    recurrence_years: safeNumber(item.recurrence_years || item.years_interval, undefined),
+    recurrence_hours: safeNumber(item.recurrence_hours || item.hours_interval, undefined),
+    tc_url: safeString(item.tc_url || item.url || item.source_url || item.link, undefined),
+    is_new: safeBool(item.is_new || item.new || item.isNew, false),
+  };
+};
+
+/**
+ * Normalize API response - handles multiple response schemas
+ * Accepts:
+ * - tc_items / tcItems / items_tc / items
+ * - found / found_items / foundItems
+ * - missing / missing_items / missingItems
+ * - new_tc_items / newTcItems / new_items
+ */
+const normalizeApiResponse = (data: unknown): CompareResponse => {
+  const defaultResponse: CompareResponse = {
+    aircraft_id: '',
+    designator: '',
+    items: [],
+    new_tc_items: [],
+    disclaimer: '',
+  };
+  
+  if (!data || typeof data !== 'object') {
+    console.warn('[TC AD/SB] Invalid API response - not an object');
+    return defaultResponse;
+  }
+  
+  const raw = data as Record<string, unknown>;
+  
+  // Extract basic fields
+  const aircraftId = safeString(raw.aircraft_id || raw.aircraftId || raw.aircraft);
+  const designator = safeString(raw.designator || raw.type_designator || raw.model);
+  const disclaimer = safeString(
+    raw.disclaimer || raw.note || raw.warning,
+    t('tc_adsb_disclaimer')
+  );
+  
+  // Extract items from multiple possible keys
+  let rawItems: unknown[] = [];
+  
+  // Try primary keys
+  const possibleItemsKeys = ['items', 'tc_items', 'tcItems', 'items_tc', 'adsb_items', 'data'];
+  for (const key of possibleItemsKeys) {
+    if (Array.isArray(raw[key])) {
+      rawItems = raw[key] as unknown[];
+      break;
+    }
+  }
+  
+  // Also merge found and missing items if present
+  const foundKeys = ['found', 'found_items', 'foundItems', 'found_in_logbook'];
+  const missingKeys = ['missing', 'missing_items', 'missingItems', 'not_found'];
+  
+  for (const key of foundKeys) {
+    if (Array.isArray(raw[key])) {
+      rawItems = [...rawItems, ...(raw[key] as unknown[])];
+    }
+  }
+  
+  for (const key of missingKeys) {
+    if (Array.isArray(raw[key])) {
+      rawItems = [...rawItems, ...(raw[key] as unknown[])];
+    }
+  }
+  
+  // Normalize items
+  const items: ADSBItem[] = [];
+  for (const rawItem of rawItems) {
+    const normalized = normalizeItem(rawItem);
+    if (normalized) {
+      items.push(normalized);
+    }
+  }
+  
+  // Extract new TC items
+  let rawNewItems: unknown[] = [];
+  const newItemsKeys = ['new_tc_items', 'newTcItems', 'new_items', 'newly_published'];
+  for (const key of newItemsKeys) {
+    if (Array.isArray(raw[key])) {
+      rawNewItems = raw[key] as unknown[];
+      break;
+    }
+  }
+  
+  const newTcItems: ADSBItem[] = [];
+  for (const rawItem of rawNewItems) {
+    const normalized = normalizeItem(rawItem);
+    if (normalized) {
+      newTcItems.push(normalized);
+    }
+  }
+  
+  return {
+    aircraft_id: aircraftId,
+    designator,
+    items,
+    new_tc_items: newTcItems,
+    disclaimer,
+  };
+};
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
+function TcAdSbScreenContent() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
@@ -74,42 +449,76 @@ export default function TcAdSbScreen() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<CompareResponse | null>(null);
 
-  // Fetch TC AD/SB comparison data
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!aircraftId) return;
+  // Fetch handler - can be called for retry
+  const fetchData = useCallback(async () => {
+    if (!aircraftId) {
+      setError(lang === 'fr' ? 'ID avion manquant' : 'Missing aircraft ID');
+      setIsLoading(false);
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await api.get(`/api/adsb/compare/${aircraftId}`);
       
-      setIsLoading(true);
-      setError(null);
+      // Normalize response - handles all schemas
+      const normalized = normalizeApiResponse(response.data);
+      setData(normalized);
       
-      try {
-        const response = await api.get(`/api/adsb/compare/${aircraftId}`);
-        setData(response.data);
-      } catch (err: any) {
-        console.error('TC AD/SB fetch error:', err);
-        setError(err?.response?.data?.detail || err?.message || t('tc_adsb_error'));
-      } finally {
-        setIsLoading(false);
+      console.warn('[TC AD/SB] Data loaded:', {
+        itemsCount: normalized.items.length,
+        newItemsCount: normalized.new_tc_items.length,
+      });
+    } catch (err: unknown) {
+      console.warn('[TC AD/SB] Fetch error:', err);
+      
+      // Extract error message safely
+      let errorMessage = t('tc_adsb_error');
+      if (err && typeof err === 'object') {
+        const errObj = err as { response?: { data?: { detail?: string } }; message?: string };
+        errorMessage = errObj?.response?.data?.detail || errObj?.message || errorMessage;
       }
-    };
+      
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [aircraftId, lang]);
 
+  // Initial fetch
+  useEffect(() => {
     fetchData();
-  }, [aircraftId]);
+  }, [fetchData]);
 
-  // Filter items by type
-  const adItems = data?.items.filter(item => item.type === 'AD') || [];
-  const sbItems = data?.items.filter(item => item.type === 'SB') || [];
-  const hasNewItems = (data?.new_tc_items?.length || 0) > 0;
+  // Safely filter items by type
+  const adItems = useMemo(() => {
+    const items = safeArray<ADSBItem>(data?.items);
+    return items.filter(item => item?.type === 'AD');
+  }, [data?.items]);
+
+  const sbItems = useMemo(() => {
+    const items = safeArray<ADSBItem>(data?.items);
+    return items.filter(item => item?.type === 'SB');
+  }, [data?.items]);
+
+  const hasNewItems = useMemo(() => {
+    const newItems = safeArray<ADSBItem>(data?.new_tc_items);
+    return newItems.length > 0;
+  }, [data?.new_tc_items]);
 
   // Open TC URL
-  const handleOpenSource = (url?: string) => {
-    if (url) {
-      Linking.openURL(url);
+  const handleOpenSource = useCallback((url?: string) => {
+    if (url && typeof url === 'string') {
+      Linking.openURL(url).catch(err => {
+        console.warn('[TC AD/SB] Failed to open URL:', err);
+      });
     }
-  };
+  }, []);
 
-  // Get status style
-  const getStatusStyle = (status: string, type: 'AD' | 'SB') => {
+  // Get status style - SAFE
+  const getStatusStyle = useCallback((status: string | undefined, type: string | undefined) => {
     // SB never shows red (info only)
     if (type === 'SB') {
       return { bg: COLORS.blueBg, text: COLORS.blue };
@@ -125,10 +534,10 @@ export default function TcAdSbScreen() {
       default:
         return { bg: COLORS.blueBg, text: COLORS.blue };
     }
-  };
+  }, []);
 
-  // Get status text
-  const getStatusText = (status: string) => {
+  // Get status text - SAFE
+  const getStatusText = useCallback((status: string | undefined) => {
     switch (status) {
       case 'missing':
         return t('tc_adsb_missing');
@@ -139,78 +548,94 @@ export default function TcAdSbScreen() {
       default:
         return t('tc_adsb_info_only');
     }
-  };
+  }, []);
 
-  // Memoized render function for single item card - prevents unnecessary re-renders on iOS Fabric
-  const renderItem = useCallback((item: ADSBItem) => {
-    const statusStyle = getStatusStyle(item.status, item.type);
-    const isAD = item.type === 'AD';
+  // Render single item card - FULLY PROTECTED
+  const renderItem = useCallback((item: ADSBItem | null | undefined, index: number) => {
+    // Skip null/undefined items
+    if (!item) return null;
     
-    // Generate stable unique key
-    const itemKey = item.id ? `item-${item.id}` : `ref-${item.ref}`;
+    // Safe extract all fields with defaults
+    const itemId = safeString(item.id, `item-${index}`);
+    const itemRef = safeString(item.ref, 'N/A');
+    const itemTitle = safeString(item.title, '');
+    const itemType = item.type === 'SB' ? 'SB' : 'AD';
+    const itemStatus = safeString(item.status, 'info');
+    const isNew = safeBool(item.is_new);
+    const lastRecorded = item.last_recorded_date;
+    const nextDue = item.next_due;
+    const recurrenceYears = item.recurrence_years;
+    const recurrenceHours = item.recurrence_hours;
+    const tcUrl = item.tc_url;
+    
+    const statusStyle = getStatusStyle(itemStatus, itemType);
+    const isAD = itemType === 'AD';
+    const itemKey = `${itemId}-${itemRef}-${index}`;
     
     return (
       <View key={itemKey} style={styles.card}>
-        {/* Header row - replaced gap with marginRight for iOS Fabric stability */}
+        {/* Header row */}
         <View style={styles.cardHeader}>
           <View style={[styles.typeBadge, { backgroundColor: isAD ? COLORS.redBg : COLORS.blueBg }]}>
             <Text style={[styles.typeBadgeText, { color: isAD ? COLORS.red : COLORS.blue }]}>
-              {item.type}
+              {itemType}
             </Text>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
             <Text style={[styles.statusText, { color: statusStyle.text }]}>
-              {getStatusText(item.status)}
+              {getStatusText(itemStatus)}
             </Text>
           </View>
-          {item.is_new ? (
+          {isNew && (
             <View style={styles.newBadge}>
               <Text style={styles.newBadgeText}>NEW</Text>
             </View>
-          ) : null}
+          )}
         </View>
 
         {/* Ref & Title */}
-        <Text style={styles.cardRef}>{item.ref}</Text>
-        <Text style={styles.cardTitle} numberOfLines={3}>{item.title}</Text>
+        <Text style={styles.cardRef}>{itemRef}</Text>
+        {itemTitle ? (
+          <Text style={styles.cardTitle} numberOfLines={3}>{itemTitle}</Text>
+        ) : null}
 
         {/* Dates - only render if there are dates */}
-        {(item.last_recorded_date || item.next_due || item.recurrence_years || item.recurrence_hours) ? (
+        {(lastRecorded || nextDue || recurrenceYears || recurrenceHours) && (
           <View style={styles.datesContainer}>
-            {item.last_recorded_date ? (
+            {lastRecorded && (
               <View style={styles.dateRow}>
                 <Text style={styles.dateLabel}>{t('tc_adsb_last_recorded')}:</Text>
-                <Text style={styles.dateValue}>{item.last_recorded_date}</Text>
+                <Text style={styles.dateValue}>{lastRecorded}</Text>
               </View>
-            ) : null}
-            {item.next_due ? (
+            )}
+            {nextDue && (
               <View style={styles.dateRow}>
                 <Text style={styles.dateLabel}>{t('tc_adsb_next_due')}:</Text>
-                <Text style={[styles.dateValue, item.status === 'due_soon' ? { color: COLORS.orange } : undefined]}>
-                  {item.next_due}
+                <Text style={[styles.dateValue, itemStatus === 'due_soon' ? { color: COLORS.orange } : undefined]}>
+                  {nextDue}
                 </Text>
               </View>
-            ) : null}
-            {(item.recurrence_years || item.recurrence_hours) ? (
+            )}
+            {(recurrenceYears || recurrenceHours) && (
               <View style={styles.dateRow}>
                 <Text style={styles.dateLabel}>
                   {lang === 'fr' ? 'Récurrence:' : 'Recurrence:'}
                 </Text>
                 <Text style={styles.dateValue}>
-                  {item.recurrence_years ? `${item.recurrence_years} ${lang === 'fr' ? 'ans' : 'years'}` : ''}
-                  {item.recurrence_years && item.recurrence_hours ? ' / ' : ''}
-                  {item.recurrence_hours ? `${item.recurrence_hours}h` : ''}
+                  {recurrenceYears ? `${recurrenceYears} ${lang === 'fr' ? 'ans' : 'years'}` : ''}
+                  {recurrenceYears && recurrenceHours ? ' / ' : ''}
+                  {recurrenceHours ? `${recurrenceHours}h` : ''}
                 </Text>
               </View>
-            ) : null}
+            )}
           </View>
-        ) : null}
+        )}
 
-        {/* Open source button - separated emoji into own Text for iOS stability */}
-        {item.tc_url ? (
+        {/* Open source button */}
+        {tcUrl && (
           <TouchableOpacity 
             style={styles.sourceButton}
-            onPress={() => handleOpenSource(item.tc_url)}
+            onPress={() => handleOpenSource(tcUrl)}
             activeOpacity={0.7}
           >
             <View style={styles.sourceButtonContent}>
@@ -218,17 +643,12 @@ export default function TcAdSbScreen() {
               <Text style={styles.sourceButtonText}>{t('tc_adsb_open_source')}</Text>
             </View>
           </TouchableOpacity>
-        ) : null}
+        )}
       </View>
     );
-  }, [lang]);
+  }, [lang, getStatusStyle, getStatusText, handleOpenSource]);
 
-  // Memoize whether we have any items to display
-  const hasAnyItems = useMemo(() => {
-    return adItems.length > 0 || sbItems.length > 0;
-  }, [adItems.length, sbItems.length]);
-
-  // Render content based on state - mutually exclusive conditions for iOS Fabric
+  // Render content based on state
   const renderContent = useCallback(() => {
     // Loading state
     if (isLoading) {
@@ -246,16 +666,19 @@ export default function TcAdSbScreen() {
         <View style={styles.centerContainer}>
           <Text style={styles.errorIcon}>⚠️</Text>
           <Text style={styles.errorText}>{error}</Text>
+          
+          {/* TC-Safe info banner */}
+          <View style={styles.infoOnlyBanner}>
+            <Text style={styles.infoOnlyText}>
+              {lang === 'fr'
+                ? 'Informatif seulement — vérifiez avec les registres officiels et votre TEA.'
+                : 'Informational only — verify with official records and your AME/TEA.'}
+            </Text>
+          </View>
+          
           <TouchableOpacity 
             style={styles.retryButton}
-            onPress={() => {
-              setError(null);
-              setIsLoading(true);
-              api.get(`/api/adsb/compare/${aircraftId}`)
-                .then(res => setData(res.data))
-                .catch(err => setError(err?.message || t('tc_adsb_error')))
-                .finally(() => setIsLoading(false));
-            }}
+            onPress={fetchData}
             activeOpacity={0.7}
           >
             <Text style={styles.retryButtonText}>
@@ -286,12 +709,12 @@ export default function TcAdSbScreen() {
         removeClippedSubviews={Platform.OS === 'ios'}
       >
         {/* New items alert */}
-        {hasNewItems ? (
+        {hasNewItems && (
           <View style={styles.alertBanner}>
             <Text style={styles.alertIcon}>⚠️</Text>
             <Text style={styles.alertText}>{t('tc_adsb_new_alert')}</Text>
           </View>
-        ) : null}
+        )}
 
         {/* AD Section */}
         <View style={styles.section}>
@@ -300,13 +723,15 @@ export default function TcAdSbScreen() {
               {t('tc_adsb_ad_section')}
             </Text>
             <View style={styles.sectionCount}>
-              <Text style={[styles.sectionCountText, styles.adSectionCountText]}>{adItems.length}</Text>
+              <Text style={[styles.sectionCountText, styles.adSectionCountText]}>
+                {adItems.length}
+              </Text>
             </View>
           </View>
           
           {adItems.length > 0 ? (
             <View style={styles.itemsContainer}>
-              {adItems.map(renderItem)}
+              {adItems.map((item, index) => renderItem(item, index))}
             </View>
           ) : (
             <View style={styles.emptySection}>
@@ -322,13 +747,15 @@ export default function TcAdSbScreen() {
               {t('tc_adsb_sb_section')}
             </Text>
             <View style={styles.sectionCount}>
-              <Text style={[styles.sectionCountText, styles.sbSectionCountText]}>{sbItems.length}</Text>
+              <Text style={[styles.sectionCountText, styles.sbSectionCountText]}>
+                {sbItems.length}
+              </Text>
             </View>
           </View>
           
           {sbItems.length > 0 ? (
             <View style={styles.itemsContainer}>
-              {sbItems.map(renderItem)}
+              {sbItems.map((item, index) => renderItem(item, adItems.length + index))}
             </View>
           ) : (
             <View style={styles.emptySection}>
@@ -341,7 +768,7 @@ export default function TcAdSbScreen() {
         <View style={styles.disclaimer}>
           <Text style={styles.disclaimerIcon}>⚠️</Text>
           <Text style={styles.disclaimerText}>
-            {data.disclaimer || t('tc_adsb_disclaimer')}
+            {safeString(data.disclaimer, t('tc_adsb_disclaimer'))}
           </Text>
         </View>
 
@@ -349,7 +776,7 @@ export default function TcAdSbScreen() {
         <View style={styles.bottomSpacer} />
       </ScrollView>
     );
-  }, [isLoading, error, data, hasNewItems, adItems, sbItems, renderItem, lang, aircraftId]);
+  }, [isLoading, error, data, hasNewItems, adItems, sbItems, renderItem, fetchData, lang]);
 
   return (
     <View style={styles.container}>
@@ -360,7 +787,7 @@ export default function TcAdSbScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>{t('tc_adsb_title')}</Text>
-          <Text style={styles.headerSubtitle}>{registration || 'Aircraft'}</Text>
+          <Text style={styles.headerSubtitle}>{safeString(registration, 'Aircraft')}</Text>
         </View>
         <View style={styles.headerRight} />
       </View>
@@ -370,12 +797,41 @@ export default function TcAdSbScreen() {
         <Text style={styles.subtitleText}>{t('tc_adsb_subtitle')}</Text>
       </View>
 
-      {/* Main content - single render path */}
+      {/* Main content */}
       {renderContent()}
     </View>
   );
 }
 
+// ============================================================
+// EXPORT WITH ERROR BOUNDARY WRAPPER
+// ============================================================
+export default function TcAdSbScreen() {
+  const router = useRouter();
+  const [retryKey, setRetryKey] = useState(0);
+  
+  const handleRetry = useCallback(() => {
+    setRetryKey(prev => prev + 1);
+  }, []);
+  
+  const handleBack = useCallback(() => {
+    router.back();
+  }, [router]);
+  
+  return (
+    <TCErrorBoundary 
+      key={retryKey}
+      onRetry={handleRetry} 
+      onBack={handleBack}
+    >
+      <TcAdSbScreenContent />
+    </TCErrorBoundary>
+  );
+}
+
+// ============================================================
+// STYLES
+// ============================================================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -455,6 +911,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
   },
+  infoOnlyBanner: {
+    backgroundColor: COLORS.alertYellow,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.alertYellowBorder,
+    maxWidth: 320,
+  },
+  infoOnlyText: {
+    fontSize: 13,
+    color: '#5D4037',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    lineHeight: 18,
+  },
   retryButton: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: 24,
@@ -481,11 +953,11 @@ const styles = StyleSheet.create({
   scrollViewContent: {
     flexGrow: 1,
   },
-  // Items container - wraps mapped items for stable layout
+  // Items container
   itemsContainer: {
     flexDirection: 'column',
   },
-  // Bottom spacer - fixed height for iOS scroll end
+  // Bottom spacer
   bottomSpacer: {
     height: 40,
   },
@@ -539,7 +1011,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  // Section color variations - static styles for iOS Fabric stability
+  // Section color variations
   adSectionHeader: {
     backgroundColor: COLORS.redBg,
   },
