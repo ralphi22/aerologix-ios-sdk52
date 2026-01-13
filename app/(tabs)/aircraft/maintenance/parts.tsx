@@ -702,6 +702,81 @@ const styles = StyleSheet.create({
     marginTop: 8,
     opacity: 0.7,
   },
+  // Empty state - Critical Components enhanced
+  emptyStateContainer: {
+    padding: 16,
+  },
+  emptyStateCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  emptyStateIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.textDark,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  flowBox: {
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    padding: 16,
+    width: '100%',
+    marginBottom: 20,
+  },
+  flowBoxTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textDark,
+    marginBottom: 10,
+  },
+  flowBoxStep: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    marginBottom: 6,
+    paddingLeft: 8,
+  },
+  goToOcrButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  goToOcrButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  emptyDisclaimer: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.blue,
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 16,
+  },
+  emptyDisclaimerIcon: {
+    fontSize: 14,
+    marginRight: 10,
+  },
+  emptyDisclaimerText: {
+    flex: 1,
+    fontSize: 12,
+    color: COLORS.primary,
+    lineHeight: 18,
+  },
   errorIcon: {
     fontSize: 48,
     marginBottom: 16,
