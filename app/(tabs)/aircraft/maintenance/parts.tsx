@@ -413,16 +413,59 @@ export default function PartsScreen() {
                 </TouchableOpacity>
               </View>
             ) : criticalComponents.length === 0 ? (
-              <View style={styles.centerState}>
-                <Text style={styles.emptyIcon}>🔧</Text>
-                <Text style={styles.emptyText}>
-                  {lang === 'fr' ? 'Aucun composant critique enregistré' : 'No critical components recorded'}
-                </Text>
-                <Text style={styles.emptyHint}>
-                  {lang === 'fr' 
-                    ? 'Les composants avec TBO apparaîtront ici'
-                    : 'Components with TBO will appear here'}
-                </Text>
+              <View style={styles.emptyStateContainer}>
+                <View style={styles.emptyStateCard}>
+                  <Text style={styles.emptyStateIcon}>🔧</Text>
+                  <Text style={styles.emptyStateTitle}>
+                    {lang === 'fr' 
+                      ? 'Aucun composant critique détecté' 
+                      : 'No critical components detected'}
+                  </Text>
+                  <Text style={styles.emptyStateText}>
+                    {lang === 'fr' 
+                      ? 'Scannez et appliquez un rapport de maintenance pour alimenter cette liste.'
+                      : 'Scan and apply a maintenance report to populate this list.'}
+                  </Text>
+                  
+                  {/* Flow explanation */}
+                  <View style={styles.flowBox}>
+                    <Text style={styles.flowBoxTitle}>
+                      {lang === 'fr' ? 'Comment ça marche:' : 'How it works:'}
+                    </Text>
+                    <Text style={styles.flowBoxStep}>
+                      1. {lang === 'fr' ? 'Scannez un rapport de maintenance' : 'Scan a maintenance report'}
+                    </Text>
+                    <Text style={styles.flowBoxStep}>
+                      2. {lang === 'fr' ? 'Appliquez les données à l\'aéronef' : 'Apply data to aircraft'}
+                    </Text>
+                    <Text style={styles.flowBoxStep}>
+                      3. {lang === 'fr' ? 'Les composants critiques apparaissent ici' : 'Critical components appear here'}
+                    </Text>
+                  </View>
+                  
+                  {/* Go to OCR History button */}
+                  <TouchableOpacity 
+                    style={styles.goToOcrButton}
+                    onPress={() => router.push({
+                      pathname: '/(tabs)/aircraft/ocr-history',
+                      params: { aircraftId, registration },
+                    })}
+                  >
+                    <Text style={styles.goToOcrButtonText}>
+                      📷 {lang === 'fr' ? 'Voir les scans' : 'Go to OCR History'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                
+                {/* TC-Safe disclaimer for empty state */}
+                <View style={styles.emptyDisclaimer}>
+                  <Text style={styles.emptyDisclaimerIcon}>ℹ️</Text>
+                  <Text style={styles.emptyDisclaimerText}>
+                    {lang === 'fr'
+                      ? 'Les composants critiques (moteur, hélice, magnétos, etc.) sont détectés automatiquement lors de l\'application d\'un rapport de maintenance. Le frontend affiche uniquement ce que le backend produit.'
+                      : 'Critical components (engine, propeller, magnetos, etc.) are automatically detected when applying a maintenance report. The frontend only displays what the backend produces.'}
+                  </Text>
+                </View>
               </View>
             ) : (
               <View style={styles.cardsContainer}>
