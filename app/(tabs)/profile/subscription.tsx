@@ -51,10 +51,10 @@ const COLORS = {
   orange: '#F59E0B',
 };
 
-// Status display
+// Status display - Based ONLY on subscription.status, NOT trial_end
 const STATUS_DISPLAY: Record<string, { en: string; fr: string; color: string }> = {
-  active: { en: 'Active', fr: 'Actif', color: COLORS.success },
-  trialing: { en: 'Trial', fr: 'Essai', color: COLORS.warning },
+  active: { en: 'Active subscription', fr: 'Abonnement actif', color: COLORS.success },
+  trialing: { en: 'Free trial active', fr: 'Essai gratuit en cours', color: COLORS.warning },
   canceled: { en: 'Canceled', fr: 'Annulé', color: COLORS.danger },
   past_due: { en: 'Past Due', fr: 'Impayé', color: COLORS.danger },
   inactive: { en: 'Inactive', fr: 'Inactif', color: COLORS.textMuted },
