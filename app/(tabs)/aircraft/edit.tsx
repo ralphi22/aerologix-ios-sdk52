@@ -910,22 +910,32 @@ export default function EditAircraftScreen() {
             />
           </View>
 
-          {/* SECTION: First Owner (from TC) */}
-          <SectionHeader title={lang === 'fr' ? 'Premier propriétaire' : 'First Owner'} />
+          {/* SECTION: TC Owner Info (from TC Registry) */}
+          <SectionHeader title={lang === 'fr' ? 'Propriétaire (TC Registry)' : 'Owner (TC Registry)'} />
           <View style={styles.section}>
             <FormField
-              label={lang === 'fr' ? 'Prénom' : 'Given Name'}
-              value={firstOwnerGiven}
-              onChangeText={setFirstOwnerGiven}
-              placeholder="John"
+              label={lang === 'fr' ? 'Nom du propriétaire' : 'Owner Name'}
+              value={ownerName}
+              onChangeText={setOwnerName}
+              placeholder="John Doe / Acme Aviation Inc."
               tcFilled={tcLookupDone && tcLookupStatus === 'success'}
+              userEdited={userEditedFields.has('ownerName')}
             />
             <FormField
-              label={lang === 'fr' ? 'Nom de famille' : 'Family Name'}
-              value={firstOwnerFamily}
-              onChangeText={setFirstOwnerFamily}
-              placeholder="Doe"
+              label={lang === 'fr' ? 'Ville' : 'City'}
+              value={ownerCity}
+              onChangeText={setOwnerCity}
+              placeholder="Montréal"
               tcFilled={tcLookupDone && tcLookupStatus === 'success'}
+              userEdited={userEditedFields.has('ownerCity')}
+            />
+            <FormField
+              label={lang === 'fr' ? 'Province' : 'Province'}
+              value={ownerProvince}
+              onChangeText={setOwnerProvince}
+              placeholder="QC"
+              tcFilled={tcLookupDone && tcLookupStatus === 'success'}
+              userEdited={userEditedFields.has('ownerProvince')}
             />
           </View>
 
