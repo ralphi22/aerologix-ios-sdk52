@@ -433,6 +433,20 @@ export default function EditAircraftScreen() {
     fetchFromTC(suggestion.registration, true); // Skip user-edited check on selection
   };
 
+  // Handle registration field blur (user leaves field)
+  // ONLY trigger lookup if:
+  // - Registration is complete (6 chars, C-XXXX format)
+  // - No lookup has been done yet
+  // - Status is idle (not already loading/success/error)
+  const handleRegistrationBlur = useCallback(() => {
+    const normalized = normalizeRegistration(registration);
+    
+    // Only lookup if complete registration and not already done
+    if (isValidCanadianRegistration(normalized) && !tcLookupDone && tcLookupStatus === 'idle') {
+      fetchFromTC(normalized);
+    }
+  }, [registration, tcLookupDone, tcLookupStatus, normalizeRegistration, isValidCanadianRegistration, fetchFromTC]);
+
   // Mark field as user-edited
   const markUserEdited = (fieldName: string) => {
     setUserEditedFields(prev => new Set(prev).add(fieldName));
