@@ -215,8 +215,10 @@ export default function EditAircraftScreen() {
       setEngineHours(aircraft.engineHours.toString());
       setPropellerHours(aircraft.propellerHours.toString());
       setPhotoUri(aircraft.photoUri);
-      setFirstOwnerGiven((aircraft as any).firstOwnerGiven || '');
-      setFirstOwnerFamily((aircraft as any).firstOwnerFamily || '');
+      // TC Owner fields
+      setOwnerName((aircraft as any).ownerName || '');
+      setOwnerCity((aircraft as any).ownerCity || '');
+      setOwnerProvince((aircraft as any).ownerProvince || '');
     }
   }, [aircraft]);
 
