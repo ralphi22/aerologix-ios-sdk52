@@ -1097,6 +1097,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#15803D',
   },
+  // Trial badge
+  trialBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  trialBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#B45309',
+    marginLeft: 4,
+  },
   limitsContainer: {
     marginBottom: 16,
   },
