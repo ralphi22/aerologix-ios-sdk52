@@ -61,15 +61,16 @@ interface TCSuggestion {
   designator?: string;
 }
 
-// TC Lookup response type
+// TC Lookup response type - OFFICIAL BACKEND CONTRACT
 interface TCLookupData {
   registration: string;
   manufacturer: string;
   model: string;
   designator?: string;
   serial_number?: string;
-  first_owner_given_name?: string;
-  first_owner_family_name?: string;
+  owner_name?: string;
+  owner_city?: string;
+  owner_province?: string;
 }
 
 interface FormFieldProps {
