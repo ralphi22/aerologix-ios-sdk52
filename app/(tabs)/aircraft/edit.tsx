@@ -333,8 +333,10 @@ export default function EditAircraftScreen() {
         fillField('manufacturer', data.manufacturer, setManufacturer);
         fillField('model', data.model, setModel);
         fillField('designator', data.designator, setDesignator);
-        fillField('firstOwnerGiven', data.first_owner_given_name, setFirstOwnerGiven);
-        fillField('firstOwnerFamily', data.first_owner_family_name, setFirstOwnerFamily);
+        fillField('serialNumber', data.serial_number, setSerialNumber);
+        fillField('ownerName', data.owner_name, setOwnerName);
+        fillField('ownerCity', data.owner_city, setOwnerCity);
+        fillField('ownerProvince', data.owner_province, setOwnerProvince);
         
         setTcLookupStatus('success');
         setTcLookupDone(true);
