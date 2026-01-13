@@ -241,8 +241,15 @@ export default function EditAircraftScreen() {
   const lookupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // TC Search API - Get suggestions
+  // ONLY called when prefix length is BETWEEN 2 AND 4 characters
+  // NEVER call with complete registration (5+ chars)
   const searchTC = useCallback(async (prefix: string) => {
-    if (prefix.length < 2) {
+    // STRICT: Only search with 2-4 character prefix
+    // C- counts as 2 chars, so C-FD is 4 chars total
+    const cleanPrefix = prefix.replace('-', ''); // For length check: C-FD -> CFD (3 chars)
+    
+    if (prefix.length < 2 || cleanPrefix.length > 4) {
+      // Too short or too long - don't search
       setSuggestions([]);
       setShowSuggestions(false);
       return;
