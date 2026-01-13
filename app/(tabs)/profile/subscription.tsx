@@ -17,8 +17,10 @@ import {
   Alert,
   ScrollView,
   RefreshControl,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { getLanguage } from '@/i18n';
 import { useAuthStore } from '@/stores/authStore';
 import { Ionicons } from '@expo/vector-icons';
