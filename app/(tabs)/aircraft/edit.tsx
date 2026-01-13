@@ -780,6 +780,7 @@ export default function EditAircraftScreen() {
                   onFocus={() => {
                     if (suggestions.length > 0) setShowSuggestions(true);
                   }}
+                  onBlur={handleRegistrationBlur}
                 />
                 <TouchableOpacity 
                   style={[
