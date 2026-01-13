@@ -102,9 +102,33 @@ export default function SubscriptionScreen() {
     }
   }, [loadUser]);
 
+  // Initial load
   useEffect(() => {
     refreshUser();
   }, []);
+
+  // Refresh on screen focus (when user returns from checkout browser)
+  useFocusEffect(
+    useCallback(() => {
+      refreshUser();
+    }, [refreshUser])
+  );
+
+  // Refresh when app returns to foreground (after Stripe checkout in browser)
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        // App came back to foreground - refresh user data
+        refreshUser();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [refreshUser]);
 
   const handleBack = () => {
     router.back();
