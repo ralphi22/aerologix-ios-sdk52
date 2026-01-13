@@ -936,6 +936,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.orange,
   },
+  tcStatusNotFound: {
+    backgroundColor: '#F5F5F5', // Gris discret
+  },
+  tcStatusNotFoundText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontStyle: 'italic',
+  },
   tcStatusError: {
     backgroundColor: COLORS.redLight,
   },
