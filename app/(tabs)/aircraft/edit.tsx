@@ -176,6 +176,7 @@ export default function EditAircraftScreen() {
 
   // TC Lookup - ONLY fills manufacturer, model, first_owner_given, first_owner_family
   // Only called when registration is valid (C-XXXX format)
+  // ANTI-404 FRUSTRANT: 404 is handled gracefully, no blocking error
   const fetchFromTC = useCallback(async (reg: string) => {
     const normalized = reg.toUpperCase().trim();
     
@@ -192,23 +193,42 @@ export default function EditAircraftScreen() {
       const data = response.data;
 
       if (data) {
-        // ONLY fill the 4 authorized fields from TC
-        if (data.manufacturer) setManufacturer(data.manufacturer);
-        if (data.model) setModel(data.model);
-        if (data.first_owner_given_name) setFirstOwnerGiven(data.first_owner_given_name);
-        if (data.first_owner_family_name) setFirstOwnerFamily(data.first_owner_family_name);
+        // ONLY fill the 4 authorized fields from TC - SAFE: don't overwrite if empty response
+        if (data.manufacturer && typeof data.manufacturer === 'string') {
+          setManufacturer(data.manufacturer);
+        }
+        if (data.model && typeof data.model === 'string') {
+          setModel(data.model);
+        }
+        if (data.first_owner_given_name && typeof data.first_owner_given_name === 'string') {
+          setFirstOwnerGiven(data.first_owner_given_name);
+        }
+        if (data.first_owner_family_name && typeof data.first_owner_family_name === 'string') {
+          setFirstOwnerFamily(data.first_owner_family_name);
+        }
         
         setTcLookupStatus('success');
         setTcLookupDone(true);
+      } else {
+        // Empty response but no error - treat as not found
+        setTcLookupStatus('not_found');
       }
     } catch (error: any) {
+      // ANTI-404: Handle 404 gracefully - just show "not found" without blocking
+      // User can still fill the form manually
       if (error?.response?.status === 404) {
         setTcLookupStatus('not_found');
+        // Don't erase existing fields - user may have typed data
+        console.warn('[TC Lookup] Registration not found in TC registry:', normalized);
       } else if (error?.response?.status === 400) {
         setTcLookupStatus('invalid_format');
+        console.warn('[TC Lookup] Invalid format:', normalized);
       } else {
+        // Network or other error - show generic but non-blocking
         setTcLookupStatus('error');
+        console.warn('[TC Lookup] Error:', error?.message || 'Unknown error');
       }
+      // IMPORTANT: Never throw - form remains usable
     }
   }, [tcLookupStatus, isValidCanadianRegistration]);
 
