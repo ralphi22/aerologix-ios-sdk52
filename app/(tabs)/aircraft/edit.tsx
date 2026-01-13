@@ -635,8 +635,10 @@ export default function EditAircraftScreen() {
       engineHours: parseFloat(engineHours) || 0,
       propellerHours: parseFloat(propellerHours) || 0,
       photoUri,
-      firstOwnerGiven,
-      firstOwnerFamily,
+      // TC Owner fields
+      ownerName,
+      ownerCity,
+      ownerProvince,
     } as any);
 
     router.back();
