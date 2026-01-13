@@ -220,6 +220,9 @@ export default function SubscriptionScreen() {
     const savings = getYearlySavings(code);
     const isCurrentPlan = code === planCode;
     
+    // Determine if plan has free trial - PILOT and PILOT_PRO only (NOT FLEET)
+    const hasFreeTrial = code === 'PILOT' || code === 'PILOT_PRO';
+    
     return (
       <TouchableOpacity
         style={[
@@ -266,6 +269,16 @@ export default function SubscriptionScreen() {
             </Text>
           )}
         </View>
+        
+        {/* 7-day free trial badge - PILOT and PILOT_PRO only */}
+        {hasFreeTrial && (
+          <View style={styles.trialBadge}>
+            <Ionicons name="gift-outline" size={14} color={COLORS.warning} />
+            <Text style={styles.trialBadgeText}>
+              {lang === 'fr' ? 'Essai gratuit 7 jours' : '7-day free trial'}
+            </Text>
+          </View>
+        )}
         
         {selectedBillingCycle === 'yearly' && savings > 0 && (
           <View style={styles.savingsBadge}>
