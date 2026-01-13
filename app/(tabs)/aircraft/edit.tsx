@@ -362,41 +362,62 @@ export default function EditAircraftScreen() {
   ]);
 
   // Handle registration input change
+  // RULES:
+  // 1. /api/tc/search ONLY when input is 2-4 chars (prefix search)
+  // 2. NEVER auto-trigger /api/tc/lookup during typing
+  // 3. Lookup only on: suggestion click OR onBlur with complete registration
   const handleRegistrationChange = (text: string) => {
     const normalized = normalizeRegistration(text);
     setRegistration(normalized);
     
-    // Cancel pending searches/lookups
+    // Cancel pending searches
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
       searchTimeoutRef.current = null;
     }
+    // Cancel pending lookups - NO AUTO LOOKUP
     if (lookupTimeoutRef.current) {
       clearTimeout(lookupTimeoutRef.current);
       lookupTimeoutRef.current = null;
     }
     
-    // Reset states
+    // Reset TC status when typing (don't show "not found" during typing)
+    if (tcLookupStatus !== 'idle' && tcLookupStatus !== 'loading') {
+      setTcLookupStatus('idle');
+      setTcData(null);
+    }
+    
+    // Calculate effective length without dash for search logic
+    const effectiveLength = normalized.replace('-', '').length;
+    
+    // Reset if too short
     if (normalized.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
-      setTcLookupStatus('idle');
-      setTcData(null);
       setTcLookupDone(false);
       return;
     }
     
-    // Trigger debounced search for suggestions
-    searchTimeoutRef.current = setTimeout(() => {
-      searchTC(normalized);
-    }, 300);
-    
-    // If valid complete registration, also trigger lookup
-    if (isValidCanadianRegistration(normalized) && !tcLookupDone) {
-      lookupTimeoutRef.current = setTimeout(() => {
-        fetchFromTC(normalized);
-      }, 600);
+    // SEARCH: Only trigger when prefix is 2-4 chars (not complete registration)
+    // C-F = 3 chars total, effectiveLength = 2 (CF)
+    // C-FD = 4 chars total, effectiveLength = 3 (CFD)
+    // C-FDY = 5 chars total, effectiveLength = 4 (CFDY) - still searchable
+    // C-FDYK = 6 chars total, effectiveLength = 5 (CFDYK) - TOO LONG, don't search
+    if (effectiveLength >= 2 && effectiveLength <= 4) {
+      searchTimeoutRef.current = setTimeout(() => {
+        searchTC(normalized);
+      }, 300);
+    } else {
+      // Hide suggestions when typing complete registration
+      setSuggestions([]);
+      setShowSuggestions(false);
     }
+    
+    // LOOKUP: NEVER auto-trigger during typing
+    // Lookup will only happen on:
+    // - handleSelectSuggestion (user clicks suggestion)
+    // - handleRegistrationBlur (user leaves field with complete registration)
+    // - handleTCLookup (user clicks TC lookup button)
   };
 
   // Handle suggestion selection
