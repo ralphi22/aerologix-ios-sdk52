@@ -4,7 +4,6 @@
   "private": true,
   "main": "index.js",
   "scripts": {
-    "preinstall": "node scripts/verify-sdk52.js",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
