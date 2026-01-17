@@ -620,13 +620,19 @@ export default function SubscriptionScreen() {
         {/* Action button */}
         {!isCurrentPlan && code !== 'BASIC' && Platform.OS === 'ios' && (
           <TouchableOpacity
-            style={[styles.selectButton, { backgroundColor: plan.color }]}
+            style={[
+              styles.selectButton, 
+              { backgroundColor: plan.color },
+              isButtonDisabled && styles.selectButtonDisabled
+            ]}
             onPress={() => handleSubscribe(code)}
-            disabled={isLoadingThisPlan || isPurchasing !== null}
+            disabled={isButtonDisabled}
             activeOpacity={0.7}
           >
             {isLoadingThisPlan ? (
               <ActivityIndicator size="small" color={COLORS.white} />
+            ) : !canSubscribe ? (
+              <Text style={styles.selectButtonText}>{texts.loading}</Text>
             ) : (
               <Text style={styles.selectButtonText}>{texts.choosePlan}</Text>
             )}
