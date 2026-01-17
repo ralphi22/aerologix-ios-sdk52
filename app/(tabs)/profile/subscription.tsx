@@ -408,6 +408,23 @@ export default function SubscriptionScreen() {
   // ============================================
 
   /**
+   * Check if a package is available for a plan
+   * Used to disable Subscribe button when package not loaded
+   */
+  const isPackageAvailable = (planCode: PlanCode, billingCycle: BillingCycle): boolean => {
+    if (planCode === 'BASIC') return true;
+    if (Platform.OS !== 'ios' || !offerings) return false;
+
+    const offeringId = getOfferingIdForPlan(planCode);
+    if (!offeringId) return false;
+
+    const packageId = billingCycle === 'monthly' ? PACKAGE_IDS.MONTHLY : PACKAGE_IDS.ANNUAL;
+    const pkg = getPackage(offerings, offeringId, packageId);
+    
+    return pkg !== null;
+  };
+
+  /**
    * Get the price string for a plan from RevenueCat
    * IMPORTANT: Prices come ONLY from RevenueCat (package.product.priceString)
    * NO static prices, NO fallbacks to PLANS
@@ -416,9 +433,14 @@ export default function SubscriptionScreen() {
     // BASIC is always free
     if (planCode === 'BASIC') return texts.free;
     
-    // Not iOS or no offerings loaded yet - show loading indicator
-    if (Platform.OS !== 'ios' || !offerings) {
+    // Not iOS - show dash (not available)
+    if (Platform.OS !== 'ios') {
       return '—';
+    }
+    
+    // Still loading offerings - show loading text
+    if (isLoading || !offerings) {
+      return texts.loading;
     }
 
     // Get the CORRECT offering for this plan
@@ -428,9 +450,15 @@ export default function SubscriptionScreen() {
       return '—';
     }
 
-    // Get the package from the CORRECT offering
+    // Get the package from the CORRECT offering using availablePackages.find()
+    const offering = offerings.all[offeringId];
+    if (!offering) {
+      console.warn(`[Subscription] Offering not found: ${offeringId}`);
+      return '—';
+    }
+
     const packageId = billingCycle === 'monthly' ? PACKAGE_IDS.MONTHLY : PACKAGE_IDS.ANNUAL;
-    const pkg = getPackage(offerings, offeringId, packageId);
+    const pkg = offering.availablePackages.find(p => p.identifier === packageId);
 
     if (!pkg) {
       console.warn(`[Subscription] Package not found: ${offeringId} / ${packageId}`);
@@ -451,8 +479,12 @@ export default function SubscriptionScreen() {
     const offeringId = getOfferingIdForPlan(planCode);
     if (!offeringId) return 0;
 
-    const monthlyPkg = getPackage(offerings, offeringId, PACKAGE_IDS.MONTHLY);
-    const annualPkg = getPackage(offerings, offeringId, PACKAGE_IDS.ANNUAL);
+    const offering = offerings.all[offeringId];
+    if (!offering) return 0;
+
+    // Use availablePackages.find() - NOT offering.monthly or offering.annual
+    const monthlyPkg = offering.availablePackages.find(p => p.identifier === PACKAGE_IDS.MONTHLY);
+    const annualPkg = offering.availablePackages.find(p => p.identifier === PACKAGE_IDS.ANNUAL);
 
     if (!monthlyPkg || !annualPkg) return 0;
 
