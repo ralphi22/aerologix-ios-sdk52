@@ -311,8 +311,17 @@ export default function SubscriptionScreen() {
 
     // Get the CORRECT offering for this specific plan
     const offeringId = getOfferingIdForPlan(planCode);
-    if (!offeringId) {
-      console.error(`[Subscription] No offering ID for plan: ${planCode}`);
+    if (!offeringId || !offerings) {
+      // Silently return - button should already be disabled
+      console.log(`[Subscription] Cannot subscribe: offeringId=${offeringId}, offerings=${!!offerings}`);
+      return;
+    }
+
+    // Get the offering
+    const offering = offerings.all[offeringId];
+    if (!offering) {
+      // Silently return - button should already be disabled
+      console.log(`[Subscription] Offering not found: ${offeringId}`);
       return;
     }
 
@@ -320,11 +329,11 @@ export default function SubscriptionScreen() {
       ? PACKAGE_IDS.MONTHLY 
       : PACKAGE_IDS.ANNUAL;
 
-    // Get the package from the CORRECT offering (not a different one!)
-    const pkg = getPackage(offerings, offeringId, packageId);
+    // Use availablePackages.find() - NOT offering.monthly or offering.annual
+    const pkg = offering.availablePackages.find(p => p.identifier === packageId);
     if (!pkg) {
-      console.error(`[Subscription] Package not found: ${offeringId} / ${packageId}`);
-      Alert.alert(texts.purchaseError, texts.errorLoading);
+      // Silently return - button should already be disabled
+      console.log(`[Subscription] Package not found: ${offeringId} / ${packageId}`);
       return;
     }
 
