@@ -1,12 +1,19 @@
 /**
  * Subscription Management Screen
- * FIXED: Always displays ALL 4 plans on the main page
- * - BASIC (Free)
- * - PILOT (7-day trial)
- * - PILOT_PRO (7-day trial)
- * - FLEET (No trial)
  * 
- * Plan list is LOCAL - not dependent on /api/auth/me
+ * iOS: Uses RevenueCat for In-App Purchases (Apple IAP)
+ * - Loads offerings: pilot, pilot_pro, fleet
+ * - Each offering has $rc_monthly and $rc_annual packages
+ * - Checks entitlements: pilot, pilot_pro, fleet
+ * 
+ * FLOW:
+ * 1. initRevenueCat()
+ * 2. Load offerings + customerInfo in parallel
+ * 3. User selects plan
+ * 4. purchasePackage() / restorePurchases()
+ * 5. Refresh customerInfo
+ * 6. GET /api/auth/me to sync backend
+ * 7. UI updated
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -16,27 +23,42 @@ import {
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
-  Modal,
   ActivityIndicator,
   Alert,
   ScrollView,
   RefreshControl,
-  AppState,
-  AppStateStatus,
+  Platform,
+  Linking,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { getLanguage } from '@/i18n';
 import { useAuthStore } from '@/stores/authStore';
 import { Ionicons } from '@expo/vector-icons';
-import { 
-  PLANS, 
-  PlanCode, 
-  BillingCycle, 
-  openCheckout,
+import {
+  initRevenueCat,
+  getOfferings,
+  getCustomerInfo,
+  purchasePackage,
+  restorePurchases,
+  hasEntitlement,
+  getPackage,
+  OFFERING_IDS,
+  ENTITLEMENT_IDS,
+  PACKAGE_IDS,
+  SUBSCRIPTION_MANAGEMENT_URL,
+  type PurchasesOfferings,
+  type CustomerInfo,
+  type PurchasesPackage,
+} from '@/services/revenuecatService';
+import {
+  PLANS,
+  PlanCode,
   formatLimit,
-  getYearlySavings,
-  cancelSubscription,
 } from '@/services/paymentService';
+
+// ============================================
+// CONSTANTS
+// ============================================
 
 const COLORS = {
   primary: '#0033A0',
@@ -53,152 +75,347 @@ const COLORS = {
   orange: '#F59E0B',
 };
 
-// LOCAL PLAN LIST - Independent of /api/auth/me
-// Always display these 4 plans
+// Plan codes to display (always show all 4)
 const ALL_PLAN_CODES: PlanCode[] = ['BASIC', 'PILOT', 'PILOT_PRO', 'FLEET'];
 
-// Status display - Based ONLY on subscription.status
-const STATUS_DISPLAY: Record<string, { en: string; fr: string; color: string }> = {
-  active: { en: 'Active subscription', fr: 'Abonnement actif', color: COLORS.success },
-  trialing: { en: 'Free trial active', fr: 'Essai gratuit en cours', color: COLORS.warning },
-  canceled: { en: 'Canceled', fr: 'Annulé', color: COLORS.danger },
-  past_due: { en: 'Past Due', fr: 'Impayé', color: COLORS.danger },
-  inactive: { en: 'Inactive', fr: 'Inactif', color: COLORS.textMuted },
+// Map plan codes to RevenueCat offering IDs
+const PLAN_TO_OFFERING: Record<string, string> = {
+  PILOT: OFFERING_IDS.PILOT,
+  PILOT_PRO: OFFERING_IDS.PILOT_PRO,
+  FLEET: OFFERING_IDS.FLEET,
 };
+
+// Map plan codes to RevenueCat entitlement IDs
+const PLAN_TO_ENTITLEMENT: Record<string, string> = {
+  PILOT: ENTITLEMENT_IDS.PILOT,
+  PILOT_PRO: ENTITLEMENT_IDS.PILOT_PRO,
+  FLEET: ENTITLEMENT_IDS.FLEET,
+};
+
+// Billing cycle type
+type BillingCycle = 'monthly' | 'yearly';
+
+// ============================================
+// TRANSLATIONS
+// ============================================
+
+const TEXTS = {
+  en: {
+    title: 'Plans & Subscription',
+    allPlans: 'All available plans',
+    monthly: 'Monthly',
+    yearly: 'Yearly',
+    subscribe: 'Subscribe',
+    restorePurchases: 'Restore Purchases',
+    manageSubscription: 'Manage Subscription',
+    active: 'Active',
+    current: 'CURRENT',
+    popular: 'POPULAR',
+    free: 'Free',
+    choosePlan: 'Choose plan',
+    yourCurrentPlan: 'Your current plan',
+    loading: 'Loading...',
+    loadingPlans: 'Loading plans...',
+    errorLoading: 'Error loading plans',
+    tryAgain: 'Try Again',
+    purchaseCancelled: 'Purchase cancelled',
+    purchaseError: 'Purchase error',
+    purchaseSuccess: 'Purchase successful!',
+    purchaseSuccessMessage: 'Your subscription is now active.',
+    restoreSuccess: 'Purchases restored!',
+    restoreSuccessMessage: 'Your subscription has been restored.',
+    restoreNoSubscription: 'No subscription found',
+    restoreNoSubscriptionMessage: 'No previous purchases found to restore.',
+    networkError: 'Network error. Please check your connection.',
+    unknownError: 'An unexpected error occurred.',
+    securityNote: 'Payments secured by Apple. Subscriptions renew automatically.',
+    freeTrial: '7-day free trial',
+    save: 'Save',
+    perMonth: 'month',
+    perYear: 'year',
+    aircraft: 'Aircraft',
+    ocrMonth: 'OCR/month',
+    ameSharing: 'AME Sharing',
+    gpsLogbook: 'GPS Logbook',
+    unlimited: 'Unlimited',
+    notAvailable: 'Not available on this platform',
+  },
+  fr: {
+    title: 'Plans & Abonnement',
+    allPlans: 'Tous les plans disponibles',
+    monthly: 'Mensuel',
+    yearly: 'Annuel',
+    subscribe: 'S\'abonner',
+    restorePurchases: 'Restaurer les achats',
+    manageSubscription: 'Gérer l\'abonnement',
+    active: 'Actif',
+    current: 'ACTUEL',
+    popular: 'POPULAIRE',
+    free: 'Gratuit',
+    choosePlan: 'Choisir ce plan',
+    yourCurrentPlan: 'Votre plan actuel',
+    loading: 'Chargement...',
+    loadingPlans: 'Chargement des plans...',
+    errorLoading: 'Erreur de chargement',
+    tryAgain: 'Réessayer',
+    purchaseCancelled: 'Achat annulé',
+    purchaseError: 'Erreur d\'achat',
+    purchaseSuccess: 'Achat réussi !',
+    purchaseSuccessMessage: 'Votre abonnement est maintenant actif.',
+    restoreSuccess: 'Achats restaurés !',
+    restoreSuccessMessage: 'Votre abonnement a été restauré.',
+    restoreNoSubscription: 'Aucun abonnement trouvé',
+    restoreNoSubscriptionMessage: 'Aucun achat précédent trouvé à restaurer.',
+    networkError: 'Erreur réseau. Vérifiez votre connexion.',
+    unknownError: 'Une erreur inattendue s\'est produite.',
+    securityNote: 'Paiements sécurisés par Apple. Les abonnements se renouvellent automatiquement.',
+    freeTrial: 'Essai gratuit 7 jours',
+    save: 'Économisez',
+    perMonth: 'mois',
+    perYear: 'an',
+    aircraft: 'Aéronefs',
+    ocrMonth: 'OCR/mois',
+    ameSharing: 'Partage TEA/AMO',
+    gpsLogbook: 'Carnet GPS',
+    unlimited: 'Illimité',
+    notAvailable: 'Non disponible sur cette plateforme',
+  },
+};
+
+// ============================================
+// COMPONENT
+// ============================================
 
 export default function SubscriptionScreen() {
   const router = useRouter();
   const lang = getLanguage() as 'en' | 'fr';
+  const texts = TEXTS[lang];
   const { user, loadUser } = useAuthStore();
 
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [isCanceling, setIsCanceling] = useState(false);
-  const [isCheckingOut, setIsCheckingOut] = useState<PlanCode | null>(null);
+  // State
+  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState<PlanCode | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [offerings, setOfferings] = useState<PurchasesOfferings | null>(null);
+  const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
   const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>('monthly');
 
-  // User data from store
-  const userPlanCode = (user?.plan_code || user?.subscription?.plan_code || 'BASIC') as PlanCode;
-  const limits = user?.limits;
-  const subscription = user?.subscription;
-  const subscriptionStatus = subscription?.status || 'inactive';
-  const billingCycle = subscription?.billing_cycle || '';
-  const stripeSubscriptionId = subscription?.stripe_subscription_id;
-  const currentPeriodEnd = subscription?.current_period_end;
+  // Determine current plan from RevenueCat entitlements
+  const getCurrentPlanCode = useCallback((): PlanCode => {
+    if (!customerInfo) return 'BASIC';
+    if (hasEntitlement(customerInfo, ENTITLEMENT_IDS.FLEET)) return 'FLEET';
+    if (hasEntitlement(customerInfo, ENTITLEMENT_IDS.PILOT_PRO)) return 'PILOT_PRO';
+    if (hasEntitlement(customerInfo, ENTITLEMENT_IDS.PILOT)) return 'PILOT';
+    return 'BASIC';
+  }, [customerInfo]);
 
-  // Status info
-  const statusInfo = STATUS_DISPLAY[subscriptionStatus] || STATUS_DISPLAY.inactive;
-  const statusDisplay = statusInfo[lang] || statusInfo.en;
+  const currentPlanCode = getCurrentPlanCode();
 
-  const isActive = subscriptionStatus === 'active' || subscriptionStatus === 'trialing';
-  const canCancel = isActive && stripeSubscriptionId && userPlanCode !== 'BASIC';
+  // ============================================
+  // INITIALIZATION & DATA LOADING
+  // ============================================
 
-  // Refresh user data
-  const refreshUser = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      await loadUser();
-    } catch (error) {
-      console.error('Failed to refresh user:', error);
-    } finally {
-      setIsRefreshing(false);
+  const loadRevenueCatData = useCallback(async () => {
+    if (Platform.OS !== 'ios') {
+      setIsLoading(false);
+      return;
     }
-  }, [loadUser]);
 
+    try {
+      // Initialize RevenueCat
+      const initialized = await initRevenueCat(user?.id);
+      if (!initialized) {
+        setError(texts.errorLoading);
+        setIsLoading(false);
+        return;
+      }
+
+      // Load offerings and customer info in parallel
+      const [offeringsData, customerInfoData] = await Promise.all([
+        getOfferings(),
+        getCustomerInfo(),
+      ]);
+
+      setOfferings(offeringsData);
+      setCustomerInfo(customerInfoData);
+      setError(null);
+    } catch (err) {
+      console.error('Error loading RevenueCat data:', err);
+      setError(texts.errorLoading);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?.id, texts.errorLoading]);
+
+  // Initial load
   useEffect(() => {
-    refreshUser();
+    loadRevenueCatData();
   }, []);
 
+  // Refresh on focus
   useFocusEffect(
     useCallback(() => {
-      refreshUser();
-    }, [refreshUser])
+      if (!isLoading) {
+        loadRevenueCatData();
+      }
+    }, [loadRevenueCatData, isLoading])
   );
 
-  useEffect(() => {
-    const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'active') {
-        refreshUser();
-      }
-    };
-    const sub = AppState.addEventListener('change', handleAppStateChange);
-    return () => sub.remove();
-  }, [refreshUser]);
+  // Pull to refresh
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await loadRevenueCatData();
+    await loadUser();
+    setIsRefreshing(false);
+  };
+
+  // ============================================
+  // HANDLERS
+  // ============================================
 
   const handleBack = () => {
     router.back();
   };
 
-  const handleCancelSubscription = async () => {
-    setIsCanceling(true);
-    try {
-      await cancelSubscription();
-      await loadUser();
-      setShowCancelModal(false);
-      Alert.alert(
-        lang === 'fr' ? 'Abonnement annulé' : 'Subscription Canceled',
-        lang === 'fr'
-          ? 'Votre abonnement a été annulé. Vous conservez l\'accès jusqu\'à la fin de la période en cours.'
-          : 'Your subscription has been canceled. You will retain access until the end of the current period.'
-      );
-    } catch (error: any) {
-      const errorMessage = error?.response?.data?.detail || error?.message || 'An error occurred.';
-      Alert.alert(lang === 'fr' ? 'Erreur' : 'Error', errorMessage);
-    } finally {
-      setIsCanceling(false);
+  const handleSubscribe = async (planCode: PlanCode) => {
+    if (Platform.OS !== 'ios') {
+      Alert.alert('Info', texts.notAvailable);
+      return;
     }
-  };
 
-  const handleSelectPlan = async (planCode: PlanCode) => {
-    if (planCode === 'BASIC' || planCode === userPlanCode) return;
-    
-    setIsCheckingOut(planCode);
+    if (planCode === 'BASIC' || planCode === currentPlanCode) return;
+
+    const offeringId = PLAN_TO_OFFERING[planCode];
+    if (!offeringId) return;
+
+    const packageId = selectedBillingCycle === 'monthly' 
+      ? PACKAGE_IDS.MONTHLY 
+      : PACKAGE_IDS.ANNUAL;
+
+    const pkg = getPackage(offerings, offeringId as any, packageId);
+    if (!pkg) {
+      Alert.alert(texts.purchaseError, texts.errorLoading);
+      return;
+    }
+
+    setIsPurchasing(planCode);
+
     try {
-      const result = await openCheckout(planCode, selectedBillingCycle);
-      
-      if (result.success) {
-        Alert.alert(
-          lang === 'fr' ? 'Checkout ouvert' : 'Checkout Opened',
-          lang === 'fr'
-            ? 'Complétez le paiement dans votre navigateur. Tirez vers le bas pour rafraîchir après le paiement.'
-            : 'Complete payment in your browser. Pull down to refresh after payment.',
-          [{ text: 'OK', onPress: () => setTimeout(() => refreshUser(), 2000) }]
-        );
+      const result = await purchasePackage(pkg);
+
+      if (result.success && result.customerInfo) {
+        setCustomerInfo(result.customerInfo);
+        
+        // Sync with backend
+        await loadUser();
+
+        Alert.alert(texts.purchaseSuccess, texts.purchaseSuccessMessage);
       } else if (result.error) {
-        Alert.alert(lang === 'fr' ? 'Erreur' : 'Error', result.error);
+        if (result.error.userCancelled) {
+          // User cancelled - no alert needed
+          console.log('Purchase cancelled by user');
+        } else {
+          Alert.alert(texts.purchaseError, result.error.message);
+        }
       }
-    } catch (error: any) {
-      Alert.alert(lang === 'fr' ? 'Erreur' : 'Error', error?.message || 'An error occurred');
+    } catch (err) {
+      console.error('Purchase error:', err);
+      Alert.alert(texts.purchaseError, texts.unknownError);
     } finally {
-      setIsCheckingOut(null);
+      setIsPurchasing(null);
     }
   };
 
-  const formatDate = (dateStr: string | undefined) => {
-    if (!dateStr) return '—';
+  const handleRestorePurchases = async () => {
+    if (Platform.OS !== 'ios') {
+      Alert.alert('Info', texts.notAvailable);
+      return;
+    }
+
+    setIsRestoring(true);
+
     try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-    } catch {
-      return '—';
+      const result = await restorePurchases();
+
+      if (result.success && result.customerInfo) {
+        setCustomerInfo(result.customerInfo);
+        
+        // Check if any subscription was restored
+        const restoredPlan = (() => {
+          if (hasEntitlement(result.customerInfo, ENTITLEMENT_IDS.FLEET)) return 'FLEET';
+          if (hasEntitlement(result.customerInfo, ENTITLEMENT_IDS.PILOT_PRO)) return 'PILOT_PRO';
+          if (hasEntitlement(result.customerInfo, ENTITLEMENT_IDS.PILOT)) return 'PILOT';
+          return null;
+        })();
+
+        if (restoredPlan) {
+          // Sync with backend
+          await loadUser();
+          Alert.alert(texts.restoreSuccess, texts.restoreSuccessMessage);
+        } else {
+          Alert.alert(texts.restoreNoSubscription, texts.restoreNoSubscriptionMessage);
+        }
+      } else if (result.error) {
+        Alert.alert(texts.purchaseError, result.error.message);
+      }
+    } catch (err) {
+      console.error('Restore error:', err);
+      Alert.alert(texts.purchaseError, texts.unknownError);
+    } finally {
+      setIsRestoring(false);
     }
   };
 
-  // Single Plan Card Component
+  const handleManageSubscription = () => {
+    Linking.openURL(SUBSCRIPTION_MANAGEMENT_URL);
+  };
+
+  // ============================================
+  // HELPER FUNCTIONS
+  // ============================================
+
+  const getPriceString = (planCode: PlanCode, billingCycle: BillingCycle): string => {
+    if (planCode === 'BASIC') return texts.free;
+    if (Platform.OS !== 'ios' || !offerings) {
+      // Fallback to static prices if not on iOS
+      const plan = PLANS[planCode];
+      const price = billingCycle === 'monthly' ? plan.monthly : plan.yearly;
+      return `${price.toFixed(2)}$ CAD`;
+    }
+
+    const offeringId = PLAN_TO_OFFERING[planCode];
+    if (!offeringId) return '—';
+
+    const packageId = billingCycle === 'monthly' ? PACKAGE_IDS.MONTHLY : PACKAGE_IDS.ANNUAL;
+    const pkg = getPackage(offerings, offeringId as any, packageId);
+
+    return pkg?.product?.priceString || '—';
+  };
+
+  const getYearlySavings = (planCode: PlanCode): number => {
+    const plan = PLANS[planCode];
+    if (plan.monthly === 0) return 0;
+    const monthlyTotal = plan.monthly * 12;
+    const savings = ((monthlyTotal - plan.yearly) / monthlyTotal) * 100;
+    return Math.round(savings);
+  };
+
+  // ============================================
+  // PLAN CARD COMPONENT
+  // ============================================
+
   const PlanCard = ({ code }: { code: PlanCode }) => {
     const plan = PLANS[code];
     if (!plan) return null;
-    
-    const price = selectedBillingCycle === 'monthly' ? plan.monthly : plan.yearly;
-    const savings = getYearlySavings(code);
-    const isCurrentPlan = code === userPlanCode;
+
+    const isCurrentPlan = code === currentPlanCode;
     const hasFreeTrial = code === 'PILOT' || code === 'PILOT_PRO';
-    const isLoading = isCheckingOut === code;
-    
+    const isLoadingThisPlan = isPurchasing === code;
+    const priceString = getPriceString(code, selectedBillingCycle);
+    const savings = getYearlySavings(code);
+
     return (
       <View
         style={[
@@ -210,21 +427,17 @@ export default function SubscriptionScreen() {
         {/* Popular badge */}
         {plan.popular && (
           <View style={[styles.popularBadge, { backgroundColor: plan.color }]}>
-            <Text style={styles.popularBadgeText}>
-              {lang === 'fr' ? 'POPULAIRE' : 'POPULAR'}
-            </Text>
+            <Text style={styles.popularBadgeText}>{texts.popular}</Text>
           </View>
         )}
-        
+
         {/* Current badge */}
         {isCurrentPlan && (
           <View style={styles.currentBadge}>
-            <Text style={styles.currentBadgeText}>
-              {lang === 'fr' ? '✓ ACTUEL' : '✓ CURRENT'}
-            </Text>
+            <Text style={styles.currentBadgeText}>✓ {texts.current}</Text>
           </View>
         )}
-        
+
         {/* Plan name and description */}
         <Text style={[styles.planCardTitle, { color: plan.color }]}>
           {lang === 'fr' ? plan.nameFr : plan.name}
@@ -232,46 +445,40 @@ export default function SubscriptionScreen() {
         <Text style={styles.planCardDescription}>
           {lang === 'fr' ? plan.descriptionFr : plan.description}
         </Text>
-        
+
         {/* Price */}
         <View style={styles.priceContainer}>
-          <Text style={styles.priceAmount}>
-            {price === 0 ? (lang === 'fr' ? 'Gratuit' : 'Free') : `${price.toFixed(2)}$`}
-          </Text>
-          {price > 0 && (
+          <Text style={styles.priceAmount}>{priceString}</Text>
+          {code !== 'BASIC' && (
             <Text style={styles.pricePeriod}>
-              CAD / {selectedBillingCycle === 'monthly' 
-                ? (lang === 'fr' ? 'mois' : 'month') 
-                : (lang === 'fr' ? 'an' : 'year')}
+              / {selectedBillingCycle === 'monthly' ? texts.perMonth : texts.perYear}
             </Text>
           )}
         </View>
-        
+
         {/* Trial badge - PILOT & PILOT_PRO only */}
         {hasFreeTrial && (
           <View style={styles.trialBadge}>
             <Ionicons name="gift-outline" size={14} color={COLORS.warning} />
-            <Text style={styles.trialBadgeText}>
-              {lang === 'fr' ? 'Essai gratuit 7 jours' : '7-day free trial'}
-            </Text>
+            <Text style={styles.trialBadgeText}>{texts.freeTrial}</Text>
           </View>
         )}
-        
+
         {/* Yearly savings */}
         {selectedBillingCycle === 'yearly' && savings > 0 && (
           <View style={styles.savingsBadge}>
             <Text style={styles.savingsText}>
-              {lang === 'fr' ? `Économisez ${savings}%` : `Save ${savings}%`}
+              {texts.save} {savings}%
             </Text>
           </View>
         )}
-        
+
         {/* Limits */}
         <View style={styles.limitsContainer}>
           <View style={styles.limitRow}>
             <Ionicons name="airplane" size={16} color={plan.color} />
             <Text style={styles.limitText}>
-              {lang === 'fr' ? 'Aéronefs: ' : 'Aircraft: '}
+              {texts.aircraft}:{' '}
               <Text style={styles.limitValue}>
                 {formatLimit(plan.limits.max_aircrafts, lang)}
               </Text>
@@ -280,59 +487,97 @@ export default function SubscriptionScreen() {
           <View style={styles.limitRow}>
             <Ionicons name="scan" size={16} color={plan.color} />
             <Text style={styles.limitText}>
-              OCR/{lang === 'fr' ? 'mois' : 'month'}: 
+              {texts.ocrMonth}:{' '}
               <Text style={styles.limitValue}>
-                {' '}{formatLimit(plan.limits.ocr_per_month, lang)}
+                {formatLimit(plan.limits.ocr_per_month, lang)}
               </Text>
             </Text>
           </View>
           {plan.limits.tea_amo_sharing && (
             <View style={styles.limitRow}>
               <Ionicons name="share-social" size={16} color={plan.color} />
-              <Text style={styles.limitText}>
-                {lang === 'fr' ? 'Partage TEA/AMO' : 'AME Sharing'}
-              </Text>
+              <Text style={styles.limitText}>{texts.ameSharing}</Text>
             </View>
           )}
           {plan.limits.gps_logbook && (
             <View style={styles.limitRow}>
               <Ionicons name="location" size={16} color={plan.color} />
-              <Text style={styles.limitText}>
-                {lang === 'fr' ? 'Carnet GPS' : 'GPS Logbook'}
-              </Text>
+              <Text style={styles.limitText}>{texts.gpsLogbook}</Text>
             </View>
           )}
         </View>
-        
+
         {/* Action button */}
-        {!isCurrentPlan && code !== 'BASIC' && (
+        {!isCurrentPlan && code !== 'BASIC' && Platform.OS === 'ios' && (
           <TouchableOpacity
             style={[styles.selectButton, { backgroundColor: plan.color }]}
-            onPress={() => handleSelectPlan(code)}
-            disabled={isLoading}
+            onPress={() => handleSubscribe(code)}
+            disabled={isLoadingThisPlan || isPurchasing !== null}
             activeOpacity={0.7}
           >
-            {isLoading ? (
+            {isLoadingThisPlan ? (
               <ActivityIndicator size="small" color={COLORS.white} />
             ) : (
-              <Text style={styles.selectButtonText}>
-                {lang === 'fr' ? 'Choisir ce plan' : 'Choose plan'}
-              </Text>
+              <Text style={styles.selectButtonText}>{texts.choosePlan}</Text>
             )}
           </TouchableOpacity>
         )}
-        
+
+        {/* Current plan indicator */}
         {isCurrentPlan && code !== 'BASIC' && (
           <View style={styles.currentPlanIndicator}>
             <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-            <Text style={styles.currentPlanIndicatorText}>
-              {lang === 'fr' ? 'Votre plan actuel' : 'Your current plan'}
-            </Text>
+            <Text style={styles.currentPlanIndicatorText}>{texts.yourCurrentPlan}</Text>
           </View>
         )}
       </View>
     );
   };
+
+  // ============================================
+  // RENDER
+  // ============================================
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={28} color={COLORS.white} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{texts.title}</Text>
+          <View style={styles.backButton} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>{texts.loadingPlans}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Error state
+  if (error && Platform.OS === 'ios') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={28} color={COLORS.white} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{texts.title}</Text>
+          <View style={styles.backButton} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={48} color={COLORS.danger} />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadRevenueCatData}>
+            <Text style={styles.retryButtonText}>{texts.tryAgain}</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -341,165 +586,124 @@ export default function SubscriptionScreen() {
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="chevron-back" size={28} color={COLORS.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {lang === 'fr' ? 'Plans & Abonnement' : 'Plans & Subscription'}
-        </Text>
+        <Text style={styles.headerTitle}>{texts.title}</Text>
         <View style={styles.backButton} />
       </View>
 
-      <ScrollView 
-        style={styles.scrollView} 
+      <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
-            onRefresh={refreshUser}
+            onRefresh={handleRefresh}
             colors={[COLORS.primary]}
           />
         }
       >
         {/* Current Status Banner */}
-        <View style={[styles.statusBanner, { backgroundColor: statusInfo.color + '20', borderColor: statusInfo.color }]}>
-          <View style={[styles.statusDot, { backgroundColor: statusInfo.color }]} />
-          <Text style={[styles.statusBannerText, { color: statusInfo.color }]}>
-            {statusDisplay}
-            {userPlanCode !== 'BASIC' && billingCycle && (
-              <Text style={styles.statusBillingText}>
-                {' '}({billingCycle === 'yearly' 
-                  ? (lang === 'fr' ? 'Annuel' : 'Yearly') 
-                  : (lang === 'fr' ? 'Mensuel' : 'Monthly')})
-              </Text>
-            )}
-          </Text>
-          {currentPeriodEnd && isActive && userPlanCode !== 'BASIC' && (
-            <Text style={styles.statusDateText}>
-              {lang === 'fr' ? 'Renouvelle le ' : 'Renews '}{formatDate(currentPeriodEnd)}
+        {currentPlanCode !== 'BASIC' && (
+          <View style={[styles.statusBanner, { backgroundColor: COLORS.success + '20', borderColor: COLORS.success }]}>
+            <View style={[styles.statusDot, { backgroundColor: COLORS.success }]} />
+            <Text style={[styles.statusBannerText, { color: COLORS.success }]}>
+              {texts.active}: {PLANS[currentPlanCode]?.name || currentPlanCode}
             </Text>
-          )}
-        </View>
+          </View>
+        )}
 
-        {/* Billing Cycle Toggle */}
-        <View style={styles.billingToggle}>
-          <TouchableOpacity
-            style={[
-              styles.billingOption,
-              selectedBillingCycle === 'monthly' && styles.billingOptionActive
-            ]}
-            onPress={() => setSelectedBillingCycle('monthly')}
-          >
-            <Text style={[
-              styles.billingOptionText,
-              selectedBillingCycle === 'monthly' && styles.billingOptionTextActive
-            ]}>
-              {lang === 'fr' ? 'Mensuel' : 'Monthly'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.billingOption,
-              selectedBillingCycle === 'yearly' && styles.billingOptionActive
-            ]}
-            onPress={() => setSelectedBillingCycle('yearly')}
-          >
-            <Text style={[
-              styles.billingOptionText,
-              selectedBillingCycle === 'yearly' && styles.billingOptionTextActive
-            ]}>
-              {lang === 'fr' ? 'Annuel' : 'Yearly'}
-            </Text>
-            <View style={styles.saveBadge}>
-              <Text style={styles.saveBadgeText}>-17%</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
+        {/* Billing Cycle Toggle - Only show on iOS */}
+        {Platform.OS === 'ios' && (
+          <View style={styles.billingToggle}>
+            <TouchableOpacity
+              style={[
+                styles.billingOption,
+                selectedBillingCycle === 'monthly' && styles.billingOptionActive,
+              ]}
+              onPress={() => setSelectedBillingCycle('monthly')}
+            >
+              <Text
+                style={[
+                  styles.billingOptionText,
+                  selectedBillingCycle === 'monthly' && styles.billingOptionTextActive,
+                ]}
+              >
+                {texts.monthly}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.billingOption,
+                selectedBillingCycle === 'yearly' && styles.billingOptionActive,
+              ]}
+              onPress={() => setSelectedBillingCycle('yearly')}
+            >
+              <Text
+                style={[
+                  styles.billingOptionText,
+                  selectedBillingCycle === 'yearly' && styles.billingOptionTextActive,
+                ]}
+              >
+                {texts.yearly}
+              </Text>
+              <View style={styles.saveBadge}>
+                <Text style={styles.saveBadgeText}>-17%</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ALL 4 PLANS - Always visible */}
         <View style={styles.plansSection}>
-          <Text style={styles.plansSectionTitle}>
-            {lang === 'fr' ? 'Tous les plans disponibles' : 'All available plans'}
-          </Text>
-          
+          <Text style={styles.plansSectionTitle}>{texts.allPlans}</Text>
           {ALL_PLAN_CODES.map((code) => (
             <PlanCard key={code} code={code} />
           ))}
         </View>
 
-        {/* Cancel Subscription Button */}
-        {canCancel && (
+        {/* Restore Purchases Button - iOS only */}
+        {Platform.OS === 'ios' && (
           <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => setShowCancelModal(true)}
+            style={styles.restoreButton}
+            onPress={handleRestorePurchases}
+            disabled={isRestoring}
           >
-            <Ionicons name="close-circle-outline" size={20} color={COLORS.danger} />
-            <Text style={styles.cancelButtonText}>
-              {lang === 'fr' ? 'Annuler l\'abonnement' : 'Cancel Subscription'}
-            </Text>
+            {isRestoring ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <>
+                <Ionicons name="refresh-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.restoreButtonText}>{texts.restorePurchases}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {/* Manage Subscription Button - iOS only, when subscribed */}
+        {Platform.OS === 'ios' && currentPlanCode !== 'BASIC' && (
+          <TouchableOpacity
+            style={styles.manageButton}
+            onPress={handleManageSubscription}
+          >
+            <Ionicons name="settings-outline" size={20} color={COLORS.textMuted} />
+            <Text style={styles.manageButtonText}>{texts.manageSubscription}</Text>
           </TouchableOpacity>
         )}
 
         {/* Info Note */}
         <View style={styles.infoNote}>
           <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.textMuted} />
-          <Text style={styles.infoNoteText}>
-            {lang === 'fr'
-              ? 'Paiements sécurisés par Stripe. Tirez vers le bas pour rafraîchir après le paiement.'
-              : 'Payments secured by Stripe. Pull down to refresh after payment.'}
-          </Text>
+          <Text style={styles.infoNoteText}>{texts.securityNote}</Text>
         </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
-
-      {/* Cancel Confirmation Modal */}
-      <Modal
-        visible={showCancelModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => !isCanceling && setShowCancelModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Ionicons name="warning-outline" size={48} color={COLORS.danger} />
-            <Text style={styles.modalTitle}>
-              {lang === 'fr' ? 'Annuler l\'abonnement ?' : 'Cancel Subscription?'}
-            </Text>
-            <Text style={styles.modalMessage}>
-              {lang === 'fr'
-                ? 'Vous conserverez l\'accès jusqu\'à la fin de la période de facturation en cours.'
-                : 'You will retain access until the end of the current billing period.'}
-            </Text>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalCancelButton]}
-                onPress={() => setShowCancelModal(false)}
-                disabled={isCanceling}
-              >
-                <Text style={styles.modalCancelButtonText}>
-                  {lang === 'fr' ? 'Retour' : 'Go Back'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalConfirmButton]}
-                onPress={handleCancelSubscription}
-                disabled={isCanceling}
-              >
-                {isCanceling ? (
-                  <ActivityIndicator color={COLORS.white} size="small" />
-                ) : (
-                  <Text style={styles.modalConfirmButtonText}>
-                    {lang === 'fr' ? 'Confirmer' : 'Confirm'}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
+
+// ============================================
+// STYLES
+// ============================================
 
 const styles = StyleSheet.create({
   container: {
@@ -531,6 +735,41 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
   },
+  // Loading
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: COLORS.textMuted,
+  },
+  // Error
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  errorText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: COLORS.danger,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: COLORS.white,
+    fontWeight: '600',
+  },
   // Status Banner
   statusBanner: {
     flexDirection: 'row',
@@ -539,7 +778,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginBottom: 16,
-    flexWrap: 'wrap',
   },
   statusDot: {
     width: 10,
@@ -551,17 +789,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     flex: 1,
-  },
-  statusBillingText: {
-    fontWeight: '400',
-    opacity: 0.8,
-  },
-  statusDateText: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    width: '100%',
-    marginTop: 4,
-    marginLeft: 20,
   },
   // Billing Toggle
   billingToggle: {
@@ -614,7 +841,7 @@ const styles = StyleSheet.create({
     color: COLORS.textDark,
     marginBottom: 16,
   },
-  // Plan Card on Main Page
+  // Plan Card
   planCardMain: {
     backgroundColor: COLORS.white,
     borderRadius: 16,
@@ -753,20 +980,38 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 6,
   },
-  // Cancel Button
-  cancelButton: {
+  // Restore Button
+  restoreButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.white,
     borderWidth: 1,
-    borderColor: COLORS.danger,
+    borderColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  restoreButtonText: {
+    color: COLORS.primary,
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  // Manage Button
+  manageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     paddingVertical: 14,
     borderRadius: 12,
     marginBottom: 16,
   },
-  cancelButtonText: {
-    color: COLORS.danger,
+  manageButtonText: {
+    color: COLORS.textMuted,
     fontSize: 15,
     fontWeight: '600',
     marginLeft: 8,
@@ -785,67 +1030,5 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     lineHeight: 18,
     marginLeft: 10,
-  },
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalContent: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: 24,
-    width: '100%',
-    maxWidth: 360,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.textDark,
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  modalMessage: {
-    fontSize: 15,
-    color: COLORS.textMuted,
-    lineHeight: 22,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    width: '100%',
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 48,
-    marginHorizontal: 6,
-  },
-  modalCancelButton: {
-    backgroundColor: COLORS.background,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  modalCancelButtonText: {
-    color: COLORS.textDark,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  modalConfirmButton: {
-    backgroundColor: COLORS.danger,
-  },
-  modalConfirmButtonText: {
-    color: COLORS.white,
-    fontSize: 15,
-    fontWeight: '600',
   },
 });
