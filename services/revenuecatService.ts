@@ -328,8 +328,13 @@ export const getActivePlanCode = (
 /**
  * Get a specific package from an offering
  * 
+ * IMPORTANT: 
+ * - DO NOT use offerings.current
+ * - DO NOT use offerings.all.default (it's empty)
+ * - ONLY use offerings.all.pilot, offerings.all.pilot_pro, offerings.all.fleet
+ * 
  * @param offerings The offerings object
- * @param offeringId The offering identifier
+ * @param offeringId The offering identifier (pilot | pilot_pro | fleet)
  * @param packageId The package identifier ($rc_monthly or $rc_annual)
  * @returns PurchasesPackage | null
  */
@@ -340,9 +345,11 @@ export const getPackage = (
 ): PurchasesPackage | null => {
   if (!offerings) return null;
 
+  // NEVER use offerings.current or offerings.all.default
+  // ONLY access specific offerings: pilot, pilot_pro, fleet
   const offering = offerings.all[offeringId];
   if (!offering) {
-    console.warn(`[RevenueCat] Offering '${offeringId}' not found`);
+    console.warn(`[RevenueCat] Offering '${offeringId}' not found in offerings.all`);
     return null;
   }
 
