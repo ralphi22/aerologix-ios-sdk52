@@ -520,6 +520,11 @@ export default function SubscriptionScreen() {
     const isLoadingThisPlan = isPurchasing === code;
     const priceString = getPriceString(code, selectedBillingCycle);
     const savings = getYearlySavings(code);
+    
+    // Check if the package is available for this plan
+    // Button will be disabled if package not loaded
+    const canSubscribe = isPackageAvailable(code, selectedBillingCycle);
+    const isButtonDisabled = isLoadingThisPlan || isPurchasing !== null || !canSubscribe;
 
     return (
       <View
