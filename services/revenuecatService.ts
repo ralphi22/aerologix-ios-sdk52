@@ -292,15 +292,20 @@ export const restorePurchases = async (): Promise<{
 /**
  * Check if user has an active entitlement
  * 
- * @param customerInfo CustomerInfo object
- * @param entitlementId The entitlement to check
- * @returns boolean
+ * IMPORTANT: Subscription status is determined EXCLUSIVELY from
+ * customerInfo.entitlements.active - this is the source of truth
+ * 
+ * @param customerInfo CustomerInfo object from RevenueCat
+ * @param entitlementId The entitlement to check (pilot | pilot_pro | fleet)
+ * @returns boolean - true if entitlement is active
  */
 export const hasEntitlement = (
   customerInfo: CustomerInfo | null,
   entitlementId: EntitlementId
 ): boolean => {
   if (!customerInfo) return false;
+  
+  // ONLY check customerInfo.entitlements.active for subscription status
   const entitlement = customerInfo.entitlements.active[entitlementId];
   return !!entitlement && entitlement.isActive;
 };
