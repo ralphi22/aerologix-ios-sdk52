@@ -78,22 +78,44 @@ const COLORS = {
 // Plan codes to display (always show all 4)
 const ALL_PLAN_CODES: PlanCode[] = ['BASIC', 'PILOT', 'PILOT_PRO', 'FLEET'];
 
-// Map plan codes to RevenueCat offering IDs
-const PLAN_TO_OFFERING: Record<string, string> = {
-  PILOT: OFFERING_IDS.PILOT,
-  PILOT_PRO: OFFERING_IDS.PILOT_PRO,
-  FLEET: OFFERING_IDS.FLEET,
-};
-
-// Map plan codes to RevenueCat entitlement IDs
-const PLAN_TO_ENTITLEMENT: Record<string, string> = {
-  PILOT: ENTITLEMENT_IDS.PILOT,
-  PILOT_PRO: ENTITLEMENT_IDS.PILOT_PRO,
-  FLEET: ENTITLEMENT_IDS.FLEET,
-};
-
 // Billing cycle type
 type BillingCycle = 'monthly' | 'yearly';
+
+/**
+ * Get the RevenueCat offering ID for a plan code
+ * CRITICAL: Each plan MUST map to its own offering
+ * - PILOT → offerings.all.pilot
+ * - PILOT_PRO → offerings.all.pilot_pro  
+ * - FLEET → offerings.all.fleet
+ */
+const getOfferingIdForPlan = (planCode: PlanCode): typeof OFFERING_IDS[keyof typeof OFFERING_IDS] | null => {
+  switch (planCode) {
+    case 'PILOT':
+      return OFFERING_IDS.PILOT; // 'pilot'
+    case 'PILOT_PRO':
+      return OFFERING_IDS.PILOT_PRO; // 'pilot_pro'
+    case 'FLEET':
+      return OFFERING_IDS.FLEET; // 'fleet'
+    default:
+      return null;
+  }
+};
+
+/**
+ * Get the RevenueCat entitlement ID for a plan code
+ */
+const getEntitlementIdForPlan = (planCode: PlanCode): typeof ENTITLEMENT_IDS[keyof typeof ENTITLEMENT_IDS] | null => {
+  switch (planCode) {
+    case 'PILOT':
+      return ENTITLEMENT_IDS.PILOT;
+    case 'PILOT_PRO':
+      return ENTITLEMENT_IDS.PILOT_PRO;
+    case 'FLEET':
+      return ENTITLEMENT_IDS.FLEET;
+    default:
+      return null;
+  }
+};
 
 // ============================================
 // TRANSLATIONS
