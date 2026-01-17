@@ -78,22 +78,44 @@ const COLORS = {
 // Plan codes to display (always show all 4)
 const ALL_PLAN_CODES: PlanCode[] = ['BASIC', 'PILOT', 'PILOT_PRO', 'FLEET'];
 
-// Map plan codes to RevenueCat offering IDs
-const PLAN_TO_OFFERING: Record<string, string> = {
-  PILOT: OFFERING_IDS.PILOT,
-  PILOT_PRO: OFFERING_IDS.PILOT_PRO,
-  FLEET: OFFERING_IDS.FLEET,
-};
-
-// Map plan codes to RevenueCat entitlement IDs
-const PLAN_TO_ENTITLEMENT: Record<string, string> = {
-  PILOT: ENTITLEMENT_IDS.PILOT,
-  PILOT_PRO: ENTITLEMENT_IDS.PILOT_PRO,
-  FLEET: ENTITLEMENT_IDS.FLEET,
-};
-
 // Billing cycle type
 type BillingCycle = 'monthly' | 'yearly';
+
+/**
+ * Get the RevenueCat offering ID for a plan code
+ * CRITICAL: Each plan MUST map to its own offering
+ * - PILOT → offerings.all.pilot
+ * - PILOT_PRO → offerings.all.pilot_pro  
+ * - FLEET → offerings.all.fleet
+ */
+const getOfferingIdForPlan = (planCode: PlanCode): typeof OFFERING_IDS[keyof typeof OFFERING_IDS] | null => {
+  switch (planCode) {
+    case 'PILOT':
+      return OFFERING_IDS.PILOT; // 'pilot'
+    case 'PILOT_PRO':
+      return OFFERING_IDS.PILOT_PRO; // 'pilot_pro'
+    case 'FLEET':
+      return OFFERING_IDS.FLEET; // 'fleet'
+    default:
+      return null;
+  }
+};
+
+/**
+ * Get the RevenueCat entitlement ID for a plan code
+ */
+const getEntitlementIdForPlan = (planCode: PlanCode): typeof ENTITLEMENT_IDS[keyof typeof ENTITLEMENT_IDS] | null => {
+  switch (planCode) {
+    case 'PILOT':
+      return ENTITLEMENT_IDS.PILOT;
+    case 'PILOT_PRO':
+      return ENTITLEMENT_IDS.PILOT_PRO;
+    case 'FLEET':
+      return ENTITLEMENT_IDS.FLEET;
+    default:
+      return null;
+  }
+};
 
 // ============================================
 // TRANSLATIONS
@@ -287,18 +309,27 @@ export default function SubscriptionScreen() {
 
     if (planCode === 'BASIC' || planCode === currentPlanCode) return;
 
-    const offeringId = PLAN_TO_OFFERING[planCode];
-    if (!offeringId) return;
+    // Get the CORRECT offering for this specific plan
+    const offeringId = getOfferingIdForPlan(planCode);
+    if (!offeringId) {
+      console.error(`[Subscription] No offering ID for plan: ${planCode}`);
+      return;
+    }
 
     const packageId = selectedBillingCycle === 'monthly' 
       ? PACKAGE_IDS.MONTHLY 
       : PACKAGE_IDS.ANNUAL;
 
-    const pkg = getPackage(offerings, offeringId as any, packageId);
+    // Get the package from the CORRECT offering (not a different one!)
+    const pkg = getPackage(offerings, offeringId, packageId);
     if (!pkg) {
+      console.error(`[Subscription] Package not found: ${offeringId} / ${packageId}`);
       Alert.alert(texts.purchaseError, texts.errorLoading);
       return;
     }
+
+    // Log which product is being purchased for debugging
+    console.log(`[Subscription] Purchasing: plan=${planCode}, offering=${offeringId}, package=${packageId}, productId=${pkg.product.identifier}`);
 
     setIsPurchasing(planCode);
 
@@ -376,29 +407,62 @@ export default function SubscriptionScreen() {
   // HELPER FUNCTIONS
   // ============================================
 
+  /**
+   * Get the price string for a plan from RevenueCat
+   * IMPORTANT: Prices come ONLY from RevenueCat (package.product.priceString)
+   * NO static prices, NO fallbacks to PLANS
+   */
   const getPriceString = (planCode: PlanCode, billingCycle: BillingCycle): string => {
+    // BASIC is always free
     if (planCode === 'BASIC') return texts.free;
+    
+    // Not iOS or no offerings loaded yet - show loading indicator
     if (Platform.OS !== 'ios' || !offerings) {
-      // Fallback to static prices if not on iOS
-      const plan = PLANS[planCode];
-      const price = billingCycle === 'monthly' ? plan.monthly : plan.yearly;
-      return `${price.toFixed(2)}$ CAD`;
+      return '—';
     }
 
-    const offeringId = PLAN_TO_OFFERING[planCode];
-    if (!offeringId) return '—';
+    // Get the CORRECT offering for this plan
+    const offeringId = getOfferingIdForPlan(planCode);
+    if (!offeringId) {
+      console.warn(`[Subscription] No offering ID for plan: ${planCode}`);
+      return '—';
+    }
 
+    // Get the package from the CORRECT offering
     const packageId = billingCycle === 'monthly' ? PACKAGE_IDS.MONTHLY : PACKAGE_IDS.ANNUAL;
-    const pkg = getPackage(offerings, offeringId as any, packageId);
+    const pkg = getPackage(offerings, offeringId, packageId);
 
-    return pkg?.product?.priceString || '—';
+    if (!pkg) {
+      console.warn(`[Subscription] Package not found: ${offeringId} / ${packageId}`);
+      return '—';
+    }
+
+    // Return ONLY the RevenueCat price string - no fallbacks
+    return pkg.product.priceString;
   };
 
+  /**
+   * Calculate yearly savings percentage from RevenueCat prices
+   * Uses actual Apple prices, not static values
+   */
   const getYearlySavings = (planCode: PlanCode): number => {
-    const plan = PLANS[planCode];
-    if (plan.monthly === 0) return 0;
-    const monthlyTotal = plan.monthly * 12;
-    const savings = ((monthlyTotal - plan.yearly) / monthlyTotal) * 100;
+    if (planCode === 'BASIC' || Platform.OS !== 'ios' || !offerings) return 0;
+
+    const offeringId = getOfferingIdForPlan(planCode);
+    if (!offeringId) return 0;
+
+    const monthlyPkg = getPackage(offerings, offeringId, PACKAGE_IDS.MONTHLY);
+    const annualPkg = getPackage(offerings, offeringId, PACKAGE_IDS.ANNUAL);
+
+    if (!monthlyPkg || !annualPkg) return 0;
+
+    const monthlyPrice = monthlyPkg.product.price;
+    const annualPrice = annualPkg.product.price;
+
+    if (monthlyPrice <= 0) return 0;
+
+    const monthlyTotal = monthlyPrice * 12;
+    const savings = ((monthlyTotal - annualPrice) / monthlyTotal) * 100;
     return Math.round(savings);
   };
 
