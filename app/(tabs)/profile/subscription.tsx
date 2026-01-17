@@ -1077,6 +1077,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
   },
+  selectButtonDisabled: {
+    opacity: 0.6,
+  },
   selectButtonText: {
     fontSize: 16,
     fontWeight: '700',
