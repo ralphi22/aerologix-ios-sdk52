@@ -311,8 +311,17 @@ export default function SubscriptionScreen() {
 
     // Get the CORRECT offering for this specific plan
     const offeringId = getOfferingIdForPlan(planCode);
-    if (!offeringId) {
-      console.error(`[Subscription] No offering ID for plan: ${planCode}`);
+    if (!offeringId || !offerings) {
+      // Silently return - button should already be disabled
+      console.log(`[Subscription] Cannot subscribe: offeringId=${offeringId}, offerings=${!!offerings}`);
+      return;
+    }
+
+    // Get the offering
+    const offering = offerings.all[offeringId];
+    if (!offering) {
+      // Silently return - button should already be disabled
+      console.log(`[Subscription] Offering not found: ${offeringId}`);
       return;
     }
 
@@ -320,11 +329,11 @@ export default function SubscriptionScreen() {
       ? PACKAGE_IDS.MONTHLY 
       : PACKAGE_IDS.ANNUAL;
 
-    // Get the package from the CORRECT offering (not a different one!)
-    const pkg = getPackage(offerings, offeringId, packageId);
+    // Use availablePackages.find() - NOT offering.monthly or offering.annual
+    const pkg = offering.availablePackages.find(p => p.identifier === packageId);
     if (!pkg) {
-      console.error(`[Subscription] Package not found: ${offeringId} / ${packageId}`);
-      Alert.alert(texts.purchaseError, texts.errorLoading);
+      // Silently return - button should already be disabled
+      console.log(`[Subscription] Package not found: ${offeringId} / ${packageId}`);
       return;
     }
 
@@ -408,6 +417,23 @@ export default function SubscriptionScreen() {
   // ============================================
 
   /**
+   * Check if a package is available for a plan
+   * Used to disable Subscribe button when package not loaded
+   */
+  const isPackageAvailable = (planCode: PlanCode, billingCycle: BillingCycle): boolean => {
+    if (planCode === 'BASIC') return true;
+    if (Platform.OS !== 'ios' || !offerings) return false;
+
+    const offeringId = getOfferingIdForPlan(planCode);
+    if (!offeringId) return false;
+
+    const packageId = billingCycle === 'monthly' ? PACKAGE_IDS.MONTHLY : PACKAGE_IDS.ANNUAL;
+    const pkg = getPackage(offerings, offeringId, packageId);
+    
+    return pkg !== null;
+  };
+
+  /**
    * Get the price string for a plan from RevenueCat
    * IMPORTANT: Prices come ONLY from RevenueCat (package.product.priceString)
    * NO static prices, NO fallbacks to PLANS
@@ -416,9 +442,14 @@ export default function SubscriptionScreen() {
     // BASIC is always free
     if (planCode === 'BASIC') return texts.free;
     
-    // Not iOS or no offerings loaded yet - show loading indicator
-    if (Platform.OS !== 'ios' || !offerings) {
+    // Not iOS - show dash (not available)
+    if (Platform.OS !== 'ios') {
       return '—';
+    }
+    
+    // Still loading offerings - show loading text
+    if (isLoading || !offerings) {
+      return texts.loading;
     }
 
     // Get the CORRECT offering for this plan
@@ -428,9 +459,15 @@ export default function SubscriptionScreen() {
       return '—';
     }
 
-    // Get the package from the CORRECT offering
+    // Get the package from the CORRECT offering using availablePackages.find()
+    const offering = offerings.all[offeringId];
+    if (!offering) {
+      console.warn(`[Subscription] Offering not found: ${offeringId}`);
+      return '—';
+    }
+
     const packageId = billingCycle === 'monthly' ? PACKAGE_IDS.MONTHLY : PACKAGE_IDS.ANNUAL;
-    const pkg = getPackage(offerings, offeringId, packageId);
+    const pkg = offering.availablePackages.find(p => p.identifier === packageId);
 
     if (!pkg) {
       console.warn(`[Subscription] Package not found: ${offeringId} / ${packageId}`);
@@ -451,8 +488,12 @@ export default function SubscriptionScreen() {
     const offeringId = getOfferingIdForPlan(planCode);
     if (!offeringId) return 0;
 
-    const monthlyPkg = getPackage(offerings, offeringId, PACKAGE_IDS.MONTHLY);
-    const annualPkg = getPackage(offerings, offeringId, PACKAGE_IDS.ANNUAL);
+    const offering = offerings.all[offeringId];
+    if (!offering) return 0;
+
+    // Use availablePackages.find() - NOT offering.monthly or offering.annual
+    const monthlyPkg = offering.availablePackages.find(p => p.identifier === PACKAGE_IDS.MONTHLY);
+    const annualPkg = offering.availablePackages.find(p => p.identifier === PACKAGE_IDS.ANNUAL);
 
     if (!monthlyPkg || !annualPkg) return 0;
 
@@ -479,6 +520,11 @@ export default function SubscriptionScreen() {
     const isLoadingThisPlan = isPurchasing === code;
     const priceString = getPriceString(code, selectedBillingCycle);
     const savings = getYearlySavings(code);
+    
+    // Check if the package is available for this plan
+    // Button will be disabled if package not loaded
+    const canSubscribe = isPackageAvailable(code, selectedBillingCycle);
+    const isButtonDisabled = isLoadingThisPlan || isPurchasing !== null || !canSubscribe;
 
     return (
       <View
@@ -574,13 +620,19 @@ export default function SubscriptionScreen() {
         {/* Action button */}
         {!isCurrentPlan && code !== 'BASIC' && Platform.OS === 'ios' && (
           <TouchableOpacity
-            style={[styles.selectButton, { backgroundColor: plan.color }]}
+            style={[
+              styles.selectButton, 
+              { backgroundColor: plan.color },
+              isButtonDisabled && styles.selectButtonDisabled
+            ]}
             onPress={() => handleSubscribe(code)}
-            disabled={isLoadingThisPlan || isPurchasing !== null}
+            disabled={isButtonDisabled}
             activeOpacity={0.7}
           >
             {isLoadingThisPlan ? (
               <ActivityIndicator size="small" color={COLORS.white} />
+            ) : !canSubscribe ? (
+              <Text style={styles.selectButtonText}>{texts.loading}</Text>
             ) : (
               <Text style={styles.selectButtonText}>{texts.choosePlan}</Text>
             )}
@@ -1024,6 +1076,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
+  },
+  selectButtonDisabled: {
+    opacity: 0.6,
   },
   selectButtonText: {
     fontSize: 16,
