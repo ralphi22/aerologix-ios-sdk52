@@ -309,18 +309,27 @@ export default function SubscriptionScreen() {
 
     if (planCode === 'BASIC' || planCode === currentPlanCode) return;
 
-    const offeringId = PLAN_TO_OFFERING[planCode];
-    if (!offeringId) return;
+    // Get the CORRECT offering for this specific plan
+    const offeringId = getOfferingIdForPlan(planCode);
+    if (!offeringId) {
+      console.error(`[Subscription] No offering ID for plan: ${planCode}`);
+      return;
+    }
 
     const packageId = selectedBillingCycle === 'monthly' 
       ? PACKAGE_IDS.MONTHLY 
       : PACKAGE_IDS.ANNUAL;
 
-    const pkg = getPackage(offerings, offeringId as any, packageId);
+    // Get the package from the CORRECT offering (not a different one!)
+    const pkg = getPackage(offerings, offeringId, packageId);
     if (!pkg) {
+      console.error(`[Subscription] Package not found: ${offeringId} / ${packageId}`);
       Alert.alert(texts.purchaseError, texts.errorLoading);
       return;
     }
+
+    // Log which product is being purchased for debugging
+    console.log(`[Subscription] Purchasing: plan=${planCode}, offering=${offeringId}, package=${packageId}, productId=${pkg.product.identifier}`);
 
     setIsPurchasing(planCode);
 
