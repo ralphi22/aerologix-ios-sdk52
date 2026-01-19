@@ -395,7 +395,8 @@ export default function SubscriptionScreen() {
           await loadUser();
           Alert.alert(texts.restoreSuccess, texts.restoreSuccessMessage);
         } else {
-          Alert.alert(texts.restoreNoSubscription, texts.restoreNoSubscriptionMessage);
+          // Apple-compliant neutral message when no subscription found
+          Alert.alert('', texts.restoreNoSubscription);
         }
       } else if (result.error) {
         Alert.alert(texts.purchaseError, result.error.message);
