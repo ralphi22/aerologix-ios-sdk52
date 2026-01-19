@@ -147,7 +147,6 @@ const TEXTS = {
     restoreSuccess: 'Purchases restored!',
     restoreSuccessMessage: 'Your subscription has been restored.',
     restoreNoSubscription: 'No active subscription to restore.',
-    restoreNoSubscriptionMessage: '',
     networkError: 'Network error. Please check your connection.',
     unknownError: 'An unexpected error occurred.',
     securityNote: 'Payments secured by Apple. Subscriptions renew automatically.',
