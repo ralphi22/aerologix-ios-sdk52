@@ -146,8 +146,7 @@ const TEXTS = {
     purchaseSuccessMessage: 'Your subscription is now active.',
     restoreSuccess: 'Purchases restored!',
     restoreSuccessMessage: 'Your subscription has been restored.',
-    restoreNoSubscription: 'No subscription found',
-    restoreNoSubscriptionMessage: 'No previous purchases found to restore.',
+    restoreNoSubscription: 'No active subscription to restore.',
     networkError: 'Network error. Please check your connection.',
     unknownError: 'An unexpected error occurred.',
     securityNote: 'Payments secured by Apple. Subscriptions renew automatically.',
@@ -186,8 +185,7 @@ const TEXTS = {
     purchaseSuccessMessage: 'Votre abonnement est maintenant actif.',
     restoreSuccess: 'Achats restaurés !',
     restoreSuccessMessage: 'Votre abonnement a été restauré.',
-    restoreNoSubscription: 'Aucun abonnement trouvé',
-    restoreNoSubscriptionMessage: 'Aucun achat précédent trouvé à restaurer.',
+    restoreNoSubscription: 'No active subscription to restore.',
     networkError: 'Erreur réseau. Vérifiez votre connexion.',
     unknownError: 'Une erreur inattendue s\'est produite.',
     securityNote: 'Paiements sécurisés par Apple. Les abonnements se renouvellent automatiquement.',
@@ -395,7 +393,8 @@ export default function SubscriptionScreen() {
           await loadUser();
           Alert.alert(texts.restoreSuccess, texts.restoreSuccessMessage);
         } else {
-          Alert.alert(texts.restoreNoSubscription, texts.restoreNoSubscriptionMessage);
+          // Apple-compliant neutral message when no subscription found
+          Alert.alert('', texts.restoreNoSubscription);
         }
       } else if (result.error) {
         Alert.alert(texts.purchaseError, result.error.message);
