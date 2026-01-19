@@ -1,38 +1,33 @@
 /**
- * TC AD/SB Comparison Screen - Transport Canada Airworthiness Directives & Service Bulletins
+ * TC AD/SB Comparison Screen
  * 
- * OFFICIAL API CONTRACT:
+ * Displays structured comparison between:
+ * - Applicable TC AD/SB
+ * - Documentary evidence found in OCR-analyzed maintenance reports
+ * 
+ * TC-SAFE: Informational display ONLY
+ * - No aviation logic in frontend
+ * - No compliance wording
+ * - No calculations
+ * - Backend is the source of truth
+ * 
+ * API CONTRACT:
  * GET /api/adsb/compare/{aircraft_id}
  * Response: {
- *   total_tc_items: number,
- *   found_count: number,
- *   missing_count: number,
- *   new_tc_items: ComparisonItem[],
- *   comparison: ComparisonItem[],
+ *   airworthiness_directives: ADSBItem[],
+ *   service_bulletins: ADSBItem[],
  *   disclaimer: string
  * }
  * 
- * ComparisonItem: {
- *   ref: string,
- *   title: string,
- *   type: "AD" | "SB",
- *   status: "OK" | "MISSING" | "DUE_SOON" | "NEW",
- *   last_recorded_date?: string,
- *   next_due?: string,
- *   recurrence_years?: number,
- *   recurrence_hours?: number,
- *   tc_url?: string
+ * ADSBItem: {
+ *   identifier: string,
+ *   title?: string,
+ *   recurrence?: string,
+ *   detected_count: number
  * }
- * 
- * CRASH-PROOF VERSION:
- * - ErrorBoundary for render crash protection
- * - Strict normalization of API response
- * - All fields protected with safe defaults
- * - Never uses .map/.length on non-array values
- * - TC-Safe: Informational only
  */
 
-import React, { useState, useEffect, useCallback, useMemo, Component, ReactNode } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -40,13 +35,15 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Linking,
-  Platform,
+  RefreshControl,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { t, getLanguage } from '@/i18n';
+import { Ionicons } from '@expo/vector-icons';
 import api from '@/services/api';
 
+// ============================================================
+// COLORS
+// ============================================================
 const COLORS = {
   primary: '#0033A0',
   background: '#F5F5F5',
@@ -54,455 +51,163 @@ const COLORS = {
   textDark: '#212121',
   textMuted: '#616161',
   border: '#E0E0E0',
-  // Status colors - OFFICIAL
-  red: '#E53935',      // MISSING
-  redBg: '#FFEBEE',
-  orange: '#FF9800',   // DUE_SOON
-  orangeBg: '#FFF3E0',
-  green: '#43A047',    // OK / Found
-  greenBg: '#E8F5E9',
-  blue: '#1976D2',     // NEW / Info
-  blueBg: '#E3F2FD',
-  // Alert
-  alertYellow: '#FFF8E1',
-  alertYellowBorder: '#FFE082',
+  // AD (Airworthiness Directives)
+  adRed: '#E53935',
+  adRedBg: '#FFEBEE',
+  // SB (Service Bulletins)
+  sbBlue: '#1976D2',
+  sbBlueBg: '#E3F2FD',
+  // Alert / Warning
+  warningOrange: '#FF9800',
+  warningOrangeBg: '#FFF3E0',
+  // Success / Found
+  successGreen: '#43A047',
+  successGreenBg: '#E8F5E9',
+  // Disclaimer
+  disclaimerYellow: '#FFF8E1',
+  disclaimerYellowBorder: '#FFE082',
 };
 
 // ============================================================
-// ERROR BOUNDARY - Catches render crashes
+// TYPES - API Contract
 // ============================================================
-interface ErrorBoundaryProps {
-  children: ReactNode;
-  onRetry: () => void;
-  onBack: () => void;
+interface ADSBItem {
+  identifier: string;
+  title?: string;
+  recurrence?: string;
+  detected_count: number;
 }
 
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
-}
-
-class TCErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.warn('[TC AD/SB] Render error caught:', error?.message || 'Unknown');
-    console.warn('[TC AD/SB] Stack:', errorInfo?.componentStack || 'N/A');
-  }
-
-  handleRetry = () => {
-    this.setState({ hasError: false, error: null });
-    this.props.onRetry();
-  };
-
-  render() {
-    const lang = getLanguage();
-    
-    if (this.state.hasError) {
-      return (
-        <View style={errorStyles.container}>
-          <View style={errorStyles.content}>
-            <Text style={errorStyles.icon}>⚠️</Text>
-            <Text style={errorStyles.title}>
-              {lang === 'fr' ? "Erreur d'affichage" : 'Display Error'}
-            </Text>
-            <Text style={errorStyles.subtitle}>
-              {lang === 'fr' 
-                ? 'Données incomplètes — vérifiez avec les registres officiels et votre TEA.'
-                : 'Incomplete data — verify with official records and your AME.'}
-            </Text>
-            
-            <View style={errorStyles.buttons}>
-              <TouchableOpacity 
-                style={errorStyles.backButton}
-                onPress={this.props.onBack}
-                activeOpacity={0.7}
-              >
-                <Text style={errorStyles.backButtonText}>
-                  {lang === 'fr' ? '← Retour' : '← Back'}
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={errorStyles.retryButton}
-                onPress={this.handleRetry}
-                activeOpacity={0.7}
-              >
-                <Text style={errorStyles.retryButtonText}>
-                  {lang === 'fr' ? 'Réessayer' : 'Retry'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={errorStyles.disclaimer}>
-              <Text style={errorStyles.disclaimerText}>
-                {lang === 'fr'
-                  ? 'Informatif seulement — vérifiez avec les registres officiels et votre TEA.'
-                  : 'Informational only — verify with official records and your AME/TEA.'}
-              </Text>
-            </View>
-          </View>
-        </View>
-      );
-    }
-
-    return this.props.children;
-  }
-}
-
-const errorStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  content: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-    maxWidth: 400,
-    width: '100%',
-  },
-  icon: { fontSize: 56, marginBottom: 16 },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: COLORS.textDark,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 15,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  buttons: {
-    flexDirection: 'row',
-    width: '100%',
-    marginBottom: 24,
-  },
-  backButton: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    paddingVertical: 14,
-    borderRadius: 10,
-    marginRight: 8,
-    alignItems: 'center',
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.textDark,
-  },
-  retryButton: {
-    flex: 1,
-    backgroundColor: COLORS.primary,
-    paddingVertical: 14,
-    borderRadius: 10,
-    marginLeft: 8,
-    alignItems: 'center',
-  },
-  retryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.white,
-  },
-  disclaimer: {
-    backgroundColor: COLORS.alertYellow,
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.alertYellowBorder,
-    width: '100%',
-  },
-  disclaimerText: {
-    fontSize: 12,
-    color: '#5D4037',
-    textAlign: 'center',
-    lineHeight: 18,
-    fontStyle: 'italic',
-  },
-});
-
-// ============================================================
-// TYPES - OFFICIAL API CONTRACT
-// ============================================================
-
-// Status enum from backend
-type ItemStatus = 'OK' | 'MISSING' | 'DUE_SOON' | 'NEW';
-
-// Comparison item from API
-interface ComparisonItem {
-  ref: string;
-  title: string;
-  type: 'AD' | 'SB';
-  status: ItemStatus;
-  last_recorded_date?: string;
-  next_due?: string;
-  recurrence_years?: number;
-  recurrence_hours?: number;
-  tc_url?: string;
-}
-
-// Normalized API response
-interface NormalizedResponse {
-  total_tc_items: number;
-  found_count: number;
-  missing_count: number;
-  comparison: ComparisonItem[];
-  new_tc_items: ComparisonItem[];
+interface APIResponse {
+  airworthiness_directives: ADSBItem[];
+  service_bulletins: ADSBItem[];
   disclaimer: string;
 }
 
 // ============================================================
-// SAFE HELPERS - Never crash
+// SAFE HELPERS
 // ============================================================
+const safeArray = <T,>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  return [];
+};
 
 const safeString = (value: unknown, fallback: string = ''): string => {
   if (typeof value === 'string') return value;
-  if (typeof value === 'number') return String(value);
   return fallback;
 };
 
 const safeNumber = (value: unknown, fallback: number = 0): number => {
   if (typeof value === 'number' && !isNaN(value)) return value;
-  if (typeof value === 'string') {
-    const parsed = parseFloat(value);
-    if (!isNaN(parsed)) return parsed;
-  }
   return fallback;
 };
 
-const safeArray = <T>(value: unknown): T[] => {
-  if (Array.isArray(value)) return value as T[];
-  return [];
-};
-
 // ============================================================
-// NORMALIZER - OFFICIAL API CONTRACT
+// NORMALIZE API RESPONSE
 // ============================================================
-
-/**
- * Normalize a single comparison item
- * Protects all fields with safe defaults
- */
-const normalizeItem = (raw: unknown): ComparisonItem | null => {
-  if (!raw || typeof raw !== 'object') return null;
-  
-  const item = raw as Record<string, unknown>;
-  
-  // ref is REQUIRED
-  const ref = safeString(item.ref || item.reference);
-  if (!ref) {
-    console.warn('[TC AD/SB] Item missing ref, skipping');
-    return null;
-  }
-  
-  // title with safe default
-  const title = safeString(item.title || item.description, '');
-  
-  // type: AD or SB
-  const rawType = safeString(item.type, 'AD').toUpperCase();
-  const type: 'AD' | 'SB' = rawType === 'SB' ? 'SB' : 'AD';
-  
-  // status: OK, MISSING, DUE_SOON, NEW
-  const rawStatus = safeString(item.status, 'OK').toUpperCase();
-  let status: ItemStatus = 'OK';
-  if (rawStatus === 'MISSING') status = 'MISSING';
-  else if (rawStatus === 'DUE_SOON') status = 'DUE_SOON';
-  else if (rawStatus === 'NEW') status = 'NEW';
-  else if (rawStatus === 'OK' || rawStatus === 'FOUND') status = 'OK';
-  
-  return {
-    ref,
-    title,
-    type,
-    status,
-    last_recorded_date: safeString(item.last_recorded_date, undefined),
-    next_due: safeString(item.next_due, undefined),
-    recurrence_years: item.recurrence_years != null ? safeNumber(item.recurrence_years, undefined) : undefined,
-    recurrence_hours: item.recurrence_hours != null ? safeNumber(item.recurrence_hours, undefined) : undefined,
-    tc_url: safeString(item.tc_url || item.url, undefined),
+const normalizeResponse = (data: unknown): APIResponse => {
+  const defaultResponse: APIResponse = {
+    airworthiness_directives: [],
+    service_bulletins: [],
+    disclaimer: 'Informational only. This tool does not determine airworthiness or compliance. Verification with official Transport Canada records and a licensed AME is required.',
   };
-};
 
-/**
- * Normalize API response to official contract
- * NEVER uses: data.found, data.missing, data.tc_items, data.items
- * ONLY uses: data.comparison[], data.new_tc_items[]
- */
-const normalizeApiResponse = (data: unknown): NormalizedResponse => {
-  const defaultResponse: NormalizedResponse = {
-    total_tc_items: 0,
-    found_count: 0,
-    missing_count: 0,
-    comparison: [],
-    new_tc_items: [],
-    disclaimer: '',
-  };
-  
   if (!data || typeof data !== 'object') {
-    console.warn('[TC AD/SB] Invalid API response - not an object');
     return defaultResponse;
   }
-  
+
   const raw = data as Record<string, unknown>;
-  
-  // Extract counts (safe)
-  const total_tc_items = safeNumber(raw.total_tc_items, 0);
-  const found_count = safeNumber(raw.found_count, 0);
-  const missing_count = safeNumber(raw.missing_count, 0);
-  
-  // OFFICIAL: Extract comparison[] - this is the main array
-  const rawComparison = safeArray<unknown>(raw.comparison);
-  const comparison: ComparisonItem[] = [];
-  for (const rawItem of rawComparison) {
-    const normalized = normalizeItem(rawItem);
-    if (normalized) {
-      comparison.push(normalized);
-    }
-  }
-  
-  // OFFICIAL: Extract new_tc_items[]
-  const rawNewItems = safeArray<unknown>(raw.new_tc_items);
-  const new_tc_items: ComparisonItem[] = [];
-  for (const rawItem of rawNewItems) {
-    const normalized = normalizeItem(rawItem);
-    if (normalized) {
-      // Mark as NEW status
-      normalized.status = 'NEW';
-      new_tc_items.push(normalized);
-    }
-  }
-  
-  // Extract disclaimer
+
+  // Normalize ADs
+  const rawADs = safeArray<unknown>(raw.airworthiness_directives || raw.ads || raw.ad_items);
+  const airworthiness_directives: ADSBItem[] = rawADs
+    .map((item: unknown) => {
+      if (!item || typeof item !== 'object') return null;
+      const i = item as Record<string, unknown>;
+      const identifier = safeString(i.identifier || i.ref || i.number);
+      if (!identifier) return null;
+      return {
+        identifier,
+        title: safeString(i.title || i.description),
+        recurrence: safeString(i.recurrence || i.recurrence_info),
+        detected_count: safeNumber(i.detected_count || i.count, 0),
+      };
+    })
+    .filter((item): item is ADSBItem => item !== null);
+
+  // Normalize SBs
+  const rawSBs = safeArray<unknown>(raw.service_bulletins || raw.sbs || raw.sb_items);
+  const service_bulletins: ADSBItem[] = rawSBs
+    .map((item: unknown) => {
+      if (!item || typeof item !== 'object') return null;
+      const i = item as Record<string, unknown>;
+      const identifier = safeString(i.identifier || i.ref || i.number);
+      if (!identifier) return null;
+      return {
+        identifier,
+        title: safeString(i.title || i.description),
+        recurrence: safeString(i.recurrence || i.recurrence_info),
+        detected_count: safeNumber(i.detected_count || i.count, 0),
+      };
+    })
+    .filter((item): item is ADSBItem => item !== null);
+
+  // Disclaimer
   const disclaimer = safeString(
     raw.disclaimer,
-    'Informational only — verify with official Transport Canada records and your AME/TEA.'
+    defaultResponse.disclaimer
   );
-  
+
   return {
-    total_tc_items,
-    found_count,
-    missing_count,
-    comparison,
-    new_tc_items,
+    airworthiness_directives,
+    service_bulletins,
     disclaimer,
   };
 };
 
 // ============================================================
-// STATUS HELPERS
-// ============================================================
-
-/**
- * Get visual style for status
- * OK → green, DUE_SOON → orange, MISSING → red, NEW → blue
- */
-const getStatusStyle = (status: ItemStatus, type: 'AD' | 'SB') => {
-  // SB items are always info/blue (no compliance requirement)
-  if (type === 'SB') {
-    return { bg: COLORS.blueBg, text: COLORS.blue };
-  }
-  
-  switch (status) {
-    case 'MISSING':
-      return { bg: COLORS.redBg, text: COLORS.red };
-    case 'DUE_SOON':
-      return { bg: COLORS.orangeBg, text: COLORS.orange };
-    case 'OK':
-      return { bg: COLORS.greenBg, text: COLORS.green };
-    case 'NEW':
-      return { bg: COLORS.blueBg, text: COLORS.blue };
-    default:
-      return { bg: COLORS.blueBg, text: COLORS.blue };
-  }
-};
-
-/**
- * Get display text for status
- * NEVER "Compliant" / "Non-compliant"
- * Only: "Found", "Missing", "Due soon", "New"
- */
-const getStatusText = (status: ItemStatus, lang: string): string => {
-  switch (status) {
-    case 'OK':
-      return lang === 'fr' ? 'Trouvé' : 'Found';
-    case 'MISSING':
-      return lang === 'fr' ? 'Manquant' : 'Missing';
-    case 'DUE_SOON':
-      return lang === 'fr' ? 'Bientôt dû' : 'Due soon';
-    case 'NEW':
-      return lang === 'fr' ? 'Nouveau' : 'New';
-    default:
-      return lang === 'fr' ? 'Info' : 'Info';
-  }
-};
-
-// ============================================================
 // MAIN COMPONENT
 // ============================================================
-function TcAdSbScreenContent() {
+export default function TcAdSbScreen() {
   const router = useRouter();
-  const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
-  const lang = getLanguage();
+  const { aircraftId, registration } = useLocalSearchParams<{ 
+    aircraftId: string; 
+    registration: string;
+  }>();
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<NormalizedResponse | null>(null);
+  const [data, setData] = useState<APIResponse | null>(null);
 
-  // Fetch handler
-  const fetchData = useCallback(async () => {
+  // Fetch data from backend
+  const fetchData = useCallback(async (showRefreshing = false) => {
     if (!aircraftId) {
-      setError(lang === 'fr' ? 'ID avion manquant' : 'Missing aircraft ID');
+      setError('Missing aircraft ID');
       setIsLoading(false);
       return;
     }
-    
-    setIsLoading(true);
+
+    if (showRefreshing) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
     setError(null);
-    
+
     try {
       const response = await api.get(`/api/adsb/compare/${aircraftId}`);
-      
-      // Normalize with official contract
-      const normalized = normalizeApiResponse(response.data);
+      const normalized = normalizeResponse(response.data);
       setData(normalized);
-      
-      console.warn('[TC AD/SB] Loaded:', {
-        comparison: normalized.comparison.length,
-        newItems: normalized.new_tc_items.length,
-        total: normalized.total_tc_items,
-      });
     } catch (err: unknown) {
-      console.warn('[TC AD/SB] Fetch error:', err);
+      console.warn('[AD/SB] Fetch error:', err);
       
-      // Handle specific error codes
-      let errorMessage = lang === 'fr' 
-        ? 'Impossible de récupérer la comparaison TC. Vérifiez la connexion et réessayez.'
-        : 'Unable to retrieve TC comparison. Verify connection and try again.';
+      let errorMessage = 'Unable to load AD/SB data. Please try again.';
       
       if (err && typeof err === 'object') {
-        const errObj = err as { response?: { status?: number; data?: { detail?: string } }; message?: string };
-        
-        if (errObj?.response?.status === 401) {
-          errorMessage = lang === 'fr' ? 'Non autorisé' : 'Unauthorized';
-        } else if (errObj?.response?.status === 404) {
-          errorMessage = lang === 'fr' 
-            ? 'Aucune donnée TC disponible pour cet aéronef.'
-            : 'No TC data available for this aircraft.';
+        const errObj = err as { response?: { status?: number; data?: { detail?: string } } };
+        if (errObj?.response?.status === 404) {
+          errorMessage = 'No AD/SB data available for this aircraft.';
         } else if (errObj?.response?.data?.detail) {
           errorMessage = errObj.response.data.detail;
         }
@@ -511,199 +216,164 @@ function TcAdSbScreenContent() {
       setError(errorMessage);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
-  }, [aircraftId, lang]);
+  }, [aircraftId]);
 
-  // Initial fetch
+  // Initial load
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Filter items by status - SAFE (always arrays)
-  const foundItems = useMemo(() => {
-    const comparison = safeArray<ComparisonItem>(data?.comparison);
-    return comparison.filter(i => i?.status === 'OK');
-  }, [data?.comparison]);
+  // Pull to refresh
+  const handleRefresh = useCallback(() => {
+    fetchData(true);
+  }, [fetchData]);
 
-  const missingItems = useMemo(() => {
-    const comparison = safeArray<ComparisonItem>(data?.comparison);
-    return comparison.filter(i => i?.status === 'MISSING');
-  }, [data?.comparison]);
+  // Count items with no detections
+  const adMissingCount = useMemo(() => {
+    if (!data) return 0;
+    return data.airworthiness_directives.filter(item => item.detected_count === 0).length;
+  }, [data]);
 
-  const dueSoonItems = useMemo(() => {
-    const comparison = safeArray<ComparisonItem>(data?.comparison);
-    return comparison.filter(i => i?.status === 'DUE_SOON');
-  }, [data?.comparison]);
+  const sbMissingCount = useMemo(() => {
+    if (!data) return 0;
+    return data.service_bulletins.filter(item => item.detected_count === 0).length;
+  }, [data]);
 
-  const newTcItems = useMemo(() => {
-    const newItems = safeArray<ComparisonItem>(data?.new_tc_items);
-    return newItems.filter(i => i?.ref);
-  }, [data?.new_tc_items]);
+  // ============================================================
+  // RENDER ITEM ROW
+  // ============================================================
+  const renderItem = useCallback((item: ADSBItem, type: 'AD' | 'SB', index: number) => {
+    const isAD = type === 'AD';
+    const hasNoDetections = item.detected_count === 0;
+    
+    return (
+      <View 
+        key={`${type}-${item.identifier}-${index}`}
+        style={[
+          styles.itemRow,
+          hasNoDetections && styles.itemRowWarning,
+        ]}
+      >
+        {/* Left: Type badge + Identifier */}
+        <View style={styles.itemLeft}>
+          <View style={[
+            styles.typeBadge,
+            { backgroundColor: isAD ? COLORS.adRedBg : COLORS.sbBlueBg }
+          ]}>
+            <Text style={[
+              styles.typeBadgeText,
+              { color: isAD ? COLORS.adRed : COLORS.sbBlue }
+            ]}>
+              {type}
+            </Text>
+          </View>
+          
+          <View style={styles.itemInfo}>
+            <Text style={styles.itemIdentifier}>{item.identifier}</Text>
+            {item.title ? (
+              <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
+            ) : null}
+            {item.recurrence ? (
+              <Text style={styles.itemRecurrence}>
+                <Ionicons name="repeat" size={12} color={COLORS.textMuted} />
+                {' '}{item.recurrence}
+              </Text>
+            ) : null}
+          </View>
+        </View>
 
-  // Separate by type
-  const adItems = useMemo(() => {
-    const comparison = safeArray<ComparisonItem>(data?.comparison);
-    return comparison.filter(i => i?.type === 'AD');
-  }, [data?.comparison]);
-
-  const sbItems = useMemo(() => {
-    const comparison = safeArray<ComparisonItem>(data?.comparison);
-    return comparison.filter(i => i?.type === 'SB');
-  }, [data?.comparison]);
-
-  // Open TC URL
-  const handleOpenSource = useCallback((url?: string) => {
-    if (url && typeof url === 'string') {
-      Linking.openURL(url).catch(err => {
-        console.warn('[TC AD/SB] Failed to open URL:', err);
-      });
-    }
+        {/* Right: Detection counter */}
+        <View style={styles.itemRight}>
+          {hasNoDetections ? (
+            <View style={styles.warningBadge}>
+              <Ionicons name="alert-circle" size={16} color={COLORS.warningOrange} />
+              <Text style={styles.warningText}>0</Text>
+            </View>
+          ) : (
+            <View style={styles.countBadge}>
+              <Text style={styles.countNumber}>{item.detected_count}</Text>
+            </View>
+          )}
+          <Text style={styles.countLabel}>
+            Detected in reports
+          </Text>
+        </View>
+      </View>
+    );
   }, []);
 
-  // Render single item card - FULLY PROTECTED
-  const renderItem = useCallback((item: ComparisonItem | null | undefined, index: number) => {
-    if (!item) return null;
-    
-    // Safe extract all fields
-    const itemRef = safeString(item.ref, 'N/A');
-    const itemTitle = safeString(item.title, '');
-    const itemType = item.type === 'SB' ? 'SB' : 'AD';
-    const itemStatus = item.status || 'OK';
-    const lastRecorded = item.last_recorded_date || '—';
-    const nextDue = item.next_due || '—';
-    const recurrenceYears = item.recurrence_years;
-    const recurrenceHours = item.recurrence_hours;
-    const tcUrl = item.tc_url;
-    
-    const statusStyle = getStatusStyle(itemStatus, itemType);
-    const isAD = itemType === 'AD';
-    const itemKey = `${itemRef}-${index}`;
+  // ============================================================
+  // RENDER SECTION
+  // ============================================================
+  const renderSection = useCallback((
+    title: string,
+    items: ADSBItem[],
+    type: 'AD' | 'SB',
+    missingCount: number
+  ) => {
+    const isAD = type === 'AD';
     
     return (
-      <View key={itemKey} style={styles.card}>
-        {/* Header row */}
-        <View style={styles.cardHeader}>
-          <View style={[styles.typeBadge, { backgroundColor: isAD ? COLORS.redBg : COLORS.blueBg }]}>
-            <Text style={[styles.typeBadgeText, { color: isAD ? COLORS.red : COLORS.blue }]}>
-              {itemType}
-            </Text>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-            <Text style={[styles.statusText, { color: statusStyle.text }]}>
-              {getStatusText(itemStatus, lang)}
-            </Text>
-          </View>
-          {itemStatus === 'NEW' && (
-            <View style={styles.newBadge}>
-              <Text style={styles.newBadgeText}>NEW</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Ref & Title */}
-        <Text style={styles.cardRef}>{itemRef}</Text>
-        {itemTitle ? (
-          <Text style={styles.cardTitle} numberOfLines={3}>{itemTitle}</Text>
-        ) : null}
-
-        {/* Dates - protected rendering */}
-        {(lastRecorded !== '—' || nextDue !== '—' || recurrenceYears || recurrenceHours) && (
-          <View style={styles.datesContainer}>
-            {lastRecorded !== '—' && (
-              <View style={styles.dateRow}>
-                <Text style={styles.dateLabel}>
-                  {lang === 'fr' ? 'Dernier enregistré:' : 'Last recorded:'}
-                </Text>
-                <Text style={styles.dateValue}>{lastRecorded}</Text>
-              </View>
-            )}
-            {nextDue !== '—' && (
-              <View style={styles.dateRow}>
-                <Text style={styles.dateLabel}>
-                  {lang === 'fr' ? 'Prochaine échéance:' : 'Next due:'}
-                </Text>
-                <Text style={[
-                  styles.dateValue, 
-                  itemStatus === 'DUE_SOON' ? { color: COLORS.orange } : undefined
-                ]}>
-                  {nextDue}
-                </Text>
-              </View>
-            )}
-            {(recurrenceYears || recurrenceHours) && (
-              <View style={styles.dateRow}>
-                <Text style={styles.dateLabel}>
-                  {lang === 'fr' ? 'Récurrence:' : 'Recurrence:'}
-                </Text>
-                <Text style={styles.dateValue}>
-                  {recurrenceYears ? `${recurrenceYears} ${lang === 'fr' ? 'ans' : 'years'}` : ''}
-                  {recurrenceYears && recurrenceHours ? ' / ' : ''}
-                  {recurrenceHours ? `${recurrenceHours}h` : ''}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Open source button */}
-        {tcUrl && (
-          <TouchableOpacity 
-            style={styles.sourceButton}
-            onPress={() => handleOpenSource(tcUrl)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.sourceButtonContent}>
-              <Text style={styles.sourceButtonIcon}>🔗</Text>
-              <Text style={styles.sourceButtonText}>
-                {lang === 'fr' ? 'Voir source TC' : 'View TC source'}
+      <View style={styles.section}>
+        {/* Section Header */}
+        <View style={[
+          styles.sectionHeader,
+          { backgroundColor: isAD ? COLORS.adRedBg : COLORS.sbBlueBg }
+        ]}>
+          <Text style={[
+            styles.sectionTitle,
+            { color: isAD ? COLORS.adRed : COLORS.sbBlue }
+          ]}>
+            {title}
+          </Text>
+          <View style={styles.sectionBadges}>
+            <View style={[styles.sectionCountBadge, { backgroundColor: COLORS.white }]}>
+              <Text style={[
+                styles.sectionCountText,
+                { color: isAD ? COLORS.adRed : COLORS.sbBlue }
+              ]}>
+                {items.length}
               </Text>
             </View>
-          </TouchableOpacity>
+            {missingCount > 0 && (
+              <View style={[styles.sectionCountBadge, { backgroundColor: COLORS.warningOrangeBg }]}>
+                <Ionicons name="alert-circle" size={12} color={COLORS.warningOrange} />
+                <Text style={[styles.sectionCountText, { color: COLORS.warningOrange, marginLeft: 4 }]}>
+                  {missingCount}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Items */}
+        {items.length === 0 ? (
+          <View style={styles.emptySection}>
+            <Text style={styles.emptySectionText}>
+              No {type === 'AD' ? 'Airworthiness Directives' : 'Service Bulletins'} found
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.itemsList}>
+            {items.map((item, index) => renderItem(item, type, index))}
+          </View>
         )}
       </View>
     );
-  }, [lang, handleOpenSource]);
+  }, [renderItem]);
 
-  // Render summary stats
-  const renderSummary = useCallback(() => {
-    if (!data) return null;
-    
-    return (
-      <View style={styles.summaryContainer}>
-        <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, { backgroundColor: COLORS.greenBg }]}>
-            <Text style={[styles.summaryValue, { color: COLORS.green }]}>{foundItems.length}</Text>
-            <Text style={styles.summaryLabel}>{lang === 'fr' ? 'Trouvés' : 'Found'}</Text>
-          </View>
-          <View style={[styles.summaryCard, { backgroundColor: COLORS.orangeBg }]}>
-            <Text style={[styles.summaryValue, { color: COLORS.orange }]}>{dueSoonItems.length}</Text>
-            <Text style={styles.summaryLabel}>{lang === 'fr' ? 'Bientôt dûs' : 'Due soon'}</Text>
-          </View>
-          <View style={[styles.summaryCard, { backgroundColor: COLORS.redBg }]}>
-            <Text style={[styles.summaryValue, { color: COLORS.red }]}>{missingItems.length}</Text>
-            <Text style={styles.summaryLabel}>{lang === 'fr' ? 'Manquants' : 'Missing'}</Text>
-          </View>
-          {newTcItems.length > 0 && (
-            <View style={[styles.summaryCard, { backgroundColor: COLORS.blueBg }]}>
-              <Text style={[styles.summaryValue, { color: COLORS.blue }]}>{newTcItems.length}</Text>
-              <Text style={styles.summaryLabel}>{lang === 'fr' ? 'Nouveaux' : 'New'}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-    );
-  }, [data, foundItems.length, dueSoonItems.length, missingItems.length, newTcItems.length, lang]);
-
-  // Render content based on state
-  const renderContent = useCallback(() => {
+  // ============================================================
+  // RENDER CONTENT
+  // ============================================================
+  const renderContent = () => {
     // Loading state
     if (isLoading) {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>
-            {lang === 'fr' ? 'Chargement...' : 'Loading...'}
-          </Text>
+          <Text style={styles.loadingText}>Loading AD/SB data...</Text>
         </View>
       );
     }
@@ -712,204 +382,123 @@ function TcAdSbScreenContent() {
     if (error) {
       return (
         <View style={styles.centerContainer}>
-          <Text style={styles.errorIcon}>⚠️</Text>
+          <Ionicons name="alert-circle-outline" size={56} color={COLORS.adRed} />
           <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={() => fetchData()}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
           
-          <View style={styles.infoOnlyBanner}>
-            <Text style={styles.infoOnlyText}>
-              {lang === 'fr'
-                ? 'Informatif seulement — vérifiez avec les registres officiels et votre TEA.'
-                : 'Informational only — verify with official records and your AME/TEA.'}
+          {/* Disclaimer even on error */}
+          <View style={styles.disclaimerInline}>
+            <Text style={styles.disclaimerInlineText}>
+              Informational only. Verification with official records and a licensed AME is required.
             </Text>
           </View>
-          
-          <TouchableOpacity 
-            style={styles.retryButton}
-            onPress={fetchData}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.retryButtonText}>
-              {lang === 'fr' ? 'Réessayer' : 'Retry'}
-            </Text>
-          </TouchableOpacity>
         </View>
       );
     }
 
-    // Empty comparison - no TC data
-    const comparison = safeArray<ComparisonItem>(data?.comparison);
-    if (comparison.length === 0) {
+    // Empty state
+    if (!data || (data.airworthiness_directives.length === 0 && data.service_bulletins.length === 0)) {
       return (
         <View style={styles.centerContainer}>
-          <Text style={styles.emptyIcon}>📋</Text>
-          <Text style={styles.emptyTitle}>
-            {lang === 'fr' 
-              ? 'Aucun AD/SB TC disponible pour cet aéronef.'
-              : 'No TC AD/SB available for this aircraft.'}
-          </Text>
+          <Ionicons name="document-text-outline" size={56} color={COLORS.textMuted} />
+          <Text style={styles.emptyTitle}>No AD/SB Data</Text>
           <Text style={styles.emptySubtitle}>
-            {lang === 'fr'
-              ? 'Scannez des rapports de maintenance pour alimenter les données.'
-              : 'Scan maintenance reports to populate data.'}
+            No Airworthiness Directives or Service Bulletins found for this aircraft.
           </Text>
           
-          <View style={styles.infoOnlyBanner}>
-            <Text style={styles.infoOnlyText}>
-              {lang === 'fr'
-                ? 'Informatif seulement — vérifiez avec les registres officiels et votre TEA.'
-                : 'Informational only — verify with official records and your AME/TEA.'}
+          {/* Disclaimer */}
+          <View style={styles.disclaimerInline}>
+            <Text style={styles.disclaimerInlineText}>
+              Informational only. Verification with official records and a licensed AME is required.
             </Text>
           </View>
         </View>
       );
     }
 
-    // Data loaded - render content
+    // Data loaded
     return (
-      <ScrollView 
-        style={styles.scrollView} 
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollViewContent}
-        bounces={true}
-        overScrollMode="always"
-        removeClippedSubviews={Platform.OS === 'ios'}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[COLORS.primary]}
+          />
+        }
       >
-        {/* Summary stats */}
-        {renderSummary()}
-
-        {/* New TC items alert */}
-        {newTcItems.length > 0 && (
-          <View style={styles.alertBanner}>
-            <Text style={styles.alertIcon}>🆕</Text>
-            <Text style={styles.alertText}>
-              {lang === 'fr' 
-                ? `${newTcItems.length} nouveau(x) AD/SB publiés par TC`
-                : `${newTcItems.length} new AD/SB published by TC`}
-            </Text>
-          </View>
-        )}
-
-        {/* AD Section */}
-        <View style={styles.section}>
-          <View style={[styles.sectionHeader, styles.adSectionHeader]}>
-            <Text style={[styles.sectionTitle, styles.adSectionTitle]}>
-              {lang === 'fr' ? 'Consignes de navigabilité (AD)' : 'Airworthiness Directives (AD)'}
-            </Text>
-            <View style={styles.sectionCount}>
-              <Text style={[styles.sectionCountText, styles.adSectionCountText]}>
-                {adItems.length}
-              </Text>
-            </View>
-          </View>
-          
-          {adItems.length > 0 ? (
-            <View style={styles.itemsContainer}>
-              {adItems.map((item, index) => renderItem(item, index))}
-            </View>
-          ) : (
-            <View style={styles.emptySection}>
-              <Text style={styles.emptySectionText}>
-                {lang === 'fr' ? 'Aucun AD' : 'No AD'}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* SB Section */}
-        <View style={styles.section}>
-          <View style={[styles.sectionHeader, styles.sbSectionHeader]}>
-            <Text style={[styles.sectionTitle, styles.sbSectionTitle]}>
-              {lang === 'fr' ? 'Bulletins de service (SB)' : 'Service Bulletins (SB)'}
-            </Text>
-            <View style={styles.sectionCount}>
-              <Text style={[styles.sectionCountText, styles.sbSectionCountText]}>
-                {sbItems.length}
-              </Text>
-            </View>
-          </View>
-          
-          {sbItems.length > 0 ? (
-            <View style={styles.itemsContainer}>
-              {sbItems.map((item, index) => renderItem(item, adItems.length + index))}
-            </View>
-          ) : (
-            <View style={styles.emptySection}>
-              <Text style={styles.emptySectionText}>
-                {lang === 'fr' ? 'Aucun SB' : 'No SB'}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Disclaimer - ALWAYS displayed */}
+        {/* MANDATORY DISCLAIMER - Top */}
         <View style={styles.disclaimer}>
-          <Text style={styles.disclaimerIcon}>⚠️</Text>
+          <Ionicons name="information-circle" size={20} color="#5D4037" />
           <Text style={styles.disclaimerText}>
-            {safeString(data?.disclaimer, lang === 'fr'
-              ? 'Informatif seulement — vérifiez avec les registres officiels de Transports Canada et votre TEA.'
-              : 'Informational only — verify with official Transport Canada records and your AME/TEA.')}
+            {data.disclaimer}
           </Text>
         </View>
+
+        {/* AD Section */}
+        {renderSection(
+          'Airworthiness Directives (AD)',
+          data.airworthiness_directives,
+          'AD',
+          adMissingCount
+        )}
+
+        {/* SB Section */}
+        {renderSection(
+          'Service Bulletins (SB)',
+          data.service_bulletins,
+          'SB',
+          sbMissingCount
+        )}
+
+        {/* Legend for "No reference found" */}
+        {(adMissingCount > 0 || sbMissingCount > 0) && (
+          <View style={styles.legendContainer}>
+            <View style={styles.legendItem}>
+              <View style={styles.warningBadgeSmall}>
+                <Ionicons name="alert-circle" size={14} color={COLORS.warningOrange} />
+              </View>
+              <Text style={styles.legendText}>
+                No reference found in analyzed maintenance documents
+              </Text>
+            </View>
+          </View>
+        )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
     );
-  }, [isLoading, error, data, newTcItems, adItems, sbItems, renderItem, renderSummary, fetchData, lang]);
+  };
 
+  // ============================================================
+  // MAIN RENDER
+  // ============================================================
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBack} activeOpacity={0.7}>
-          <Text style={styles.headerBackText}>←</Text>
+        <TouchableOpacity 
+          onPress={() => router.back()} 
+          style={styles.headerBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={28} color={COLORS.white} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>
-            {lang === 'fr' ? 'Comparaison TC AD/SB' : 'TC AD/SB Comparison'}
-          </Text>
-          <Text style={styles.headerSubtitle}>{safeString(registration, 'Aircraft')}</Text>
+          <Text style={styles.headerTitle}>AD / SB</Text>
+          <Text style={styles.headerSubtitle}>{registration || 'Aircraft'}</Text>
         </View>
         <View style={styles.headerRight} />
       </View>
 
-      {/* Subtitle */}
-      <View style={styles.subtitleContainer}>
-        <Text style={styles.subtitleText}>
-          {lang === 'fr' 
-            ? 'Comparaison avec le registre Transport Canada'
-            : 'Comparison with Transport Canada registry'}
-        </Text>
-      </View>
-
-      {/* Main content */}
+      {/* Content */}
       {renderContent()}
     </View>
-  );
-}
-
-// ============================================================
-// EXPORT WITH ERROR BOUNDARY
-// ============================================================
-export default function TcAdSbScreen() {
-  const router = useRouter();
-  const [retryKey, setRetryKey] = useState(0);
-  
-  const handleRetry = useCallback(() => {
-    setRetryKey(prev => prev + 1);
-  }, []);
-  
-  const handleBack = useCallback(() => {
-    router.back();
-  }, [router]);
-  
-  return (
-    <TCErrorBoundary 
-      key={retryKey}
-      onRetry={handleRetry} 
-      onBack={handleBack}
-    >
-      <TcAdSbScreenContent />
-    </TCErrorBoundary>
   );
 }
 
@@ -932,15 +521,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   headerBack: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  headerBackText: {
-    color: COLORS.white,
-    fontSize: 24,
-    fontWeight: '600',
   },
   headerCenter: {
     alignItems: 'center',
@@ -948,7 +532,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: COLORS.white,
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '600',
   },
   headerSubtitle: {
@@ -958,45 +542,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   headerRight: {
-    width: 40,
-  },
-  // Subtitle
-  subtitleContainer: {
-    backgroundColor: COLORS.white,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  subtitleText: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  // Summary
-  summaryContainer: {
-    padding: 16,
-    paddingBottom: 8,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  summaryCard: {
-    flex: 1,
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-  },
-  summaryValue: {
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  summaryLabel: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 2,
+    width: 44,
   },
   // Center container
   centerContainer: {
@@ -1010,51 +556,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.textMuted,
   },
-  errorIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
   errorText: {
+    marginTop: 16,
     fontSize: 16,
-    color: COLORS.red,
+    color: COLORS.adRed,
     textAlign: 'center',
-    marginBottom: 16,
-    maxWidth: 300,
-  },
-  emptyIcon: {
-    fontSize: 56,
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.textDark,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  infoOnlyBanner: {
-    backgroundColor: COLORS.alertYellow,
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: COLORS.alertYellowBorder,
-    maxWidth: 320,
-  },
-  infoOnlyText: {
-    fontSize: 13,
-    color: '#5D4037',
-    textAlign: 'center',
-    fontStyle: 'italic',
-    lineHeight: 18,
+    maxWidth: 280,
   },
   retryButton: {
+    marginTop: 20,
     backgroundColor: COLORS.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
@@ -1065,39 +575,61 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  emptyTitle: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.textDark,
+  },
+  emptySubtitle: {
+    marginTop: 8,
+    fontSize: 14,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    maxWidth: 280,
+  },
   // Scroll
   scrollView: {
     flex: 1,
   },
-  scrollViewContent: {
-    flexGrow: 1,
+  scrollContent: {
+    padding: 16,
   },
-  // Alert banner
-  alertBanner: {
+  // Disclaimer
+  disclaimer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.blueBg,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    padding: 14,
-    borderRadius: 12,
+    backgroundColor: COLORS.disclaimerYellow,
     borderWidth: 1,
-    borderColor: '#90CAF9',
+    borderColor: COLORS.disclaimerYellowBorder,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    alignItems: 'flex-start',
   },
-  alertIcon: {
-    fontSize: 18,
-    marginRight: 10,
-  },
-  alertText: {
+  disclaimerText: {
     flex: 1,
-    fontSize: 14,
-    color: COLORS.blue,
-    fontWeight: '600',
+    marginLeft: 10,
+    fontSize: 13,
+    color: '#5D4037',
+    lineHeight: 20,
+  },
+  disclaimerInline: {
+    marginTop: 24,
+    backgroundColor: COLORS.disclaimerYellow,
+    borderRadius: 8,
+    padding: 12,
+    maxWidth: 300,
+  },
+  disclaimerInlineText: {
+    fontSize: 12,
+    color: '#5D4037',
+    textAlign: 'center',
+    lineHeight: 18,
+    fontStyle: 'italic',
   },
   // Section
   section: {
-    marginTop: 8,
-    marginHorizontal: 16,
+    marginBottom: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1106,14 +638,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 15,
     fontWeight: '700',
+    flex: 1,
   },
-  sectionCount: {
-    backgroundColor: COLORS.white,
+  sectionBadges: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  sectionCountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 10,
@@ -1122,141 +660,127 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  adSectionHeader: { backgroundColor: COLORS.redBg },
-  adSectionTitle: { color: COLORS.red },
-  adSectionCountText: { color: COLORS.red },
-  sbSectionHeader: { backgroundColor: COLORS.blueBg },
-  sbSectionTitle: { color: COLORS.blue },
-  sbSectionCountText: { color: COLORS.blue },
   emptySection: {
     backgroundColor: COLORS.white,
-    padding: 20,
     borderRadius: 12,
+    padding: 20,
     alignItems: 'center',
-    marginBottom: 12,
   },
   emptySectionText: {
     fontSize: 14,
     color: COLORS.textMuted,
   },
-  itemsContainer: {
-    flexDirection: 'column',
+  itemsList: {
+    gap: 10,
   },
-  // Card
-  card: {
+  // Item row
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     backgroundColor: COLORS.white,
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  cardHeader: {
+  itemRowWarning: {
+    borderColor: COLORS.warningOrange,
+    borderWidth: 2,
+    backgroundColor: COLORS.warningOrangeBg,
+  },
+  itemLeft: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-    flexWrap: 'wrap',
-    gap: 6,
+    alignItems: 'flex-start',
+    flex: 1,
   },
   typeBadge: {
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 6,
+    marginRight: 12,
   },
   typeBadgeText: {
     fontSize: 11,
     fontWeight: '700',
   },
-  statusBadge: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 6,
+  itemInfo: {
+    flex: 1,
   },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  newBadge: {
-    backgroundColor: COLORS.blue,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-  },
-  newBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.white,
-  },
-  cardRef: {
-    fontSize: 16,
+  itemIdentifier: {
+    fontSize: 15,
     fontWeight: '700',
     color: COLORS.textDark,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  cardTitle: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    lineHeight: 20,
-    marginBottom: 10,
-  },
-  // Dates
-  datesContainer: {
-    backgroundColor: COLORS.background,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 10,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  dateLabel: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-  },
-  dateValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textDark,
-  },
-  // Source button
-  sourceButton: {
-    backgroundColor: COLORS.blueBg,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  sourceButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sourceButtonIcon: {
-    fontSize: 14,
-    marginRight: 6,
-  },
-  sourceButtonText: {
-    color: COLORS.blue,
+  itemTitle: {
     fontSize: 13,
-    fontWeight: '600',
+    color: COLORS.textMuted,
+    lineHeight: 18,
+    marginBottom: 4,
   },
-  // Disclaimer
-  disclaimer: {
-    flexDirection: 'row',
-    margin: 16,
-    padding: 14,
-    backgroundColor: COLORS.alertYellow,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.alertYellowBorder,
+  itemRecurrence: {
+    fontSize: 12,
+    color: COLORS.textMuted,
   },
-  disclaimerIcon: {
+  itemRight: {
+    alignItems: 'center',
+    marginLeft: 12,
+  },
+  countBadge: {
+    backgroundColor: COLORS.successGreenBg,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    minWidth: 36,
+    alignItems: 'center',
+  },
+  countNumber: {
     fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.successGreen,
+  },
+  warningBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.warningOrangeBg,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
+  },
+  warningText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.warningOrange,
+  },
+  countLabel: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  // Legend
+  legendContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 8,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  warningBadgeSmall: {
+    backgroundColor: COLORS.warningOrangeBg,
+    padding: 4,
+    borderRadius: 8,
     marginRight: 10,
   },
-  disclaimerText: {
-    flex: 1,
+  legendText: {
     fontSize: 12,
-    color: '#5D4037',
-    lineHeight: 18,
+    color: COLORS.textMuted,
+    flex: 1,
   },
   bottomSpacer: {
     height: 40,
