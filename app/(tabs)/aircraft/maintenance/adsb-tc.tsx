@@ -234,10 +234,13 @@ export default function TcAdSbScreen() {
     }
   }, [aircraftId]);
 
-  // Initial load
+  // Initial load + mark as reviewed
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    // Mark AD/SB as reviewed when screen opens (clears badge)
+    // Silent operation - no confirmation, no user interaction
+    markAsReviewed();
+  }, [fetchData, markAsReviewed]);
 
   // Pull to refresh
   const handleRefresh = useCallback(() => {
