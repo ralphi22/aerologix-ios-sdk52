@@ -180,6 +180,20 @@ export default function TcAdSbScreen() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<APIResponse | null>(null);
 
+  // Mark AD/SB as reviewed when screen opens
+  // This clears the red badge on the module button
+  const markAsReviewed = useCallback(async () => {
+    if (!aircraftId) return;
+    
+    try {
+      // Silent call - no confirmation, no error display
+      await api.post(`/api/adsb/mark-reviewed/${aircraftId}`);
+    } catch (err) {
+      // Silently ignore errors - this is a background operation
+      console.log('[AD/SB] Mark reviewed failed (silent):', err);
+    }
+  }, [aircraftId]);
+
   // Fetch data from backend
   const fetchData = useCallback(async (showRefreshing = false) => {
     if (!aircraftId) {
@@ -220,10 +234,13 @@ export default function TcAdSbScreen() {
     }
   }, [aircraftId]);
 
-  // Initial load
+  // Initial load + mark as reviewed
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    // Mark AD/SB as reviewed when screen opens (clears badge)
+    // Silent operation - no confirmation, no user interaction
+    markAsReviewed();
+  }, [fetchData, markAsReviewed]);
 
   // Pull to refresh
   const handleRefresh = useCallback(() => {

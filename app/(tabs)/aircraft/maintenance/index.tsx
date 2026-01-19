@@ -1,6 +1,8 @@
 /**
  * Maintenance Main Screen
  * Shows 5 maintenance modules: Report, Parts, Invoices, AD/SB, STC
+ * 
+ * AD/SB Badge: Displays red alert badge when adsb_has_new_tc_items == true
  */
 
 import React from 'react';
@@ -13,6 +15,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
+import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
 
 const COLORS = {
   primary: '#0033A0',
@@ -21,6 +24,7 @@ const COLORS = {
   textDark: '#11181C',
   textMuted: '#6C757D',
   border: '#E0E0E0',
+  alertRed: '#E53935',
 };
 
 interface MaintenanceCardProps {
@@ -30,15 +34,30 @@ interface MaintenanceCardProps {
   subtitle: string;
   subtitleFr: string;
   onPress: () => void;
+  showBadge?: boolean;
 }
 
-function MaintenanceCard({ icon, title, titleFr, subtitle, subtitleFr, onPress }: MaintenanceCardProps) {
+function MaintenanceCard({ 
+  icon, 
+  title, 
+  titleFr, 
+  subtitle, 
+  subtitleFr, 
+  onPress,
+  showBadge = false,
+}: MaintenanceCardProps) {
   const lang = getLanguage();
   
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.cardIcon}>
-        <Text style={styles.cardIconText}>{icon}</Text>
+      <View style={styles.cardIconContainer}>
+        <View style={styles.cardIcon}>
+          <Text style={styles.cardIconText}>{icon}</Text>
+        </View>
+        {/* Red Alert Badge - Visual only, no text */}
+        {showBadge && (
+          <View style={styles.alertBadge} />
+        )}
       </View>
       <View style={styles.cardContent}>
         <Text style={styles.cardTitle}>{lang === 'fr' ? titleFr : title}</Text>
@@ -53,6 +72,13 @@ export default function MaintenanceScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
+  
+  // Get aircraft data to check for new TC items
+  const { getAircraftById } = useAircraftLocalStore();
+  const aircraft = aircraftId ? getAircraftById(aircraftId) : undefined;
+  
+  // Check if there are new TC AD/SB items
+  const hasNewTcItems = aircraft?.adsb_has_new_tc_items === true;
 
   const navigateTo = (route: string) => {
     router.push({
@@ -107,7 +133,7 @@ export default function MaintenanceScreen() {
             onPress={() => navigateTo('invoices')}
           />
 
-          {/* AD/SB */}
+          {/* AD/SB - Shows red badge when new TC items available */}
           <MaintenanceCard
             icon="⚠️"
             title="AD/SB"
@@ -115,6 +141,7 @@ export default function MaintenanceScreen() {
             subtitle="Airworthiness Directives & Service Bulletins"
             subtitleFr="Consignes de navigabilité et bulletins de service"
             onPress={() => navigateTo('ad-sb')}
+            showBadge={hasNewTcItems}
           />
 
           {/* STC */}
@@ -205,6 +232,10 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
+  cardIconContainer: {
+    position: 'relative',
+    marginRight: 12,
+  },
   cardIcon: {
     width: 48,
     height: 48,
@@ -212,10 +243,21 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
   cardIconText: {
     fontSize: 24,
+  },
+  // Red alert badge - visual dot only, no text
+  alertBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: COLORS.alertRed,
+    borderWidth: 2,
+    borderColor: COLORS.white,
   },
   cardContent: {
     flex: 1,

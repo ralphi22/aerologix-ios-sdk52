@@ -35,6 +35,8 @@ export interface Aircraft {
   propellerHours: number;
   createdAt: string;
   photoUri?: string; // Local photo URI for aircraft image
+  // AD/SB alert flag - indicates new TC items available
+  adsb_has_new_tc_items?: boolean;
 }
 
 interface AircraftContextType {
