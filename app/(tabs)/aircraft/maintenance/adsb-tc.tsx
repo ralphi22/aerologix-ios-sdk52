@@ -1,33 +1,20 @@
 /**
- * TC AD/SB Comparison Screen
+ * AD/SB Lookup Screen - CANONICAL ENDPOINT ONLY
  * 
- * Displays structured comparison between:
- * - Applicable TC AD/SB
- * - Documentary evidence found in OCR-analyzed maintenance reports
+ * CRITICAL: Uses ONLY /api/adsb/lookup/{aircraft_id}
  * 
- * TC-SAFE: Informational display ONLY
- * - No aviation logic in frontend
- * - No compliance wording
- * - No calculations
- * - Backend is the source of truth
+ * FORBIDDEN:
+ * - /api/adsb/compare (OBSOLETE)
+ * - /api/adsb/mark-reviewed (OBSOLETE)
+ * - Any frontend matching logic
+ * - Any compliance determination
+ * - Any designator-based logic
  * 
- * API CONTRACT:
- * GET /api/adsb/compare/{aircraft_id}
- * Response: {
- *   airworthiness_directives: ADSBItem[],
- *   service_bulletins: ADSBItem[],
- *   disclaimer: string
- * }
- * 
- * ADSBItem: {
- *   identifier: string,
- *   title?: string,
- *   recurrence?: string,
- *   detected_count: number
- * }
+ * TC-SAFE: Display ONLY what backend returns
+ * Backend handles all matching and is the source of truth
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -51,124 +38,51 @@ const COLORS = {
   textDark: '#212121',
   textMuted: '#616161',
   border: '#E0E0E0',
-  // AD (Airworthiness Directives)
   adRed: '#E53935',
   adRedBg: '#FFEBEE',
-  // SB (Service Bulletins)
   sbBlue: '#1976D2',
   sbBlueBg: '#E3F2FD',
-  // Alert / Warning
-  warningOrange: '#FF9800',
-  warningOrangeBg: '#FFF3E0',
-  // Success / Found
-  successGreen: '#43A047',
-  successGreenBg: '#E8F5E9',
-  // Disclaimer
   disclaimerYellow: '#FFF8E1',
   disclaimerYellowBorder: '#FFE082',
 };
 
 // ============================================================
-// TYPES - API Contract
+// TYPES - CANONICAL API CONTRACT
 // ============================================================
+
+/**
+ * Single AD or SB item from backend
+ */
 interface ADSBItem {
-  identifier: string;
-  title?: string;
-  recurrence?: string;
-  detected_count: number;
+  ref: string;
+  type: 'AD' | 'SB';
+  title: string;
+  effective_date?: string;
+  source_url?: string;
 }
 
-interface APIResponse {
-  airworthiness_directives: ADSBItem[];
-  service_bulletins: ADSBItem[];
-  disclaimer: string;
+/**
+ * Response from GET /api/adsb/lookup/{aircraft_id}
+ * This is the ONLY allowed response structure
+ */
+interface ADSBLookupResponse {
+  aircraft: {
+    manufacturer: string;
+    model: string;
+  };
+  adsb: ADSBItem[];
+  count: {
+    ad: number;
+    sb: number;
+    total: number;
+  };
+  informational_only: boolean;
 }
-
-// ============================================================
-// SAFE HELPERS
-// ============================================================
-const safeArray = <T,>(value: unknown): T[] => {
-  if (Array.isArray(value)) return value as T[];
-  return [];
-};
-
-const safeString = (value: unknown, fallback: string = ''): string => {
-  if (typeof value === 'string') return value;
-  return fallback;
-};
-
-const safeNumber = (value: unknown, fallback: number = 0): number => {
-  if (typeof value === 'number' && !isNaN(value)) return value;
-  return fallback;
-};
-
-// ============================================================
-// NORMALIZE API RESPONSE
-// ============================================================
-const normalizeResponse = (data: unknown): APIResponse => {
-  const defaultResponse: APIResponse = {
-    airworthiness_directives: [],
-    service_bulletins: [],
-    disclaimer: 'Informational only. This tool does not determine airworthiness or compliance. Verification with official Transport Canada records and a licensed AME is required.',
-  };
-
-  if (!data || typeof data !== 'object') {
-    return defaultResponse;
-  }
-
-  const raw = data as Record<string, unknown>;
-
-  // Normalize ADs
-  const rawADs = safeArray<unknown>(raw.airworthiness_directives || raw.ads || raw.ad_items);
-  const airworthiness_directives: ADSBItem[] = rawADs
-    .map((item: unknown) => {
-      if (!item || typeof item !== 'object') return null;
-      const i = item as Record<string, unknown>;
-      const identifier = safeString(i.identifier || i.ref || i.number);
-      if (!identifier) return null;
-      return {
-        identifier,
-        title: safeString(i.title || i.description),
-        recurrence: safeString(i.recurrence || i.recurrence_info),
-        detected_count: safeNumber(i.detected_count || i.count, 0),
-      };
-    })
-    .filter((item): item is ADSBItem => item !== null);
-
-  // Normalize SBs
-  const rawSBs = safeArray<unknown>(raw.service_bulletins || raw.sbs || raw.sb_items);
-  const service_bulletins: ADSBItem[] = rawSBs
-    .map((item: unknown) => {
-      if (!item || typeof item !== 'object') return null;
-      const i = item as Record<string, unknown>;
-      const identifier = safeString(i.identifier || i.ref || i.number);
-      if (!identifier) return null;
-      return {
-        identifier,
-        title: safeString(i.title || i.description),
-        recurrence: safeString(i.recurrence || i.recurrence_info),
-        detected_count: safeNumber(i.detected_count || i.count, 0),
-      };
-    })
-    .filter((item): item is ADSBItem => item !== null);
-
-  // Disclaimer
-  const disclaimer = safeString(
-    raw.disclaimer,
-    defaultResponse.disclaimer
-  );
-
-  return {
-    airworthiness_directives,
-    service_bulletins,
-    disclaimer,
-  };
-};
 
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
-export default function TcAdSbScreen() {
+export default function AdSbLookupScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ 
     aircraftId: string; 
@@ -178,24 +92,19 @@ export default function TcAdSbScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<APIResponse | null>(null);
+  const [data, setData] = useState<ADSBLookupResponse | null>(null);
 
-  // Mark AD/SB as reviewed when screen opens
-  // This clears the red badge on the module button
-  const markAsReviewed = useCallback(async () => {
-    if (!aircraftId) return;
-    
-    try {
-      // Silent call - no confirmation, no error display
-      await api.post(`/api/adsb/mark-reviewed/${aircraftId}`);
-    } catch (err) {
-      // Silently ignore errors - this is a background operation
-      console.log('[AD/SB] Mark reviewed failed (silent):', err);
-    }
-  }, [aircraftId]);
-
-  // Fetch data from backend
-  const fetchData = useCallback(async (showRefreshing = false) => {
+  /**
+   * CANONICAL LOOKUP - SINGLE ENDPOINT
+   * GET /api/adsb/lookup/{aircraft_id}
+   * 
+   * Called:
+   * - 1x on mount
+   * - 1x on manual refresh (pull-to-refresh)
+   * 
+   * NEVER in a loop
+   */
+  const fetchADSB = useCallback(async (showRefreshing = false) => {
     if (!aircraftId) {
       setError('Missing aircraft ID');
       setIsLoading(false);
@@ -210,176 +119,74 @@ export default function TcAdSbScreen() {
     setError(null);
 
     try {
-      const response = await api.get(`/api/adsb/compare/${aircraftId}`);
-      const normalized = normalizeResponse(response.data);
-      setData(normalized);
+      // CANONICAL ENDPOINT - THE ONLY ALLOWED CALL
+      const response = await api.get(`/api/adsb/lookup/${aircraftId}`);
+      
+      // DEV LOG - temporary for debugging
+      console.log('[AD/SB LOOKUP]', response.data);
+      
+      // Store response as-is - NO transformation
+      setData(response.data as ADSBLookupResponse);
+      
     } catch (err: unknown) {
-      console.warn('[AD/SB] Fetch error:', err);
-      
-      let errorMessage = 'Unable to load AD/SB data. Please try again.';
-      
-      if (err && typeof err === 'object') {
-        const errObj = err as { response?: { status?: number; data?: { detail?: string } } };
-        if (errObj?.response?.status === 404) {
-          errorMessage = 'No AD/SB data available for this aircraft.';
-        } else if (errObj?.response?.data?.detail) {
-          errorMessage = errObj.response.data.detail;
-        }
-      }
-      
-      setError(errorMessage);
+      console.warn('[AD/SB LOOKUP] Error:', err);
+      setError('Unable to retrieve AD/SB data at this time.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
   }, [aircraftId]);
 
-  // Initial load + mark as reviewed
+  // Single call on mount - NO other automatic calls
   useEffect(() => {
-    fetchData();
-    // Mark AD/SB as reviewed when screen opens (clears badge)
-    // Silent operation - no confirmation, no user interaction
-    markAsReviewed();
-  }, [fetchData, markAsReviewed]);
+    fetchADSB();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Pull to refresh
+  // Manual refresh handler
   const handleRefresh = useCallback(() => {
-    fetchData(true);
-  }, [fetchData]);
-
-  // Count items with no detections
-  const adMissingCount = useMemo(() => {
-    if (!data) return 0;
-    return data.airworthiness_directives.filter(item => item.detected_count === 0).length;
-  }, [data]);
-
-  const sbMissingCount = useMemo(() => {
-    if (!data) return 0;
-    return data.service_bulletins.filter(item => item.detected_count === 0).length;
-  }, [data]);
+    fetchADSB(true);
+  }, [fetchADSB]);
 
   // ============================================================
-  // RENDER ITEM ROW
+  // RENDER SINGLE AD/SB ITEM
   // ============================================================
-  const renderItem = useCallback((item: ADSBItem, type: 'AD' | 'SB', index: number) => {
-    const isAD = type === 'AD';
-    const hasNoDetections = item.detected_count === 0;
+  const renderItem = (item: ADSBItem, index: number) => {
+    const isAD = item.type === 'AD';
     
     return (
       <View 
-        key={`${type}-${item.identifier}-${index}`}
-        style={[
-          styles.itemRow,
-          hasNoDetections && styles.itemRowWarning,
-        ]}
+        key={`${item.type}-${item.ref}-${index}`}
+        style={styles.itemRow}
       >
-        {/* Left: Type badge + Identifier */}
-        <View style={styles.itemLeft}>
-          <View style={[
-            styles.typeBadge,
-            { backgroundColor: isAD ? COLORS.adRedBg : COLORS.sbBlueBg }
-          ]}>
-            <Text style={[
-              styles.typeBadgeText,
-              { color: isAD ? COLORS.adRed : COLORS.sbBlue }
-            ]}>
-              {type}
-            </Text>
-          </View>
-          
-          <View style={styles.itemInfo}>
-            <Text style={styles.itemIdentifier}>{item.identifier}</Text>
-            {item.title ? (
-              <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
-            ) : null}
-            {item.recurrence ? (
-              <Text style={styles.itemRecurrence}>
-                <Ionicons name="repeat" size={12} color={COLORS.textMuted} />
-                {' '}{item.recurrence}
-              </Text>
-            ) : null}
-          </View>
-        </View>
-
-        {/* Right: Detection counter */}
-        <View style={styles.itemRight}>
-          {hasNoDetections ? (
-            <View style={styles.warningBadge}>
-              <Ionicons name="alert-circle" size={16} color={COLORS.warningOrange} />
-              <Text style={styles.warningText}>0</Text>
-            </View>
-          ) : (
-            <View style={styles.countBadge}>
-              <Text style={styles.countNumber}>{item.detected_count}</Text>
-            </View>
-          )}
-          <Text style={styles.countLabel}>
-            Detected in reports
-          </Text>
-        </View>
-      </View>
-    );
-  }, []);
-
-  // ============================================================
-  // RENDER SECTION
-  // ============================================================
-  const renderSection = useCallback((
-    title: string,
-    items: ADSBItem[],
-    type: 'AD' | 'SB',
-    missingCount: number
-  ) => {
-    const isAD = type === 'AD';
-    
-    return (
-      <View style={styles.section}>
-        {/* Section Header */}
+        {/* Type Badge */}
         <View style={[
-          styles.sectionHeader,
+          styles.typeBadge,
           { backgroundColor: isAD ? COLORS.adRedBg : COLORS.sbBlueBg }
         ]}>
           <Text style={[
-            styles.sectionTitle,
+            styles.typeBadgeText,
             { color: isAD ? COLORS.adRed : COLORS.sbBlue }
           ]}>
-            {title}
+            {item.type}
           </Text>
-          <View style={styles.sectionBadges}>
-            <View style={[styles.sectionCountBadge, { backgroundColor: COLORS.white }]}>
-              <Text style={[
-                styles.sectionCountText,
-                { color: isAD ? COLORS.adRed : COLORS.sbBlue }
-              ]}>
-                {items.length}
-              </Text>
-            </View>
-            {missingCount > 0 && (
-              <View style={[styles.sectionCountBadge, { backgroundColor: COLORS.warningOrangeBg }]}>
-                <Ionicons name="alert-circle" size={12} color={COLORS.warningOrange} />
-                <Text style={[styles.sectionCountText, { color: COLORS.warningOrange, marginLeft: 4 }]}>
-                  {missingCount}
-                </Text>
-              </View>
-            )}
-          </View>
         </View>
-
-        {/* Items */}
-        {items.length === 0 ? (
-          <View style={styles.emptySection}>
-            <Text style={styles.emptySectionText}>
-              No {type === 'AD' ? 'Airworthiness Directives' : 'Service Bulletins'} found
+        
+        {/* Reference and Title */}
+        <View style={styles.itemContent}>
+          <Text style={styles.itemRef}>{item.ref}</Text>
+          <Text style={styles.itemTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+          {item.effective_date && (
+            <Text style={styles.itemDate}>
+              Effective: {item.effective_date}
             </Text>
-          </View>
-        ) : (
-          <View style={styles.itemsList}>
-            {items.map((item, index) => renderItem(item, type, index))}
-          </View>
-        )}
+          )}
+        </View>
       </View>
     );
-  }, [renderItem]);
+  };
 
   // ============================================================
   // RENDER CONTENT
@@ -401,41 +208,57 @@ export default function TcAdSbScreen() {
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={56} color={COLORS.adRed} />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={() => fetchData()}>
+          <TouchableOpacity style={styles.retryButton} onPress={() => fetchADSB()}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
-          
-          {/* Disclaimer even on error */}
-          <View style={styles.disclaimerInline}>
-            <Text style={styles.disclaimerInlineText}>
-              Informational only. Verification with official records and a licensed AME is required.
-            </Text>
-          </View>
         </View>
       );
     }
 
-    // Empty state
-    if (!data || (data.airworthiness_directives.length === 0 && data.service_bulletins.length === 0)) {
+    // Empty state - NO AD/SB returned
+    if (!data || !data.adsb || data.adsb.length === 0) {
       return (
-        <View style={styles.centerContainer}>
-          <Ionicons name="document-text-outline" size={56} color={COLORS.textMuted} />
-          <Text style={styles.emptyTitle}>No AD/SB Data</Text>
-          <Text style={styles.emptySubtitle}>
-            No Airworthiness Directives or Service Bulletins found for this aircraft.
-          </Text>
-          
-          {/* Disclaimer */}
-          <View style={styles.disclaimerInline}>
-            <Text style={styles.disclaimerInlineText}>
-              Informational only. Verification with official records and a licensed AME is required.
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              colors={[COLORS.primary]}
+            />
+          }
+        >
+          {/* Disclaimer - Always show */}
+          <View style={styles.disclaimer}>
+            <Ionicons name="information-circle" size={20} color="#5D4037" />
+            <Text style={styles.disclaimerText}>
+              Informational only — verify with official Transport Canada records.
             </Text>
           </View>
-        </View>
+
+          {/* Aircraft info if available */}
+          {data?.aircraft && (
+            <View style={styles.aircraftInfo}>
+              <Text style={styles.aircraftText}>
+                {data.aircraft.manufacturer} {data.aircraft.model}
+              </Text>
+            </View>
+          )}
+
+          {/* Empty message */}
+          <View style={styles.emptyContainer}>
+            <Ionicons name="document-text-outline" size={56} color={COLORS.textMuted} />
+            <Text style={styles.emptyTitle}>No AD/SB Data</Text>
+            <Text style={styles.emptySubtitle}>
+              No Transport Canada AD or SB returned for this aircraft.
+            </Text>
+          </View>
+        </ScrollView>
       );
     }
 
-    // Data loaded
+    // Data loaded - display AD/SB list
     return (
       <ScrollView
         style={styles.scrollView}
@@ -449,43 +272,47 @@ export default function TcAdSbScreen() {
           />
         }
       >
-        {/* MANDATORY DISCLAIMER - Top */}
+        {/* MANDATORY DISCLAIMER */}
         <View style={styles.disclaimer}>
           <Ionicons name="information-circle" size={20} color="#5D4037" />
           <Text style={styles.disclaimerText}>
-            {data.disclaimer}
+            Informational only — verify with official Transport Canada records.
           </Text>
         </View>
 
-        {/* AD Section */}
-        {renderSection(
-          'Airworthiness Directives (AD)',
-          data.airworthiness_directives,
-          'AD',
-          adMissingCount
-        )}
-
-        {/* SB Section */}
-        {renderSection(
-          'Service Bulletins (SB)',
-          data.service_bulletins,
-          'SB',
-          sbMissingCount
-        )}
-
-        {/* Legend for "No reference found" */}
-        {(adMissingCount > 0 || sbMissingCount > 0) && (
-          <View style={styles.legendContainer}>
-            <View style={styles.legendItem}>
-              <View style={styles.warningBadgeSmall}>
-                <Ionicons name="alert-circle" size={14} color={COLORS.warningOrange} />
-              </View>
-              <Text style={styles.legendText}>
-                No reference found in analyzed maintenance documents
-              </Text>
-            </View>
+        {/* Aircraft Info */}
+        {data.aircraft && (
+          <View style={styles.aircraftInfo}>
+            <Text style={styles.aircraftLabel}>Aircraft:</Text>
+            <Text style={styles.aircraftText}>
+              {data.aircraft.manufacturer} {data.aircraft.model}
+            </Text>
           </View>
         )}
+
+        {/* Counters */}
+        <View style={styles.countersContainer}>
+          <View style={[styles.counterBadge, { backgroundColor: COLORS.adRedBg }]}>
+            <Text style={[styles.counterText, { color: COLORS.adRed }]}>
+              AD: {data.count?.ad || 0}
+            </Text>
+          </View>
+          <View style={[styles.counterBadge, { backgroundColor: COLORS.sbBlueBg }]}>
+            <Text style={[styles.counterText, { color: COLORS.sbBlue }]}>
+              SB: {data.count?.sb || 0}
+            </Text>
+          </View>
+          <View style={[styles.counterBadge, { backgroundColor: COLORS.background }]}>
+            <Text style={[styles.counterText, { color: COLORS.textDark }]}>
+              Total: {data.count?.total || 0}
+            </Text>
+          </View>
+        </View>
+
+        {/* AD/SB List - Direct display, NO transformation */}
+        <View style={styles.listContainer}>
+          {data.adsb.map((item, index) => renderItem(item, index))}
+        </View>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -511,6 +338,13 @@ export default function TcAdSbScreen() {
           <Text style={styles.headerSubtitle}>{registration || 'Aircraft'}</Text>
         </View>
         <View style={styles.headerRight} />
+      </View>
+
+      {/* Section Title */}
+      <View style={styles.sectionTitleContainer}>
+        <Text style={styles.sectionTitle}>
+          Airworthiness Directives & Service Bulletins
+        </Text>
       </View>
 
       {/* Content */}
@@ -561,6 +395,20 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 44,
   },
+  // Section Title
+  sectionTitleContainer: {
+    backgroundColor: COLORS.white,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textDark,
+    textAlign: 'center',
+  },
   // Center container
   centerContainer: {
     flex: 1,
@@ -592,6 +440,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  // Empty state
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+  },
   emptyTitle: {
     marginTop: 16,
     fontSize: 18,
@@ -604,6 +458,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     textAlign: 'center',
     maxWidth: 280,
+    lineHeight: 20,
   },
   // Scroll
   scrollView: {
@@ -629,175 +484,86 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#5D4037',
     lineHeight: 20,
-  },
-  disclaimerInline: {
-    marginTop: 24,
-    backgroundColor: COLORS.disclaimerYellow,
-    borderRadius: 8,
-    padding: 12,
-    maxWidth: 300,
-  },
-  disclaimerInlineText: {
-    fontSize: 12,
-    color: '#5D4037',
-    textAlign: 'center',
-    lineHeight: 18,
     fontStyle: 'italic',
   },
-  // Section
-  section: {
-    marginBottom: 20,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    flex: 1,
-  },
-  sectionBadges: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  sectionCountBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  sectionCountText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  emptySection: {
+  // Aircraft Info
+  aircraftInfo: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
-    padding: 20,
+    padding: 14,
+    marginBottom: 12,
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  emptySectionText: {
+  aircraftLabel: {
     fontSize: 14,
     color: COLORS.textMuted,
+    marginRight: 8,
   },
-  itemsList: {
+  aircraftText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textDark,
+  },
+  // Counters
+  countersContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  counterBadge: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  counterText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  // List
+  listContainer: {
     gap: 10,
   },
   // Item row
   itemRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     backgroundColor: COLORS.white,
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  itemRowWarning: {
-    borderColor: COLORS.warningOrange,
-    borderWidth: 2,
-    backgroundColor: COLORS.warningOrangeBg,
-  },
-  itemLeft: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    flex: 1,
-  },
   typeBadge: {
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 6,
     marginRight: 12,
+    alignSelf: 'flex-start',
   },
   typeBadgeText: {
     fontSize: 11,
     fontWeight: '700',
   },
-  itemInfo: {
+  itemContent: {
     flex: 1,
   },
-  itemIdentifier: {
+  itemRef: {
     fontSize: 15,
     fontWeight: '700',
     color: COLORS.textDark,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   itemTitle: {
     fontSize: 13,
     color: COLORS.textMuted,
     lineHeight: 18,
-    marginBottom: 4,
   },
-  itemRecurrence: {
+  itemDate: {
     fontSize: 12,
     color: COLORS.textMuted,
-  },
-  itemRight: {
-    alignItems: 'center',
-    marginLeft: 12,
-  },
-  countBadge: {
-    backgroundColor: COLORS.successGreenBg,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    minWidth: 36,
-    alignItems: 'center',
-  },
-  countNumber: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.successGreen,
-  },
-  warningBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.warningOrangeBg,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
-  },
-  warningText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.warningOrange,
-  },
-  countLabel: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  // Legend
-  legendContainer: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 14,
-    marginTop: 8,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  warningBadgeSmall: {
-    backgroundColor: COLORS.warningOrangeBg,
-    padding: 4,
-    borderRadius: 8,
-    marginRight: 10,
-  },
-  legendText: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    flex: 1,
+    marginTop: 6,
+    fontStyle: 'italic',
   },
   bottomSpacer: {
     height: 40,
