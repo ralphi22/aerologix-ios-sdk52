@@ -1170,4 +1170,22 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginLeft: 10,
   },
+  // Legal Links - Apple Guideline 3.1.2
+  legalLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingVertical: 12,
+  },
+  legalLinkText: {
+    fontSize: 13,
+    color: COLORS.primary,
+    textDecorationLine: 'underline',
+  },
+  legalSeparator: {
+    marginHorizontal: 12,
+    fontSize: 13,
+    color: COLORS.textMuted,
+  },
 });
