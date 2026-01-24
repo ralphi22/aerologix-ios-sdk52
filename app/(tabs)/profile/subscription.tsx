@@ -814,6 +814,23 @@ export default function SubscriptionScreen() {
           <Text style={styles.infoNoteText}>{texts.securityNote}</Text>
         </View>
 
+        {/* Legal Links - Required for Apple Guideline 3.1.2 */}
+        <View style={styles.legalLinks}>
+          <TouchableOpacity 
+            onPress={() => Linking.openURL('https://aerologix-ai-mobile.onrender.com/privacy')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.legalLinkText}>{texts.privacyPolicy}</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalSeparator}>•</Text>
+          <TouchableOpacity 
+            onPress={() => Linking.openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.legalLinkText}>{texts.termsOfUse}</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
