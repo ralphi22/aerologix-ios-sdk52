@@ -817,7 +817,7 @@ export default function SubscriptionScreen() {
         {/* Legal Links - Required for Apple Guideline 3.1.2 */}
         <View style={styles.legalLinks}>
           <TouchableOpacity 
-            onPress={() => Linking.openURL('https://aerologix-ai-mobile.onrender.com/privacy')}
+            onPress={() => Linking.openURL('https://aerologix-backend.onrender.com/privacy')}
             activeOpacity={0.7}
           >
             <Text style={styles.legalLinkText}>{texts.privacyPolicy}</Text>
