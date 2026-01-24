@@ -160,6 +160,8 @@ const TEXTS = {
     gpsLogbook: 'GPS Logbook',
     unlimited: 'Unlimited',
     notAvailable: 'Not available on this platform',
+    privacyPolicy: 'Privacy Policy',
+    termsOfUse: 'Terms of Use (EULA)',
   },
   fr: {
     title: 'Plans & Abonnement',
@@ -199,6 +201,8 @@ const TEXTS = {
     gpsLogbook: 'Carnet GPS',
     unlimited: 'Illimité',
     notAvailable: 'Non disponible sur cette plateforme',
+    privacyPolicy: 'Politique de confidentialité',
+    termsOfUse: 'Conditions d\'utilisation (EULA)',
   },
 };
 
@@ -810,6 +814,23 @@ export default function SubscriptionScreen() {
           <Text style={styles.infoNoteText}>{texts.securityNote}</Text>
         </View>
 
+        {/* Legal Links - Required for Apple Guideline 3.1.2 */}
+        <View style={styles.legalLinks}>
+          <TouchableOpacity 
+            onPress={() => Linking.openURL('https://aerologix-ai-mobile.onrender.com/privacy')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.legalLinkText}>{texts.privacyPolicy}</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalSeparator}>•</Text>
+          <TouchableOpacity 
+            onPress={() => Linking.openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.legalLinkText}>{texts.termsOfUse}</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
@@ -1148,5 +1169,23 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     lineHeight: 18,
     marginLeft: 10,
+  },
+  // Legal Links - Apple Guideline 3.1.2
+  legalLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingVertical: 12,
+  },
+  legalLinkText: {
+    fontSize: 13,
+    color: COLORS.primary,
+    textDecorationLine: 'underline',
+  },
+  legalSeparator: {
+    marginHorizontal: 12,
+    fontSize: 13,
+    color: COLORS.textMuted,
   },
 });
