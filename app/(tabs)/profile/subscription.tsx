@@ -201,6 +201,8 @@ const TEXTS = {
     gpsLogbook: 'Carnet GPS',
     unlimited: 'Illimité',
     notAvailable: 'Non disponible sur cette plateforme',
+    privacyPolicy: 'Politique de confidentialité',
+    termsOfUse: 'Conditions d\'utilisation (EULA)',
   },
 };
 
