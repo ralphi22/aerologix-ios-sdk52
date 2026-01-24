@@ -160,6 +160,8 @@ const TEXTS = {
     gpsLogbook: 'GPS Logbook',
     unlimited: 'Unlimited',
     notAvailable: 'Not available on this platform',
+    privacyPolicy: 'Privacy Policy',
+    termsOfUse: 'Terms of Use (EULA)',
   },
   fr: {
     title: 'Plans & Abonnement',
