@@ -492,75 +492,91 @@ export default function SubscriptionScreen() {
   };
 
   // ============================================
-  // RENDER
+  // RENDER CONTENT BASED ON STATE
   // ============================================
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={28} color={COLORS.white} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{texts.title}</Text>
-          <View style={styles.backButton} />
-        </View>
-        <View style={styles.loadingContainer}>
+  /**
+   * Renders the main content area based on current state
+   * NEVER returns null - always shows something meaningful
+   */
+  const renderContent = () => {
+    // Loading state - show spinner but inside ScrollView
+    if (isLoading) {
+      return (
+        <View style={styles.stateContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>{texts.loadingPlans}</Text>
         </View>
-      </SafeAreaView>
-    );
-  }
+      );
+    }
 
-  // Error state
-  if (error && Platform.OS === 'ios') {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={28} color={COLORS.white} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{texts.title}</Text>
-          <View style={styles.backButton} />
-        </View>
-        <View style={styles.errorContainer}>
+    // Error state - show error message with retry
+    if (error && Platform.OS === 'ios') {
+      return (
+        <View style={styles.stateContainer}>
           <Ionicons name="alert-circle-outline" size={48} color={COLORS.danger} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadRevenueCatData}>
             <Text style={styles.retryButtonText}>{texts.tryAgain}</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
-    );
-  }
+      );
+    }
 
-  // Empty state - No packages available
-  if (Platform.OS === 'ios' && availablePackages.length === 0 && !error) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={28} color={COLORS.white} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{texts.title}</Text>
-          <View style={styles.backButton} />
-        </View>
-        <View style={styles.emptyContainer}>
+    // Empty state - No packages available (offerings.current is null or empty)
+    if (Platform.OS === 'ios' && availablePackages.length === 0) {
+      return (
+        <View style={styles.stateContainer}>
           <Ionicons name="pricetag-outline" size={48} color={COLORS.textMuted} />
           <Text style={styles.emptyText}>{texts.noPlansAvailable}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadRevenueCatData}>
             <Text style={styles.retryButtonText}>{texts.tryAgain}</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      );
+    }
+
+    // Non-iOS platform message
+    if (Platform.OS !== 'ios') {
+      return (
+        <View style={styles.stateContainer}>
+          <Ionicons name="phone-portrait-outline" size={48} color={COLORS.textMuted} />
+          <Text style={styles.emptyText}>{texts.notAvailable}</Text>
+        </View>
+      );
+    }
+
+    // Success state - Show packages dynamically
+    return (
+      <>
+        {/* Current Status Banner */}
+        {hasActiveSubscription && activePlanName && (
+          <View style={[styles.statusBanner, { backgroundColor: COLORS.success + '20', borderColor: COLORS.success }]}>
+            <View style={[styles.statusDot, { backgroundColor: COLORS.success }]} />
+            <Text style={[styles.statusBannerText, { color: COLORS.success }]}>
+              {texts.active}: {activePlanName}
+            </Text>
+          </View>
+        )}
+
+        {/* Available Packages - Dynamically rendered */}
+        <View style={styles.plansSection}>
+          <Text style={styles.plansSectionTitle}>{texts.availablePlans}</Text>
+          {availablePackages.map((pkg, index) => (
+            <PackageCard key={pkg.identifier} pkg={pkg} index={index} />
+          ))}
+        </View>
+      </>
     );
-  }
+  };
+
+  // ============================================
+  // MAIN RENDER - SINGLE RETURN, ALWAYS COMPLETE
+  // ============================================
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* Header - ALWAYS visible */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="chevron-back" size={28} color={COLORS.white} />
@@ -580,36 +596,11 @@ export default function SubscriptionScreen() {
           />
         }
       >
-        {/* Current Status Banner */}
-        {hasActiveSubscription && activePlanName && (
-          <View style={[styles.statusBanner, { backgroundColor: COLORS.success + '20', borderColor: COLORS.success }]}>
-            <View style={[styles.statusDot, { backgroundColor: COLORS.success }]} />
-            <Text style={[styles.statusBannerText, { color: COLORS.success }]}>
-              {texts.active}: {activePlanName}
-            </Text>
-          </View>
-        )}
+        {/* Dynamic Content Area */}
+        {renderContent()}
 
-        {/* Available Packages - Dynamically rendered */}
-        {Platform.OS === 'ios' && availablePackages.length > 0 && (
-          <View style={styles.plansSection}>
-            <Text style={styles.plansSectionTitle}>{texts.availablePlans}</Text>
-            {availablePackages.map((pkg, index) => (
-              <PackageCard key={pkg.identifier} pkg={pkg} index={index} />
-            ))}
-          </View>
-        )}
-
-        {/* Non-iOS message */}
-        {Platform.OS !== 'ios' && (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="phone-portrait-outline" size={48} color={COLORS.textMuted} />
-            <Text style={styles.emptyText}>{texts.notAvailable}</Text>
-          </View>
-        )}
-
-        {/* Restore Purchases Button - iOS only */}
-        {Platform.OS === 'ios' && (
+        {/* Restore Purchases Button - iOS only, always visible when not loading */}
+        {Platform.OS === 'ios' && !isLoading && (
           <TouchableOpacity
             style={styles.restoreButton}
             onPress={handleRestorePurchases}
@@ -627,7 +618,7 @@ export default function SubscriptionScreen() {
         )}
 
         {/* Manage Subscription Button - iOS only, when subscribed */}
-        {Platform.OS === 'ios' && hasActiveSubscription && (
+        {Platform.OS === 'ios' && hasActiveSubscription && !isLoading && (
           <TouchableOpacity
             style={styles.manageButton}
             onPress={handleManageSubscription}
@@ -637,13 +628,13 @@ export default function SubscriptionScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Info Note */}
+        {/* Info Note - ALWAYS visible */}
         <View style={styles.infoNote}>
           <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.textMuted} />
           <Text style={styles.infoNoteText}>{texts.securityNote}</Text>
         </View>
 
-        {/* Legal Links - Required for Apple Guideline 3.1.2 */}
+        {/* Legal Links - ALWAYS visible (Apple Guideline 3.1.2) */}
         <View style={styles.legalLinks}>
           <TouchableOpacity 
             onPress={() => Linking.openURL('https://aerologix-backend.onrender.com/privacy')}
@@ -701,23 +692,19 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   // Loading
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
     color: COLORS.textMuted,
   },
-  // Error
-  errorContainer: {
-    flex: 1,
+  // State container (used for loading, error, empty states)
+  stateContainer: {
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+    minHeight: 200,
   },
+  // Error
   errorText: {
     marginTop: 12,
     fontSize: 16,
@@ -735,14 +722,7 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '600',
   },
-  // Empty state
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    minHeight: 300,
-  },
+  // Empty state text
   emptyText: {
     marginTop: 12,
     fontSize: 16,
