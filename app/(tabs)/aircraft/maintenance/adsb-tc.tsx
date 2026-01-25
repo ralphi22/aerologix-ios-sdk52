@@ -301,9 +301,35 @@ export default function AdSbTcScreen() {
     fetchBaseline(true);
   }, [fetchBaseline]);
 
-  // Split items by type
-  const adItems = data?.items?.filter(item => item.type === 'AD') || [];
-  const sbItems = data?.items?.filter(item => item.type === 'SB') || [];
+  // ============================================================
+  // EXTRACT AD & SB LISTS - Support both legacy and new format
+  // NO FILTERING ON ORIGIN - Display ALL items regardless of origin
+  // ============================================================
+  
+  // New format: ad_list / sb_list (preferred)
+  // Legacy format: items[] filtered by type
+  const adItems: ADSBBaselineItem[] = (() => {
+    if (data?.ad_list && data.ad_list.length > 0) {
+      return data.ad_list;
+    }
+    if (data?.items) {
+      return data.items.filter(item => item.type === 'AD');
+    }
+    return [];
+  })();
+
+  const sbItems: ADSBBaselineItem[] = (() => {
+    if (data?.sb_list && data.sb_list.length > 0) {
+      return data.sb_list;
+    }
+    if (data?.items) {
+      return data.items.filter(item => item.type === 'SB');
+    }
+    return [];
+  })();
+
+  // Check if we have ANY data to display (corrected condition)
+  const hasData = adItems.length > 0 || sbItems.length > 0;
 
   // ============================================================
   // RENDER SINGLE ITEM
