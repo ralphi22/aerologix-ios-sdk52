@@ -3,19 +3,16 @@
  * 
  * DISPLAYS ONLY:
  * - Items with origin === 'USER_IMPORTED_REFERENCE'
- * - Items with pdf_available === true
+ * 
+ * ❌ NEVER display TC_BASELINE here
+ * ❌ NO OCR logic (count_seen)
+ * ❌ NO compliance wording
  * 
  * ENDPOINTS:
- * - GET /api/adsb/baseline/{aircraft_id} - Fetch all data
- * - GET /api/adsb/tc/pdf/{aircraft_id}/{identifier} - Open PDF
- * - DELETE /api/adsb/tc/reference/{aircraft_id}/{identifier} - Remove reference
+ * - GET /api/adsb/baseline/{aircraft_id} - Fetch data
+ * - GET /api/adsb/tc/pdf/{aircraft_id}/{ref} - Open PDF (via Linking)
+ * - DELETE /api/adsb/tc/reference/{aircraft_id}/{ref} - Remove
  * - POST /api/adsb/tc/import-pdf/{aircraft_id} - Import new PDF
- * 
- * CRITICAL RULES:
- * - NO compliance determination
- * - NO regulatory wording
- * - TC-SAFE neutral language only
- * - OCR data is completely separate (Page 1)
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -28,17 +25,20 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
-  Platform,
   Linking,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
+import Constants from 'expo-constants';
 import { getLanguage } from '@/i18n';
 import api from '@/services/api';
 
-// Transport Canada search URL
-const TC_SEARCH_URL = 'https://wwwapps.tc.gc.ca/Saf-Sec-Sur/2/cawis-swimc/AD-CN-lst-eng.aspx';
+// Transport Canada AD search URL
+const TC_AD_SEARCH_URL = 'https://wwwapps.tc.gc.ca/Saf-Sec-Sur/2/cawis-swimn/AD_as.aspx';
+
+// API base URL for direct PDF links
+const API_BASE_URL = Constants.expoConfig?.extra?.EXPO_BACKEND_URL || '';
 
 // ============================================================
 // COLORS
@@ -54,10 +54,8 @@ const COLORS = {
   adRedBg: '#FFEBEE',
   sbBlue: '#1976D2',
   sbBlueBg: '#E3F2FD',
-  warningOrange: '#FF9800',
-  warningOrangeBg: '#FFF3E0',
-  successGreen: '#43A047',
-  successGreenBg: '#E8F5E9',
+  dangerRed: '#DC3545',
+  dangerRedBg: '#F8D7DA',
   disclaimerYellow: '#FFF8E1',
   disclaimerYellowBorder: '#FFE082',
   pdfBlue: '#2196F3',
@@ -74,29 +72,22 @@ const TEXTS = {
     sectionTitle: 'Your Imported PDF References',
     adSection: 'Airworthiness Directives (AD)',
     sbSection: 'Service Bulletins (SB)',
-    seenTimes: 'Seen in OCR',
-    times: 'time(s)',
-    notFoundInRecords: 'Not found in your scanned documents',
-    notFoundMicrocopy: 'This does not indicate compliance status.',
     noImportedReferences: 'No imported PDF references yet.',
-    noImportedHint: 'Use the button above to import Transport Canada PDF documents.',
+    noImportedHint: 'Use the button below to import Transport Canada PDF documents.',
     disclaimer: 'Informational only. This tool does not determine airworthiness or compliance. Verification with official Transport Canada records and a licensed AME is required.',
     loading: 'Loading references...',
     error: 'Unable to retrieve data at this time.',
     retry: 'Retry',
-    aircraft: 'Aircraft',
-    total: 'Total',
-    recurrence: 'Recurrence',
+    // Header action
+    searchTcAds: 'Search Transport Canada ADs',
     // PDF Import
     importPdfButton: 'Import Transport Canada PDF',
     importPdfUploading: 'Importing...',
     importPdfSuccess: 'PDF imported. References updated.',
     importPdfError: 'Unable to import PDF. Please try again.',
-    importPdfDisclaimer: 'Imported files come from official documents selected by the user. No compliance or airworthiness determination is performed.',
     // Card actions
-    openPdf: 'View PDF',
-    deleteReference: 'Remove',
-    searchOnTc: 'Search on Transport Canada',
+    viewPdf: 'View PDF',
+    remove: 'Remove',
     deleteConfirmTitle: 'Remove Reference',
     deleteConfirmMessage: 'This removes the reference from your workspace only. The original TC document is not affected.',
     deleteConfirmCancel: 'Cancel',
@@ -104,10 +95,8 @@ const TEXTS = {
     deleteSuccess: 'Reference removed.',
     deleteError: 'Unable to remove reference.',
     pdfError: 'Unable to open PDF.',
-    // Card disclaimer
-    cardDisclaimer: 'Imported reference for document review. This does not indicate compliance or airworthiness status.',
-    // Badge
-    pdfBadge: 'PDF',
+    // Card fixed message
+    cardMessage: 'Imported reference for document review. This does not indicate compliance or airworthiness status.',
   },
   fr: {
     screenTitle: 'TC AD/SB',
@@ -115,29 +104,22 @@ const TEXTS = {
     sectionTitle: 'Vos références PDF importées',
     adSection: 'Consignes de navigabilité (AD)',
     sbSection: 'Bulletins de service (SB)',
-    seenTimes: 'Vu dans OCR',
-    times: 'fois',
-    notFoundInRecords: 'Non trouvé dans vos documents scannés',
-    notFoundMicrocopy: 'Ceci n\'indique pas un statut de conformité.',
     noImportedReferences: 'Aucune référence PDF importée.',
-    noImportedHint: 'Utilisez le bouton ci-dessus pour importer des documents PDF Transport Canada.',
+    noImportedHint: 'Utilisez le bouton ci-dessous pour importer des documents PDF Transport Canada.',
     disclaimer: 'Informatif seulement. Cet outil ne détermine pas la navigabilité ou la conformité. Vérification avec les registres officiels de Transport Canada et un TEA agréé requise.',
     loading: 'Chargement des références...',
     error: 'Impossible de récupérer les données.',
     retry: 'Réessayer',
-    aircraft: 'Aéronef',
-    total: 'Total',
-    recurrence: 'Récurrence',
+    // Header action
+    searchTcAds: 'Rechercher les AD Transport Canada',
     // PDF Import
     importPdfButton: 'Importer PDF Transport Canada',
     importPdfUploading: 'Importation...',
     importPdfSuccess: 'PDF importé. Références mises à jour.',
     importPdfError: 'Impossible d\'importer le PDF. Veuillez réessayer.',
-    importPdfDisclaimer: 'Les fichiers importés proviennent de documents officiels sélectionnés par l\'utilisateur. Aucune décision de conformité ou de navigabilité n\'est effectuée.',
     // Card actions
-    openPdf: 'Voir PDF',
-    deleteReference: 'Supprimer',
-    searchOnTc: 'Rechercher sur Transport Canada',
+    viewPdf: 'Voir PDF',
+    remove: 'Supprimer',
     deleteConfirmTitle: 'Supprimer la référence',
     deleteConfirmMessage: 'Ceci supprime la référence de votre espace de travail uniquement. Le document TC original n\'est pas affecté.',
     deleteConfirmCancel: 'Annuler',
@@ -145,10 +127,8 @@ const TEXTS = {
     deleteSuccess: 'Référence supprimée.',
     deleteError: 'Impossible de supprimer la référence.',
     pdfError: 'Impossible d\'ouvrir le PDF.',
-    // Card disclaimer
-    cardDisclaimer: 'Référence importée pour révision documentaire. Ceci n\'indique pas un statut de conformité ou de navigabilité.',
-    // Badge
-    pdfBadge: 'PDF',
+    // Card fixed message
+    cardMessage: 'Référence importée pour révision documentaire. Ceci n\'indique pas un statut de conformité ou de navigabilité.',
   },
 };
 
@@ -161,8 +141,7 @@ const TEXTS = {
  * 
  * For USER_IMPORTED_REFERENCE items:
  * - origin = 'USER_IMPORTED_REFERENCE'
- * - pdf_available = true
- * - identifier = unique ID for PDF/delete operations
+ * - ref = identifier for PDF/delete operations
  */
 interface ADSBBaselineItem {
   ref: string;
@@ -397,63 +376,46 @@ export default function AdSbTcScreen() {
   };
 
   /**
-   * Open Transport Canada search page
+   * Open Transport Canada AD search page
    */
-  const handleSearchOnTc = () => {
-    Linking.openURL(TC_SEARCH_URL);
+  const handleSearchTcAds = () => {
+    Linking.openURL(TC_AD_SEARCH_URL);
   };
 
   // ============================================================
-  // FILTER: ONLY USER IMPORTED PDF REFERENCES
+  // FILTER: ONLY USER_IMPORTED_REFERENCE
+  // ❌ Never display TC_BASELINE here
+  // ❌ No OCR logic (count_seen)
   // ============================================================
   
-  // Combine all items from both formats
-  const allItems: ADSBBaselineItem[] = (() => {
-    const items: ADSBBaselineItem[] = [];
-    
-    // From ad_list
-    if (data?.ad_list) {
-      items.push(...data.ad_list);
-    }
-    // From sb_list
-    if (data?.sb_list) {
-      items.push(...data.sb_list);
-    }
-    // From legacy items (if no ad_list/sb_list)
-    if (items.length === 0 && data?.items) {
-      items.push(...data.items);
-    }
-    
-    return items;
-  })();
-
-  // FILTER: Only show USER_IMPORTED_REFERENCE with pdf_available
-  const userImportedItems = allItems.filter(item => 
-    item.origin === 'USER_IMPORTED_REFERENCE' && 
-    item.pdf_available === true
+  // Filter ad_list for USER_IMPORTED_REFERENCE only
+  const importedAdItems = (data?.ad_list ?? []).filter(
+    item => item.origin === 'USER_IMPORTED_REFERENCE'
   );
 
-  // Split by type for display
-  const importedAdItems = userImportedItems.filter(item => item.type === 'AD');
-  const importedSbItems = userImportedItems.filter(item => item.type === 'SB');
+  // Filter sb_list for USER_IMPORTED_REFERENCE only
+  const importedSbItems = (data?.sb_list ?? []).filter(
+    item => item.origin === 'USER_IMPORTED_REFERENCE'
+  );
 
   // Check if we have imported data to display
-  const hasImportedData = userImportedItems.length > 0;
+  const hasImportedData = importedAdItems.length > 0 || importedSbItems.length > 0;
 
   // ============================================================
-  // RENDER SINGLE IMPORTED ITEM CARD
+  // RENDER SINGLE IMPORTED CARD (SIMPLIFIED)
+  // ❌ No OCR logic (count_seen)
+  // ❌ No TC button per card (moved to header)
   // ============================================================
   const renderImportedCard = (item: ADSBBaselineItem, index: number) => {
     const isAD = item.type === 'AD';
-    const notFoundInOcr = item.count_seen === 0;
-    const identifier = item.identifier || item.ref;
+    const refId = item.ref; // Use ref for API calls
     
     return (
       <View 
         key={`${item.type}-${item.ref}-${index}`}
         style={styles.importedCard}
       >
-        {/* Header Row: Type Badge + Ref + PDF Badge */}
+        {/* Header Row: Type Badge + Identifier + PDF Badge */}
         <View style={styles.cardHeader}>
           <View style={[
             styles.typeBadge,
@@ -467,78 +429,40 @@ export default function AdSbTcScreen() {
             </Text>
           </View>
           
-          <Text style={styles.cardRef}>{item.ref}</Text>
+          <Text style={styles.cardRef}>{item.title || item.ref}</Text>
           
-          {/* PDF Badge - Always shown for imported items */}
+          {/* PDF Badge */}
           <View style={styles.pdfBadge}>
             <Ionicons name="document" size={12} color={COLORS.pdfBlue} />
-            <Text style={styles.pdfBadgeText}>{texts.pdfBadge}</Text>
+            <Text style={styles.pdfBadgeText}>PDF</Text>
           </View>
         </View>
 
-        {/* Title if available */}
-        {item.title && (
-          <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-        )}
+        {/* Fixed message - TC-SAFE */}
+        <Text style={styles.cardMessage}>{texts.cardMessage}</Text>
 
-        {/* Recurrence if available */}
-        {item.recurrence && (
-          <View style={styles.recurrenceRow}>
-            <Ionicons name="repeat" size={12} color={COLORS.textMuted} />
-            <Text style={styles.recurrenceText}>{texts.recurrence}: {item.recurrence}</Text>
-          </View>
-        )}
-
-        {/* OCR Status Badge */}
-        <View style={styles.ocrStatusRow}>
-          {notFoundInOcr ? (
-            <View style={styles.ocrNotFoundBadge}>
-              <Ionicons name="alert-circle" size={14} color={COLORS.warningOrange} />
-              <Text style={styles.ocrNotFoundText}>{texts.notFoundInRecords}</Text>
-            </View>
-          ) : (
-            <View style={styles.ocrFoundBadge}>
-              <Ionicons name="checkmark-circle" size={14} color={COLORS.successGreen} />
-              <Text style={styles.ocrFoundText}>{texts.seenTimes} {item.count_seen} {texts.times}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Action Buttons */}
+        {/* Action Buttons - ONLY View PDF and Remove */}
         <View style={styles.cardActions}>
           {/* View PDF Button */}
           <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => handleOpenPdf(identifier)}
+            style={styles.viewPdfButton}
+            onPress={() => handleOpenPdf(refId)}
             activeOpacity={0.7}
           >
-            <Ionicons name="document-text-outline" size={18} color={COLORS.primary} />
-            <Text style={styles.actionButtonText}>{texts.openPdf}</Text>
+            <Ionicons name="document-text-outline" size={18} color={COLORS.white} />
+            <Text style={styles.viewPdfButtonText}>{texts.viewPdf}</Text>
           </TouchableOpacity>
 
-          {/* Search on TC Button */}
+          {/* Remove Button */}
           <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleSearchOnTc}
+            style={styles.removeButton}
+            onPress={() => handleDeleteReference(refId, refId)}
             activeOpacity={0.7}
           >
-            <Ionicons name="search-outline" size={18} color={COLORS.primary} />
-            <Text style={styles.actionButtonText}>TC</Text>
-          </TouchableOpacity>
-
-          {/* Delete Button */}
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.deleteButton]}
-            onPress={() => handleDeleteReference(identifier, item.ref)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="trash-outline" size={18} color={COLORS.adRed} />
-            <Text style={[styles.actionButtonText, { color: COLORS.adRed }]}>{texts.deleteReference}</Text>
+            <Ionicons name="trash-outline" size={18} color={COLORS.dangerRed} />
+            <Text style={styles.removeButtonText}>{texts.remove}</Text>
           </TouchableOpacity>
         </View>
-
-        {/* TC-Safe Disclaimer under each card */}
-        <Text style={styles.cardDisclaimer}>{texts.cardDisclaimer}</Text>
       </View>
     );
   };
@@ -583,6 +507,12 @@ export default function AdSbTcScreen() {
             <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
           </View>
 
+          {/* 🔝 TC Search Button - AT THE TOP */}
+          <TouchableOpacity style={styles.tcSearchButton} onPress={handleSearchTcAds} activeOpacity={0.7}>
+            <Ionicons name="search" size={18} color={COLORS.white} />
+            <Text style={styles.tcSearchButtonText}>{texts.searchTcAds}</Text>
+          </TouchableOpacity>
+
           {/* Import PDF Button */}
           <TouchableOpacity 
             style={[styles.importButton, isImporting && styles.importButtonDisabled]} 
@@ -601,15 +531,6 @@ export default function AdSbTcScreen() {
                 <Text style={styles.importButtonText}>{texts.importPdfButton}</Text>
               </>
             )}
-          </TouchableOpacity>
-
-          {/* Import Disclaimer */}
-          <Text style={styles.importDisclaimer}>{texts.importPdfDisclaimer}</Text>
-
-          {/* Search on TC Link */}
-          <TouchableOpacity style={styles.tcSearchButton} onPress={handleSearchOnTc} activeOpacity={0.7}>
-            <Ionicons name="search" size={18} color={COLORS.primary} />
-            <Text style={styles.tcSearchButtonText}>{texts.searchOnTc}</Text>
           </TouchableOpacity>
 
           {/* Empty state */}
@@ -637,6 +558,12 @@ export default function AdSbTcScreen() {
           <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
         </View>
 
+        {/* 🔝 TC Search Button - AT THE TOP */}
+        <TouchableOpacity style={styles.tcSearchButton} onPress={handleSearchTcAds} activeOpacity={0.7}>
+          <Ionicons name="search" size={18} color={COLORS.white} />
+          <Text style={styles.tcSearchButtonText}>{texts.searchTcAds}</Text>
+        </TouchableOpacity>
+
         {/* Import PDF Button */}
         <TouchableOpacity 
           style={[styles.importButton, isImporting && styles.importButtonDisabled]} 
@@ -657,21 +584,12 @@ export default function AdSbTcScreen() {
           )}
         </TouchableOpacity>
 
-        {/* Import Disclaimer */}
-        <Text style={styles.importDisclaimer}>{texts.importPdfDisclaimer}</Text>
-
-        {/* Search on TC Link */}
-        <TouchableOpacity style={styles.tcSearchButton} onPress={handleSearchOnTc} activeOpacity={0.7}>
-          <Ionicons name="search" size={18} color={COLORS.primary} />
-          <Text style={styles.tcSearchButtonText}>{texts.searchOnTc}</Text>
-        </TouchableOpacity>
-
         {/* Counters */}
         <View style={styles.countersContainer}>
           <View style={[styles.counterBadge, { backgroundColor: COLORS.pdfBlueBg }]}>
             <Ionicons name="document" size={14} color={COLORS.pdfBlue} />
             <Text style={[styles.counterText, { color: COLORS.pdfBlue, marginLeft: 4 }]}>
-              {userImportedItems.length} PDF
+              {importedAdItems.length + importedSbItems.length} PDF
             </Text>
           </View>
           <View style={[styles.counterBadge, { backgroundColor: COLORS.adRedBg }]}>
@@ -803,34 +721,27 @@ const styles = StyleSheet.create({
   warningCountText: { fontSize: 16, fontWeight: '700', color: COLORS.warningOrange },
   notFoundText: { fontSize: 9, color: COLORS.warningOrange, marginTop: 4, textAlign: 'center', maxWidth: 90, lineHeight: 12 },
   notFoundMicrocopy: { fontSize: 8, color: COLORS.textMuted, marginTop: 2, textAlign: 'center', maxWidth: 90, lineHeight: 10, fontStyle: 'italic' },
-  importButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 20, marginBottom: 8 },
+  importButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 20, marginBottom: 16 },
   importButtonDisabled: { opacity: 0.6 },
   importButtonText: { fontSize: 15, fontWeight: '600', color: COLORS.primary, marginLeft: 8 },
-  importDisclaimer: { fontSize: 11, color: COLORS.textMuted, textAlign: 'center', marginBottom: 12, paddingHorizontal: 12, lineHeight: 16, fontStyle: 'italic' },
-  // TC Search Button
-  tcSearchButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.background, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16, marginBottom: 16 },
-  tcSearchButtonText: { fontSize: 14, fontWeight: '500', color: COLORS.primary, marginLeft: 6 },
+  // TC Search Button - Primary action at top
+  tcSearchButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 20, marginBottom: 12 },
+  tcSearchButtonText: { fontSize: 15, fontWeight: '600', color: COLORS.white, marginLeft: 8 },
   // Imported Card Styles
   cardsList: { gap: 12 },
   importedCard: { backgroundColor: COLORS.white, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: COLORS.pdfBlue, borderLeftWidth: 4 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   cardRef: { flex: 1, fontSize: 16, fontWeight: '700', color: COLORS.textDark, marginLeft: 10 },
-  cardTitle: { fontSize: 13, color: COLORS.textMuted, lineHeight: 18, marginBottom: 8 },
   // PDF Badge
   pdfBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.pdfBlueBg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   pdfBadgeText: { fontSize: 10, fontWeight: '700', color: COLORS.pdfBlue, marginLeft: 4 },
-  // OCR Status badges
-  ocrStatusRow: { marginBottom: 12 },
-  ocrNotFoundBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.warningOrangeBg, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start' },
-  ocrNotFoundText: { fontSize: 11, color: COLORS.warningOrange, marginLeft: 6, fontWeight: '500' },
-  ocrFoundBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.successGreenBg, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start' },
-  ocrFoundText: { fontSize: 11, color: COLORS.successGreen, marginLeft: 6, fontWeight: '500' },
-  // Action buttons
-  cardActions: { flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' },
-  actionButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.background, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, gap: 4 },
-  deleteButton: { backgroundColor: COLORS.adRedBg },
-  actionButtonText: { fontSize: 12, fontWeight: '600', color: COLORS.primary },
-  // Card disclaimer
-  cardDisclaimer: { fontSize: 10, color: COLORS.textMuted, fontStyle: 'italic', lineHeight: 14 },
+  // Card message (TC-SAFE)
+  cardMessage: { fontSize: 12, color: COLORS.textMuted, lineHeight: 18, marginBottom: 14, fontStyle: 'italic' },
+  // Card action buttons
+  cardActions: { flexDirection: 'row', gap: 10 },
+  viewPdfButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, flex: 1, justifyContent: 'center' },
+  viewPdfButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.white, marginLeft: 6 },
+  removeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.dangerRedBg, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: COLORS.dangerRed },
+  removeButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.dangerRed, marginLeft: 6 },
   bottomSpacer: { height: 40 },
 });
