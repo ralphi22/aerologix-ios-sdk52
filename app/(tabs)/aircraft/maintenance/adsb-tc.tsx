@@ -485,7 +485,7 @@ export default function AdSbTcScreen() {
       );
     }
 
-    if (!data || !data.items || data.items.length === 0) {
+    if (!data || !hasData) {
       return (
         <ScrollView
           style={styles.scrollView}
