@@ -122,6 +122,7 @@ const TEXTS = {
 /**
  * Single AD or SB item from backend baseline
  * count_seen = how many times found in scanned OCR records
+ * origin = source of the reference (TC_BASELINE, USER_IMPORTED_REFERENCE, etc.)
  */
 interface ADSBBaselineItem {
   ref: string;
@@ -129,18 +130,27 @@ interface ADSBBaselineItem {
   title: string;
   recurrence?: string;
   count_seen: number;
+  origin?: string; // TC_BASELINE, USER_IMPORTED_REFERENCE, etc.
 }
 
 /**
  * Response from GET /api/adsb/baseline/{aircraft_id}
  * Pre-computed MongoDB data - NO live lookup
+ * 
+ * Backend may return:
+ * - items[] (legacy format)
+ * - ad_list[] + sb_list[] (new format)
  */
 interface ADSBBaselineResponse {
   aircraft: {
     manufacturer: string;
     model: string;
   };
-  items: ADSBBaselineItem[];
+  // Legacy format
+  items?: ADSBBaselineItem[];
+  // New format with separate lists
+  ad_list?: ADSBBaselineItem[];
+  sb_list?: ADSBBaselineItem[];
   count: {
     ad: number;
     sb: number;
