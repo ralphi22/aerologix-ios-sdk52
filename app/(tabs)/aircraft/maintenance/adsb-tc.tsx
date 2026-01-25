@@ -834,7 +834,8 @@ const styles = StyleSheet.create({
   cardActions: { flexDirection: 'row', gap: 10 },
   viewPdfButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, flex: 1, justifyContent: 'center' },
   viewPdfButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.white, marginLeft: 6 },
-  removeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.dangerRedBg, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: COLORS.dangerRed },
+  removeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.dangerRedBg, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: COLORS.dangerRed, justifyContent: 'center' },
   removeButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.dangerRed, marginLeft: 6 },
+  buttonDisabled: { opacity: 0.6 },
   bottomSpacer: { height: 40 },
 });
