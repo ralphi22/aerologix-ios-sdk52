@@ -131,6 +131,7 @@ const TEXTS = {
     deleteSuccess: 'Référence supprimée.',
     deleteError: 'Impossible de supprimer la référence.',
     pdfError: 'Impossible d\'ouvrir le PDF.',
+    pdfDownloading: 'Téléchargement du PDF...',
     // Card fixed message
     cardMessage: 'Référence importée pour révision documentaire. Ceci n\'indique pas un statut de conformité ou de navigabilité.',
   },
@@ -145,17 +146,20 @@ const TEXTS = {
  * 
  * For USER_IMPORTED_REFERENCE items:
  * - origin = 'USER_IMPORTED_REFERENCE'
- * - ref = identifier for PDF/delete operations
+ * - tc_reference_id = ID for DELETE operation
+ * - pdf_id = ID for PDF download
  */
 interface ADSBBaselineItem {
   ref: string;
-  identifier?: string; // Used for PDF/delete API calls
   type: 'AD' | 'SB';
   title: string;
   recurrence?: string;
-  count_seen: number;
+  count_seen?: number; // Optional - not used in TC page
   origin?: string; // 'USER_IMPORTED_REFERENCE' | 'TC_BASELINE' | etc.
   pdf_available?: boolean;
+  // IDs for API operations
+  tc_reference_id?: string; // Used for DELETE
+  pdf_id?: string; // Used for PDF download
 }
 
 /**
