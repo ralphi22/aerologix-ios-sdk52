@@ -110,12 +110,12 @@ export default function AdSbScreen() {
 
   const handleDelete = (id: string, number: string) => {
     Alert.alert(
-      lang === 'fr' ? 'Supprimer' : 'Delete',
-      lang === 'fr' ? `Supprimer "${number}" ?` : `Delete "${number}"?`,
+      texts.delete,
+      `${texts.deleteConfirm} "${number}" ?`,
       [
-        { text: lang === 'fr' ? 'Annuler' : 'Cancel', style: 'cancel' },
+        { text: texts.cancel, style: 'cancel' },
         { 
-          text: lang === 'fr' ? 'Supprimer' : 'Delete', 
+          text: texts.delete, 
           style: 'destructive', 
           onPress: async () => {
             setDeletingId(id);
@@ -134,15 +134,12 @@ export default function AdSbScreen() {
   };
 
   const handleOcrMock = () => {
-    Alert.alert(
-      'OCR',
-      lang === 'fr' ? 'Fonction OCR bientôt disponible' : 'OCR function coming soon'
-    );
+    Alert.alert('OCR', texts.ocrComingSoon);
   };
 
   const handleAdd = () => {
     if (!newNumber.trim() || !newDescription.trim()) {
-      Alert.alert('Error', lang === 'fr' ? 'Veuillez remplir tous les champs' : 'Please fill all fields');
+      Alert.alert('Error', texts.fillAllFields);
       return;
     }
     addAdSb({
