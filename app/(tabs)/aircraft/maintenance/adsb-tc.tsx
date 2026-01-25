@@ -157,6 +157,17 @@ export default function AdSbTcScreen() {
   const [data, setData] = useState<ADSBBaselineResponse | null>(null);
 
   /**
+   * Placeholder for Phase 1 PDF import
+   * TODO: Implement when backend endpoint is available
+   */
+  const handleImportPdf = () => {
+    Alert.alert(
+      texts.importComingSoon,
+      texts.importComingSoonMessage
+    );
+  };
+
+  /**
    * Fetch AD/SB baseline from MongoDB
    * ENDPOINT: /api/adsb/baseline/{aircraft_id}
    * 
