@@ -326,38 +326,99 @@ export default function AdSbTcScreen() {
     fetchBaseline(true);
   }, [fetchBaseline]);
 
+  // Get auth token for authenticated requests
+  const { token } = useAuthStore();
+
+  // State for PDF download
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
+  const [deletingRefId, setDeletingRefId] = useState<string | null>(null);
+
   // ============================================================
   // PDF & DELETE HANDLERS
   // ============================================================
 
   /**
-   * Open PDF for a reference
-   * GET /api/adsb/tc/pdf/{aircraft_id}/{identifier}
+   * Open PDF using authenticated download + local share
+   * iOS TestFlight compatible approach:
+   * 1. Download PDF bytes with Bearer token
+   * 2. Write to FileSystem.cacheDirectory
+   * 3. Open with expo-sharing
+   * 
+   * @param pdfId - The pdf_id from baseline item
+   * @param refName - Reference name for filename
    */
-  const handleOpenPdf = async (identifier: string) => {
-    if (!aircraftId || !identifier) return;
-    
-    try {
-      // Get PDF URL from backend
-      const response = await api.get(`/api/adsb/tc/pdf/${aircraftId}/${encodeURIComponent(identifier)}`);
-      
-      if (response.data?.url) {
-        await Linking.openURL(response.data.url);
-      } else {
-        Alert.alert('', texts.pdfError);
-      }
-    } catch (err) {
-      console.error('[PDF Open] Error:', err);
+  const openTcPdf = async (pdfId: string, refName: string) => {
+    if (!pdfId) {
+      console.error('[PDF] No pdf_id provided');
       Alert.alert('', texts.pdfError);
+      return;
+    }
+
+    setDownloadingPdfId(pdfId);
+
+    try {
+      // Check if sharing is available on this device
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        console.error('[PDF] Sharing not available on this device');
+        Alert.alert('', texts.pdfError);
+        setDownloadingPdfId(null);
+        return;
+      }
+
+      // Build download URL
+      const downloadUrl = `${api.defaults.baseURL}/api/adsb/tc/pdf/${pdfId}`;
+      const filename = `${refName.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
+      const localUri = `${FileSystem.cacheDirectory}${filename}`;
+
+      console.log(`[PDF] Downloading: ${downloadUrl}`);
+
+      // Download with authentication header
+      const downloadResult = await FileSystem.downloadAsync(
+        downloadUrl,
+        localUri,
+        {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : '',
+          },
+        }
+      );
+
+      console.log(`[PDF] Download result: status=${downloadResult.status}, uri=${downloadResult.uri}`);
+
+      if (downloadResult.status !== 200) {
+        console.error(`[PDF] Download failed with status ${downloadResult.status}`);
+        Alert.alert('', texts.pdfError);
+        setDownloadingPdfId(null);
+        return;
+      }
+
+      // Open PDF using sharing (works on iOS TestFlight)
+      await Sharing.shareAsync(downloadResult.uri, {
+        mimeType: 'application/pdf',
+        UTI: 'com.adobe.pdf',
+      });
+
+      console.log('[PDF] Opened successfully');
+    } catch (err: any) {
+      console.error('[PDF] Error:', err?.message || err);
+      Alert.alert('', texts.pdfError);
+    } finally {
+      setDownloadingPdfId(null);
     }
   };
 
   /**
    * Delete a reference from workspace
-   * DELETE /api/adsb/tc/reference/{aircraft_id}/{identifier}
+   * Uses tc_reference_id from baseline item
+   * DELETE /api/adsb/tc/reference/{tc_reference_id}
    */
-  const handleDeleteReference = (identifier: string, ref: string) => {
-    if (!aircraftId || !identifier) return;
+  const handleDeleteReference = (tcReferenceId: string | undefined, refName: string) => {
+    if (!tcReferenceId) {
+      console.error('[Delete] No tc_reference_id provided');
+      Alert.alert('', texts.deleteError);
+      return;
+    }
 
     Alert.alert(
       texts.deleteConfirmTitle,
@@ -368,14 +429,18 @@ export default function AdSbTcScreen() {
           text: texts.deleteConfirmOk,
           style: 'destructive',
           onPress: async () => {
+            setDeletingRefId(tcReferenceId);
             try {
-              await api.delete(`/api/adsb/tc/reference/${aircraftId}/${encodeURIComponent(identifier)}`);
+              console.log(`[Delete] Deleting reference: ${tcReferenceId}`);
+              await api.delete(`/api/adsb/tc/reference/${tcReferenceId}`);
               Alert.alert('', texts.deleteSuccess);
-              // Refresh data
+              // Refresh baseline (source of truth)
               fetchBaseline(true);
-            } catch (err) {
-              console.error('[Delete Reference] Error:', err);
+            } catch (err: any) {
+              console.error('[Delete] Error:', err?.response?.status, err?.message);
               Alert.alert('', texts.deleteError);
+            } finally {
+              setDeletingRefId(null);
             }
           },
         },
