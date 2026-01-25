@@ -743,7 +743,5 @@ const styles = StyleSheet.create({
   viewPdfButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.white, marginLeft: 6 },
   removeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.dangerRedBg, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: COLORS.dangerRed },
   removeButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.dangerRed, marginLeft: 6 },
-  // Card disclaimer
-  cardDisclaimer: { fontSize: 10, color: COLORS.textMuted, fontStyle: 'italic', lineHeight: 14 },
   bottomSpacer: { height: 40 },
 });
