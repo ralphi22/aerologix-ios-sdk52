@@ -26,6 +26,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -59,13 +60,15 @@ const COLORS = {
 // ============================================================
 const TEXTS = {
   en: {
-    title: 'AD / SB',
+    screenTitle: 'TC AD/SB',
+    screenSubtitle: 'Imported Reference',
     sectionTitle: 'Airworthiness Directives & Service Bulletins',
     adSection: 'Airworthiness Directives (AD)',
     sbSection: 'Service Bulletins (SB)',
     seenTimes: 'Seen',
     times: 'time(s)',
-    notFoundInRecords: 'Not found in scanned records',
+    notFoundInRecords: 'Not found in your scanned documents',
+    notFoundMicrocopy: 'This does not indicate compliance status.',
     noItemsReturned: 'No AD or SB data available for this aircraft type.',
     disclaimer: 'Informational only. This tool does not determine airworthiness or compliance. Verification with official Transport Canada records and a licensed AME is required.',
     loading: 'Loading AD/SB data...',
@@ -74,15 +77,20 @@ const TEXTS = {
     aircraft: 'Aircraft',
     total: 'Total',
     recurrence: 'Recurrence',
+    importPdfButton: 'Import TC PDFs',
+    importComingSoon: 'Coming soon',
+    importComingSoonMessage: 'PDF import functionality will be available in a future update.',
   },
   fr: {
-    title: 'AD / SB',
+    screenTitle: 'TC AD/SB',
+    screenSubtitle: 'Référence importée',
     sectionTitle: 'Consignes de navigabilité & Bulletins de service',
     adSection: 'Consignes de navigabilité (AD)',
     sbSection: 'Bulletins de service (SB)',
     seenTimes: 'Vu',
     times: 'fois',
-    notFoundInRecords: 'Non trouvé dans les documents numérisés',
+    notFoundInRecords: 'Non trouvé dans vos documents scannés',
+    notFoundMicrocopy: 'Ceci n\'indique pas un statut de conformité.',
     noItemsReturned: "Aucune donnée AD ou SB disponible pour ce type d'aéronef.",
     disclaimer: 'Informatif seulement. Cet outil ne détermine pas la navigabilité ou la conformité. Vérification avec les registres officiels de Transport Canada et un TEA agréé requise.',
     loading: 'Chargement des données AD/SB...',
@@ -91,6 +99,9 @@ const TEXTS = {
     aircraft: 'Aéronef',
     total: 'Total',
     recurrence: 'Récurrence',
+    importPdfButton: 'Importer PDF TC',
+    importComingSoon: 'Bientôt disponible',
+    importComingSoonMessage: 'La fonctionnalité d\'importation PDF sera disponible dans une prochaine mise à jour.',
   },
 };
 
