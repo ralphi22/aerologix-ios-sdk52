@@ -131,59 +131,6 @@ const TEXTS = {
     cardMessage: 'Référence importée pour révision documentaire. Ceci n\'indique pas un statut de conformité ou de navigabilité.',
   },
 };
-    deleteConfirmMessage: 'This removes the reference from your workspace only. The original TC document is not affected.',
-    deleteConfirmCancel: 'Cancel',
-    deleteConfirmOk: 'Remove',
-    deleteSuccess: 'Reference removed.',
-    deleteError: 'Unable to remove reference.',
-    pdfError: 'Unable to open PDF.',
-    // Card disclaimer
-    cardDisclaimer: 'Imported reference for document review. This does not indicate compliance or airworthiness status.',
-    // Badge
-    pdfBadge: 'PDF',
-  },
-  fr: {
-    screenTitle: 'TC AD/SB',
-    screenSubtitle: 'Références importées',
-    sectionTitle: 'Vos références PDF importées',
-    adSection: 'Consignes de navigabilité (AD)',
-    sbSection: 'Bulletins de service (SB)',
-    seenTimes: 'Vu dans OCR',
-    times: 'fois',
-    notFoundInRecords: 'Non trouvé dans vos documents scannés',
-    notFoundMicrocopy: 'Ceci n\'indique pas un statut de conformité.',
-    noImportedReferences: 'Aucune référence PDF importée.',
-    noImportedHint: 'Utilisez le bouton ci-dessus pour importer des documents PDF Transport Canada.',
-    disclaimer: 'Informatif seulement. Cet outil ne détermine pas la navigabilité ou la conformité. Vérification avec les registres officiels de Transport Canada et un TEA agréé requise.',
-    loading: 'Chargement des références...',
-    error: 'Impossible de récupérer les données.',
-    retry: 'Réessayer',
-    aircraft: 'Aéronef',
-    total: 'Total',
-    recurrence: 'Récurrence',
-    // PDF Import
-    importPdfButton: 'Importer PDF Transport Canada',
-    importPdfUploading: 'Importation...',
-    importPdfSuccess: 'PDF importé. Références mises à jour.',
-    importPdfError: 'Impossible d\'importer le PDF. Veuillez réessayer.',
-    importPdfDisclaimer: 'Les fichiers importés proviennent de documents officiels sélectionnés par l\'utilisateur. Aucune décision de conformité ou de navigabilité n\'est effectuée.',
-    // Card actions
-    openPdf: 'Voir PDF',
-    deleteReference: 'Supprimer',
-    searchOnTc: 'Rechercher sur Transport Canada',
-    deleteConfirmTitle: 'Supprimer la référence',
-    deleteConfirmMessage: 'Ceci supprime la référence de votre espace de travail uniquement. Le document TC original n\'est pas affecté.',
-    deleteConfirmCancel: 'Annuler',
-    deleteConfirmOk: 'Supprimer',
-    deleteSuccess: 'Référence supprimée.',
-    deleteError: 'Impossible de supprimer la référence.',
-    pdfError: 'Impossible d\'ouvrir le PDF.',
-    // Card disclaimer
-    cardDisclaimer: 'Référence importée pour révision documentaire. Ceci n\'indique pas un statut de conformité ou de navigabilité.',
-    // Badge
-    pdfBadge: 'PDF',
-  },
-};
 
 // ============================================================
 // TYPES - BACKEND BASELINE CONTRACT
@@ -194,8 +141,7 @@ const TEXTS = {
  * 
  * For USER_IMPORTED_REFERENCE items:
  * - origin = 'USER_IMPORTED_REFERENCE'
- * - pdf_available = true
- * - identifier = unique ID for PDF/delete operations
+ * - ref = identifier for PDF/delete operations
  */
 interface ADSBBaselineItem {
   ref: string;
