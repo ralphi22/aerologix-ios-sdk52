@@ -432,19 +432,19 @@ export default function AdSbTcScreen() {
   };
 
   // ============================================================
-  // DELETE HANDLER - handleRemove(tc_reference_id)
+  // DELETE HANDLER - handleRemove(tc_reference_id, identifier)
   // ============================================================
 
   /**
    * Delete a reference from workspace
-   * Uses tc_reference_id ONLY (not pdf_id, not baseline.id, not index)
-   * DELETE /api/adsb/tc/reference/{tc_reference_id}
+   * Uses tc_reference_id (ObjectId string) via the correct endpoint
+   * DELETE /api/adsb/tc/reference-by-id/{tc_reference_id}
    * After success → refetch baseline
    * 
-   * @param tcReferenceId - The tc_reference_id from baseline item (REQUIRED)
-   * @param refName - Reference name for display
+   * @param tcReferenceId - The tc_reference_id ObjectId from baseline item (REQUIRED)
+   * @param identifier - The identifier (CF-xxxx-xx) for logging
    */
-  const handleRemove = (tcReferenceId: string | undefined, refName: string) => {
+  const handleRemove = (tcReferenceId: string | undefined, identifier: string) => {
     // Validation
     if (!tcReferenceId) {
       console.error('[Delete] No tc_reference_id provided');
@@ -463,9 +463,11 @@ export default function AdSbTcScreen() {
           onPress: async () => {
             setDeletingRefId(tcReferenceId);
             try {
-              console.log(`[Delete] DELETE /api/adsb/tc/reference/${tcReferenceId}`);
+              // Log before DELETE
+              console.log(`[Delete] tc_reference_id=${tcReferenceId}, identifier=${identifier}`);
+              console.log(`[Delete] DELETE /api/adsb/tc/reference-by-id/${tcReferenceId}`);
               
-              await api.delete(`/api/adsb/tc/reference/${tcReferenceId}`);
+              await api.delete(`/api/adsb/tc/reference-by-id/${tcReferenceId}`);
               
               console.log('[Delete] Success');
               Alert.alert('', texts.deleteSuccess);
