@@ -583,7 +583,7 @@ export default function AdSbTcScreen() {
             <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
           </View>
 
-          {/* Phase 1: Import PDF Button */}
+          {/* Import PDF Button */}
           <TouchableOpacity 
             style={[styles.importButton, isImporting && styles.importButtonDisabled]} 
             onPress={handleImportPdf} 
@@ -603,27 +603,26 @@ export default function AdSbTcScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Import Disclaimer - TC-SAFE */}
+          {/* Import Disclaimer */}
           <Text style={styles.importDisclaimer}>{texts.importPdfDisclaimer}</Text>
 
-          {data?.aircraft && (
-            <View style={styles.aircraftInfo}>
-              <Text style={styles.aircraftLabel}>{texts.aircraft}:</Text>
-              <Text style={styles.aircraftText}>
-                {data.aircraft.manufacturer} {data.aircraft.model}
-              </Text>
-            </View>
-          )}
+          {/* Search on TC Link */}
+          <TouchableOpacity style={styles.tcSearchButton} onPress={handleSearchOnTc} activeOpacity={0.7}>
+            <Ionicons name="search" size={18} color={COLORS.primary} />
+            <Text style={styles.tcSearchButtonText}>{texts.searchOnTc}</Text>
+          </TouchableOpacity>
 
+          {/* Empty state */}
           <View style={styles.emptyContainer}>
             <Ionicons name="document-text-outline" size={56} color={COLORS.textMuted} />
-            <Text style={styles.emptyTitle}>{lang === 'fr' ? 'Aucune donnée' : 'No Data'}</Text>
-            <Text style={styles.emptySubtitle}>{texts.noItemsReturned}</Text>
+            <Text style={styles.emptyTitle}>{texts.noImportedReferences}</Text>
+            <Text style={styles.emptySubtitle}>{texts.noImportedHint}</Text>
           </View>
         </ScrollView>
       );
     }
 
+    // SUCCESS STATE: Show imported PDF references
     return (
       <ScrollView
         style={styles.scrollView}
@@ -638,7 +637,7 @@ export default function AdSbTcScreen() {
           <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
         </View>
 
-        {/* Phase 1: Import PDF Button */}
+        {/* Import PDF Button */}
         <TouchableOpacity 
           style={[styles.importButton, isImporting && styles.importButtonDisabled]} 
           onPress={handleImportPdf} 
@@ -658,32 +657,60 @@ export default function AdSbTcScreen() {
           )}
         </TouchableOpacity>
 
-        {/* Import Disclaimer - TC-SAFE */}
+        {/* Import Disclaimer */}
         <Text style={styles.importDisclaimer}>{texts.importPdfDisclaimer}</Text>
 
-        {data.aircraft && (
-          <View style={styles.aircraftInfo}>
-            <Text style={styles.aircraftLabel}>{texts.aircraft}:</Text>
-            <Text style={styles.aircraftText}>
-              {data.aircraft.manufacturer} {data.aircraft.model}
+        {/* Search on TC Link */}
+        <TouchableOpacity style={styles.tcSearchButton} onPress={handleSearchOnTc} activeOpacity={0.7}>
+          <Ionicons name="search" size={18} color={COLORS.primary} />
+          <Text style={styles.tcSearchButtonText}>{texts.searchOnTc}</Text>
+        </TouchableOpacity>
+
+        {/* Counters */}
+        <View style={styles.countersContainer}>
+          <View style={[styles.counterBadge, { backgroundColor: COLORS.pdfBlueBg }]}>
+            <Ionicons name="document" size={14} color={COLORS.pdfBlue} />
+            <Text style={[styles.counterText, { color: COLORS.pdfBlue, marginLeft: 4 }]}>
+              {userImportedItems.length} PDF
             </Text>
           </View>
-        )}
-
-        <View style={styles.countersContainer}>
           <View style={[styles.counterBadge, { backgroundColor: COLORS.adRedBg }]}>
-            <Text style={[styles.counterText, { color: COLORS.adRed }]}>AD: {data.count?.ad ?? adItems.length}</Text>
+            <Text style={[styles.counterText, { color: COLORS.adRed }]}>AD: {importedAdItems.length}</Text>
           </View>
           <View style={[styles.counterBadge, { backgroundColor: COLORS.sbBlueBg }]}>
-            <Text style={[styles.counterText, { color: COLORS.sbBlue }]}>SB: {data.count?.sb ?? sbItems.length}</Text>
-          </View>
-          <View style={[styles.counterBadge, { backgroundColor: COLORS.background }]}>
-            <Text style={[styles.counterText, { color: COLORS.textDark }]}>{texts.total}: {data.count?.total ?? (adItems.length + sbItems.length)}</Text>
+            <Text style={[styles.counterText, { color: COLORS.sbBlue }]}>SB: {importedSbItems.length}</Text>
           </View>
         </View>
 
-        {renderSection(texts.adSection, adItems, 'AD')}
-        {renderSection(texts.sbSection, sbItems, 'SB')}
+        {/* AD Section */}
+        {importedAdItems.length > 0 && (
+          <View style={styles.section}>
+            <View style={[styles.sectionHeader, { backgroundColor: COLORS.adRedBg }]}>
+              <Text style={[styles.sectionTitle, { color: COLORS.adRed }]}>{texts.adSection}</Text>
+              <View style={[styles.sectionCountBadge, { backgroundColor: COLORS.white }]}>
+                <Text style={[styles.sectionCountText, { color: COLORS.adRed }]}>{importedAdItems.length}</Text>
+              </View>
+            </View>
+            <View style={styles.cardsList}>
+              {importedAdItems.map((item, index) => renderImportedCard(item, index))}
+            </View>
+          </View>
+        )}
+
+        {/* SB Section */}
+        {importedSbItems.length > 0 && (
+          <View style={styles.section}>
+            <View style={[styles.sectionHeader, { backgroundColor: COLORS.sbBlueBg }]}>
+              <Text style={[styles.sectionTitle, { color: COLORS.sbBlue }]}>{texts.sbSection}</Text>
+              <View style={[styles.sectionCountBadge, { backgroundColor: COLORS.white }]}>
+                <Text style={[styles.sectionCountText, { color: COLORS.sbBlue }]}>{importedSbItems.length}</Text>
+              </View>
+            </View>
+            <View style={styles.cardsList}>
+              {importedSbItems.map((item, index) => renderImportedCard(item, index))}
+            </View>
+          </View>
+        )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
