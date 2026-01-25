@@ -1,22 +1,21 @@
 /**
- * AD/SB TC Baseline Screen - TC-SAFE Documentary Display
+ * TC AD/SB Page 2 - User Imported PDF References ONLY
  * 
- * ENDPOINT: /api/adsb/baseline/{aircraft_id}
- * IMPORT: POST /api/adsb/tc/import-pdf/{aircraft_id}
+ * DISPLAYS ONLY:
+ * - Items with origin === 'USER_IMPORTED_REFERENCE'
+ * - Items with pdf_available === true
+ * 
+ * ENDPOINTS:
+ * - GET /api/adsb/baseline/{aircraft_id} - Fetch all data
+ * - GET /api/adsb/tc/pdf/{aircraft_id}/{identifier} - Open PDF
+ * - DELETE /api/adsb/tc/reference/{aircraft_id}/{identifier} - Remove reference
+ * - POST /api/adsb/tc/import-pdf/{aircraft_id} - Import new PDF
  * 
  * CRITICAL RULES:
- * - NO live lookup logic
- * - Backend returns pre-computed MongoDB data
- * - Frontend displays ONLY what backend returns
  * - NO compliance determination
- * - NO business logic
- * - PDF import = send to backend, no parsing
- * 
- * DISPLAY:
- * - One row per AD/SB
- * - Show count_seen from backend
- * - Highlight items where count_seen = 0
- * - Neutral wording only
+ * - NO regulatory wording
+ * - TC-SAFE neutral language only
+ * - OCR data is completely separate (Page 1)
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -30,12 +29,16 @@ import {
   RefreshControl,
   Alert,
   Platform,
+  Linking,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { getLanguage } from '@/i18n';
 import api from '@/services/api';
+
+// Transport Canada search URL
+const TC_SEARCH_URL = 'https://wwwapps.tc.gc.ca/Saf-Sec-Sur/2/cawis-swimc/AD-CN-lst-eng.aspx';
 
 // ============================================================
 // COLORS
@@ -57,6 +60,8 @@ const COLORS = {
   successGreenBg: '#E8F5E9',
   disclaimerYellow: '#FFF8E1',
   disclaimerYellowBorder: '#FFE082',
+  pdfBlue: '#2196F3',
+  pdfBlueBg: '#E3F2FD',
 };
 
 // ============================================================
@@ -65,53 +70,85 @@ const COLORS = {
 const TEXTS = {
   en: {
     screenTitle: 'TC AD/SB',
-    screenSubtitle: 'Imported Reference',
-    sectionTitle: 'Airworthiness Directives & Service Bulletins',
+    screenSubtitle: 'Imported References',
+    sectionTitle: 'Your Imported PDF References',
     adSection: 'Airworthiness Directives (AD)',
     sbSection: 'Service Bulletins (SB)',
-    seenTimes: 'Seen',
+    seenTimes: 'Seen in OCR',
     times: 'time(s)',
     notFoundInRecords: 'Not found in your scanned documents',
     notFoundMicrocopy: 'This does not indicate compliance status.',
-    noItemsReturned: 'No AD or SB data available for this aircraft type.',
+    noImportedReferences: 'No imported PDF references yet.',
+    noImportedHint: 'Use the button above to import Transport Canada PDF documents.',
     disclaimer: 'Informational only. This tool does not determine airworthiness or compliance. Verification with official Transport Canada records and a licensed AME is required.',
-    loading: 'Loading AD/SB data...',
-    error: 'Unable to retrieve AD/SB data at this time.',
+    loading: 'Loading references...',
+    error: 'Unable to retrieve data at this time.',
     retry: 'Retry',
     aircraft: 'Aircraft',
     total: 'Total',
     recurrence: 'Recurrence',
-    // PDF Import - Phase 1
+    // PDF Import
     importPdfButton: 'Import Transport Canada PDF',
     importPdfUploading: 'Importing...',
     importPdfSuccess: 'PDF imported. References updated.',
     importPdfError: 'Unable to import PDF. Please try again.',
     importPdfDisclaimer: 'Imported files come from official documents selected by the user. No compliance or airworthiness determination is performed.',
+    // Card actions
+    openPdf: 'View PDF',
+    deleteReference: 'Remove',
+    searchOnTc: 'Search on Transport Canada',
+    deleteConfirmTitle: 'Remove Reference',
+    deleteConfirmMessage: 'This removes the reference from your workspace only. The original TC document is not affected.',
+    deleteConfirmCancel: 'Cancel',
+    deleteConfirmOk: 'Remove',
+    deleteSuccess: 'Reference removed.',
+    deleteError: 'Unable to remove reference.',
+    pdfError: 'Unable to open PDF.',
+    // Card disclaimer
+    cardDisclaimer: 'Imported reference for document review. This does not indicate compliance or airworthiness status.',
+    // Badge
+    pdfBadge: 'PDF',
   },
   fr: {
     screenTitle: 'TC AD/SB',
-    screenSubtitle: 'Référence importée',
-    sectionTitle: 'Consignes de navigabilité & Bulletins de service',
+    screenSubtitle: 'Références importées',
+    sectionTitle: 'Vos références PDF importées',
     adSection: 'Consignes de navigabilité (AD)',
     sbSection: 'Bulletins de service (SB)',
-    seenTimes: 'Vu',
+    seenTimes: 'Vu dans OCR',
     times: 'fois',
     notFoundInRecords: 'Non trouvé dans vos documents scannés',
     notFoundMicrocopy: 'Ceci n\'indique pas un statut de conformité.',
-    noItemsReturned: "Aucune donnée AD ou SB disponible pour ce type d'aéronef.",
+    noImportedReferences: 'Aucune référence PDF importée.',
+    noImportedHint: 'Utilisez le bouton ci-dessus pour importer des documents PDF Transport Canada.',
     disclaimer: 'Informatif seulement. Cet outil ne détermine pas la navigabilité ou la conformité. Vérification avec les registres officiels de Transport Canada et un TEA agréé requise.',
-    loading: 'Chargement des données AD/SB...',
-    error: 'Impossible de récupérer les données AD/SB.',
+    loading: 'Chargement des références...',
+    error: 'Impossible de récupérer les données.',
     retry: 'Réessayer',
     aircraft: 'Aéronef',
     total: 'Total',
     recurrence: 'Récurrence',
-    // PDF Import - Phase 1
+    // PDF Import
     importPdfButton: 'Importer PDF Transport Canada',
     importPdfUploading: 'Importation...',
     importPdfSuccess: 'PDF importé. Références mises à jour.',
     importPdfError: 'Impossible d\'importer le PDF. Veuillez réessayer.',
     importPdfDisclaimer: 'Les fichiers importés proviennent de documents officiels sélectionnés par l\'utilisateur. Aucune décision de conformité ou de navigabilité n\'est effectuée.',
+    // Card actions
+    openPdf: 'Voir PDF',
+    deleteReference: 'Supprimer',
+    searchOnTc: 'Rechercher sur Transport Canada',
+    deleteConfirmTitle: 'Supprimer la référence',
+    deleteConfirmMessage: 'Ceci supprime la référence de votre espace de travail uniquement. Le document TC original n\'est pas affecté.',
+    deleteConfirmCancel: 'Annuler',
+    deleteConfirmOk: 'Supprimer',
+    deleteSuccess: 'Référence supprimée.',
+    deleteError: 'Impossible de supprimer la référence.',
+    pdfError: 'Impossible d\'ouvrir le PDF.',
+    // Card disclaimer
+    cardDisclaimer: 'Référence importée pour révision documentaire. Ceci n\'indique pas un statut de conformité ou de navigabilité.',
+    // Badge
+    pdfBadge: 'PDF',
   },
 };
 
