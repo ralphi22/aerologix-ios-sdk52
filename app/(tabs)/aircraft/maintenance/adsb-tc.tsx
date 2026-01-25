@@ -557,12 +557,12 @@ export default function AdSbTcScreen() {
 
         {/* Action Buttons - ONLY View PDF and Remove */}
         <View style={styles.cardActions}>
-          {/* View PDF Button */}
+          {/* View PDF Button - uses tc_pdf_id */}
           <TouchableOpacity 
             style={[styles.viewPdfButton, isDownloading && styles.buttonDisabled]}
-            onPress={() => pdfId && openTcPdf(pdfId, item.ref)}
+            onPress={() => openTcPdf(tcPdfId, item.ref)}
             activeOpacity={0.7}
-            disabled={isDownloading || !pdfId}
+            disabled={isDownloading || !tcPdfId}
           >
             {isDownloading ? (
               <>
@@ -577,10 +577,10 @@ export default function AdSbTcScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Remove Button */}
+          {/* Remove Button - uses tc_reference_id */}
           <TouchableOpacity 
             style={[styles.removeButton, isDeleting && styles.buttonDisabled]}
-            onPress={() => handleDeleteReference(tcRefId, item.ref)}
+            onPress={() => handleRemove(tcRefId, item.ref)}
             activeOpacity={0.7}
             disabled={isDeleting || !tcRefId}
           >
