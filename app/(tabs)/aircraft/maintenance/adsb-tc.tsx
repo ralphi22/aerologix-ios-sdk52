@@ -653,7 +653,9 @@ const styles = StyleSheet.create({
   warningCountText: { fontSize: 16, fontWeight: '700', color: COLORS.warningOrange },
   notFoundText: { fontSize: 9, color: COLORS.warningOrange, marginTop: 4, textAlign: 'center', maxWidth: 90, lineHeight: 12 },
   notFoundMicrocopy: { fontSize: 8, color: COLORS.textMuted, marginTop: 2, textAlign: 'center', maxWidth: 90, lineHeight: 10, fontStyle: 'italic' },
-  importButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 20, marginBottom: 16 },
+  importButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 20, marginBottom: 8 },
+  importButtonDisabled: { opacity: 0.6 },
   importButtonText: { fontSize: 15, fontWeight: '600', color: COLORS.primary, marginLeft: 8 },
+  importDisclaimer: { fontSize: 11, color: COLORS.textMuted, textAlign: 'center', marginBottom: 16, paddingHorizontal: 12, lineHeight: 16, fontStyle: 'italic' },
   bottomSpacer: { height: 40 },
 });
