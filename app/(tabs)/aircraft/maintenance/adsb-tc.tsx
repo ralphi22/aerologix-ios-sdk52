@@ -430,6 +430,12 @@ export default function AdSbTcScreen() {
           <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
         </View>
 
+        {/* Phase 1: Import PDF Button */}
+        <TouchableOpacity style={styles.importButton} onPress={handleImportPdf} activeOpacity={0.7}>
+          <Ionicons name="document-attach-outline" size={20} color={COLORS.primary} />
+          <Text style={styles.importButtonText}>{texts.importPdfButton}</Text>
+        </TouchableOpacity>
+
         {data.aircraft && (
           <View style={styles.aircraftInfo}>
             <Text style={styles.aircraftLabel}>{texts.aircraft}:</Text>
