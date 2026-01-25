@@ -59,6 +59,7 @@ function MaintenanceCard({
   subtitleFr, 
   onPress,
   showBadge = false,
+  onBadgePress,
 }: MaintenanceCardProps) {
   const lang = getLanguage();
   
@@ -68,9 +69,15 @@ function MaintenanceCard({
         <View style={styles.cardIcon}>
           <Text style={styles.cardIconText}>{icon}</Text>
         </View>
-        {/* Red Alert Badge - Visual only, no text */}
+        {/* Red Alert Badge - Tappable for explanation */}
         {showBadge && (
-          <View style={styles.alertBadge} />
+          <TouchableOpacity 
+            style={styles.alertBadgeTouchable} 
+            onPress={onBadgePress}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <View style={styles.alertBadge} />
+          </TouchableOpacity>
         )}
       </View>
       <View style={styles.cardContent}>
