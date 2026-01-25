@@ -203,9 +203,7 @@ export default function AdSbScreen() {
         {aircraftAdSbs.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>⚠️</Text>
-            <Text style={styles.emptyText}>
-              {lang === 'fr' ? 'Aucun AD/SB enregistré' : 'No AD/SB recorded'}
-            </Text>
+            <Text style={styles.emptyText}>{texts.noRecords}</Text>
           </View>
         ) : (
           <View style={styles.cardsContainer}>
@@ -228,7 +226,7 @@ export default function AdSbScreen() {
                     <Text style={styles.ocrButtonText}>📷 OCR</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item.id, item.number)}>
-                    <Text style={styles.deleteButtonText}>{lang === 'fr' ? 'Supprimer' : 'Delete'}</Text>
+                    <Text style={styles.deleteButtonText}>{texts.delete}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -239,21 +237,13 @@ export default function AdSbScreen() {
         {/* Visual Status Notice */}
         <View style={styles.noticeBox}>
           <Text style={styles.noticeIcon}>ℹ️</Text>
-          <Text style={styles.noticeText}>
-            {lang === 'fr'
-              ? 'Les AD/SB sont affichés à titre informatif uniquement. Aucune conformité n\'est déduite automatiquement.'
-              : 'AD/SB are displayed for informational purposes only. No compliance is automatically deduced.'}
-          </Text>
+          <Text style={styles.noticeText}>{texts.infoNotice}</Text>
         </View>
 
         {/* Disclaimer */}
         <View style={styles.disclaimer}>
           <Text style={styles.disclaimerIcon}>⚠️</Text>
-          <Text style={styles.disclaimerText}>
-            {lang === 'fr'
-              ? "Information seulement. Ne remplace pas un TEA/AME ni un registre officiel. Toute décision réglementaire appartient au propriétaire et à l'atelier."
-              : 'Information only. Does not replace an AME nor an official record. All regulatory decisions remain with the owner and maintenance organization.'}
-          </Text>
+          <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
         </View>
 
         <View style={{ height: 40 }} />
