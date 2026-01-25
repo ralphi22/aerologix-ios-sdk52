@@ -588,13 +588,13 @@ export default function AdSbTcScreen() {
 
         <View style={styles.countersContainer}>
           <View style={[styles.counterBadge, { backgroundColor: COLORS.adRedBg }]}>
-            <Text style={[styles.counterText, { color: COLORS.adRed }]}>AD: {data.count?.ad || adItems.length}</Text>
+            <Text style={[styles.counterText, { color: COLORS.adRed }]}>AD: {data.count?.ad ?? adItems.length}</Text>
           </View>
           <View style={[styles.counterBadge, { backgroundColor: COLORS.sbBlueBg }]}>
-            <Text style={[styles.counterText, { color: COLORS.sbBlue }]}>SB: {data.count?.sb || sbItems.length}</Text>
+            <Text style={[styles.counterText, { color: COLORS.sbBlue }]}>SB: {data.count?.sb ?? sbItems.length}</Text>
           </View>
           <View style={[styles.counterBadge, { backgroundColor: COLORS.background }]}>
-            <Text style={[styles.counterText, { color: COLORS.textDark }]}>{texts.total}: {data.count?.total || data.items.length}</Text>
+            <Text style={[styles.counterText, { color: COLORS.textDark }]}>{texts.total}: {data.count?.total ?? (adItems.length + sbItems.length)}</Text>
           </View>
         </View>
 
