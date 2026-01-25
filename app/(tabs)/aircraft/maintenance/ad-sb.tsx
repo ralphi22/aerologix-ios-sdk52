@@ -79,7 +79,8 @@ const COLORS = {
 export default function AdSbScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
-  const lang = getLanguage();
+  const lang = getLanguage() as 'en' | 'fr';
+  const texts = TEXTS[lang];
   const { adSbs, addAdSb, deleteAdSb, getAdSbsByAircraft, syncWithBackend, isLoading } = useMaintenanceData();
 
   const [showAddModal, setShowAddModal] = useState(false);
