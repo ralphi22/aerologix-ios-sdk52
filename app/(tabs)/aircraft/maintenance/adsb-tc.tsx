@@ -376,48 +376,30 @@ export default function AdSbTcScreen() {
   };
 
   /**
-   * Open Transport Canada search page
+   * Open Transport Canada AD search page
    */
-  const handleSearchOnTc = () => {
-    Linking.openURL(TC_SEARCH_URL);
+  const handleSearchTcAds = () => {
+    Linking.openURL(TC_AD_SEARCH_URL);
   };
 
   // ============================================================
-  // FILTER: ONLY USER IMPORTED PDF REFERENCES
+  // FILTER: ONLY USER_IMPORTED_REFERENCE
+  // ❌ Never display TC_BASELINE here
+  // ❌ No OCR logic (count_seen)
   // ============================================================
   
-  // Combine all items from both formats
-  const allItems: ADSBBaselineItem[] = (() => {
-    const items: ADSBBaselineItem[] = [];
-    
-    // From ad_list
-    if (data?.ad_list) {
-      items.push(...data.ad_list);
-    }
-    // From sb_list
-    if (data?.sb_list) {
-      items.push(...data.sb_list);
-    }
-    // From legacy items (if no ad_list/sb_list)
-    if (items.length === 0 && data?.items) {
-      items.push(...data.items);
-    }
-    
-    return items;
-  })();
-
-  // FILTER: Only show USER_IMPORTED_REFERENCE with pdf_available
-  const userImportedItems = allItems.filter(item => 
-    item.origin === 'USER_IMPORTED_REFERENCE' && 
-    item.pdf_available === true
+  // Filter ad_list for USER_IMPORTED_REFERENCE only
+  const importedAdItems = (data?.ad_list ?? []).filter(
+    item => item.origin === 'USER_IMPORTED_REFERENCE'
   );
 
-  // Split by type for display
-  const importedAdItems = userImportedItems.filter(item => item.type === 'AD');
-  const importedSbItems = userImportedItems.filter(item => item.type === 'SB');
+  // Filter sb_list for USER_IMPORTED_REFERENCE only
+  const importedSbItems = (data?.sb_list ?? []).filter(
+    item => item.origin === 'USER_IMPORTED_REFERENCE'
+  );
 
   // Check if we have imported data to display
-  const hasImportedData = userImportedItems.length > 0;
+  const hasImportedData = importedAdItems.length > 0 || importedSbItems.length > 0;
 
   // ============================================================
   // RENDER SINGLE IMPORTED ITEM CARD
