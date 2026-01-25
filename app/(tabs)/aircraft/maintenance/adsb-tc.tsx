@@ -2,6 +2,7 @@
  * AD/SB TC Baseline Screen - TC-SAFE Documentary Display
  * 
  * ENDPOINT: /api/adsb/baseline/{aircraft_id}
+ * IMPORT: POST /api/adsb/tc/import-pdf/{aircraft_id}
  * 
  * CRITICAL RULES:
  * - NO live lookup logic
@@ -9,6 +10,7 @@
  * - Frontend displays ONLY what backend returns
  * - NO compliance determination
  * - NO business logic
+ * - PDF import = send to backend, no parsing
  * 
  * DISPLAY:
  * - One row per AD/SB
@@ -26,9 +28,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 import { getLanguage } from '@/i18n';
 import api from '@/services/api';
 
@@ -59,13 +64,15 @@ const COLORS = {
 // ============================================================
 const TEXTS = {
   en: {
-    title: 'AD / SB',
+    screenTitle: 'TC AD/SB',
+    screenSubtitle: 'Imported Reference',
     sectionTitle: 'Airworthiness Directives & Service Bulletins',
     adSection: 'Airworthiness Directives (AD)',
     sbSection: 'Service Bulletins (SB)',
     seenTimes: 'Seen',
     times: 'time(s)',
-    notFoundInRecords: 'Not found in scanned records',
+    notFoundInRecords: 'Not found in your scanned documents',
+    notFoundMicrocopy: 'This does not indicate compliance status.',
     noItemsReturned: 'No AD or SB data available for this aircraft type.',
     disclaimer: 'Informational only. This tool does not determine airworthiness or compliance. Verification with official Transport Canada records and a licensed AME is required.',
     loading: 'Loading AD/SB data...',
@@ -74,15 +81,23 @@ const TEXTS = {
     aircraft: 'Aircraft',
     total: 'Total',
     recurrence: 'Recurrence',
+    // PDF Import - Phase 1
+    importPdfButton: 'Import Transport Canada PDF',
+    importPdfUploading: 'Importing...',
+    importPdfSuccess: 'PDF imported. References updated.',
+    importPdfError: 'Unable to import PDF. Please try again.',
+    importPdfDisclaimer: 'Imported files come from official documents selected by the user. No compliance or airworthiness determination is performed.',
   },
   fr: {
-    title: 'AD / SB',
+    screenTitle: 'TC AD/SB',
+    screenSubtitle: 'Référence importée',
     sectionTitle: 'Consignes de navigabilité & Bulletins de service',
     adSection: 'Consignes de navigabilité (AD)',
     sbSection: 'Bulletins de service (SB)',
     seenTimes: 'Vu',
     times: 'fois',
-    notFoundInRecords: 'Non trouvé dans les documents numérisés',
+    notFoundInRecords: 'Non trouvé dans vos documents scannés',
+    notFoundMicrocopy: 'Ceci n\'indique pas un statut de conformité.',
     noItemsReturned: "Aucune donnée AD ou SB disponible pour ce type d'aéronef.",
     disclaimer: 'Informatif seulement. Cet outil ne détermine pas la navigabilité ou la conformité. Vérification avec les registres officiels de Transport Canada et un TEA agréé requise.',
     loading: 'Chargement des données AD/SB...',
@@ -91,6 +106,12 @@ const TEXTS = {
     aircraft: 'Aéronef',
     total: 'Total',
     recurrence: 'Récurrence',
+    // PDF Import - Phase 1
+    importPdfButton: 'Importer PDF Transport Canada',
+    importPdfUploading: 'Importation...',
+    importPdfSuccess: 'PDF importé. Références mises à jour.',
+    importPdfError: 'Impossible d\'importer le PDF. Veuillez réessayer.',
+    importPdfDisclaimer: 'Les fichiers importés proviennent de documents officiels sélectionnés par l\'utilisateur. Aucune décision de conformité ou de navigabilité n\'est effectuée.',
   },
 };
 
@@ -142,8 +163,80 @@ export default function AdSbTcScreen() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ADSBBaselineResponse | null>(null);
+
+  /**
+   * Phase 1: Import TC PDF
+   * - Opens iOS document picker (PDF only, multi-select)
+   * - Sends each file to backend via POST /api/adsb/tc/import-pdf/{aircraftId}
+   * - NO parsing, NO logic, just network orchestration
+   * - Refreshes baseline data after success
+   */
+  const handleImportPdf = async () => {
+    if (!aircraftId) return;
+
+    try {
+      // Open document picker - PDF only, allow multiple
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+
+      // User cancelled - exit silently
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      setIsImporting(true);
+
+      // Upload each selected PDF
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const asset of result.assets) {
+        try {
+          // Build FormData for multipart upload
+          const formData = new FormData();
+          formData.append('file', {
+            uri: asset.uri,
+            type: 'application/pdf',
+            name: asset.name || 'tc_document.pdf',
+          } as any);
+
+          // POST to backend - no parsing on frontend
+          await api.post(`/api/adsb/tc/import-pdf/${aircraftId}`, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+
+          successCount++;
+          console.log(`[TC Import] Uploaded: ${asset.name}`);
+        } catch (uploadErr) {
+          errorCount++;
+          console.warn(`[TC Import] Failed to upload: ${asset.name}`, uploadErr);
+        }
+      }
+
+      setIsImporting(false);
+
+      // Show result
+      if (successCount > 0) {
+        Alert.alert('', texts.importPdfSuccess);
+        // Refresh baseline data from backend
+        fetchBaseline(true);
+      } else if (errorCount > 0) {
+        Alert.alert('', texts.importPdfError);
+      }
+    } catch (err) {
+      console.error('[TC Import] Error:', err);
+      setIsImporting(false);
+      Alert.alert('', texts.importPdfError);
+    }
+  };
 
   /**
    * Fetch AD/SB baseline from MongoDB
@@ -258,6 +351,9 @@ export default function AdSbTcScreen() {
               <Text style={styles.notFoundText}>
                 {texts.notFoundInRecords}
               </Text>
+              <Text style={styles.notFoundMicrocopy}>
+                {texts.notFoundMicrocopy}
+              </Text>
             </>
           ) : (
             <>
@@ -367,6 +463,29 @@ export default function AdSbTcScreen() {
             <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
           </View>
 
+          {/* Phase 1: Import PDF Button */}
+          <TouchableOpacity 
+            style={[styles.importButton, isImporting && styles.importButtonDisabled]} 
+            onPress={handleImportPdf} 
+            activeOpacity={0.7}
+            disabled={isImporting}
+          >
+            {isImporting ? (
+              <>
+                <ActivityIndicator size="small" color={COLORS.primary} />
+                <Text style={styles.importButtonText}>{texts.importPdfUploading}</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="document-attach-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.importButtonText}>{texts.importPdfButton}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {/* Import Disclaimer - TC-SAFE */}
+          <Text style={styles.importDisclaimer}>{texts.importPdfDisclaimer}</Text>
+
           {data?.aircraft && (
             <View style={styles.aircraftInfo}>
               <Text style={styles.aircraftLabel}>{texts.aircraft}:</Text>
@@ -398,6 +517,29 @@ export default function AdSbTcScreen() {
           <Ionicons name="information-circle" size={20} color="#5D4037" />
           <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
         </View>
+
+        {/* Phase 1: Import PDF Button */}
+        <TouchableOpacity 
+          style={[styles.importButton, isImporting && styles.importButtonDisabled]} 
+          onPress={handleImportPdf} 
+          activeOpacity={0.7}
+          disabled={isImporting}
+        >
+          {isImporting ? (
+            <>
+              <ActivityIndicator size="small" color={COLORS.primary} />
+              <Text style={styles.importButtonText}>{texts.importPdfUploading}</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="document-attach-outline" size={20} color={COLORS.primary} />
+              <Text style={styles.importButtonText}>{texts.importPdfButton}</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        {/* Import Disclaimer - TC-SAFE */}
+        <Text style={styles.importDisclaimer}>{texts.importPdfDisclaimer}</Text>
 
         {data.aircraft && (
           <View style={styles.aircraftInfo}>
@@ -438,8 +580,8 @@ export default function AdSbTcScreen() {
           <Ionicons name="chevron-back" size={28} color={COLORS.white} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>{texts.title}</Text>
-          <Text style={styles.headerSubtitle}>{registration || ''}</Text>
+          <Text style={styles.headerTitle}>{texts.screenTitle}</Text>
+          <Text style={styles.headerSubtitle}>{texts.screenSubtitle}</Text>
         </View>
         <View style={styles.headerRight} />
       </View>
@@ -510,5 +652,10 @@ const styles = StyleSheet.create({
   warningBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.warningOrangeBg, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, gap: 4 },
   warningCountText: { fontSize: 16, fontWeight: '700', color: COLORS.warningOrange },
   notFoundText: { fontSize: 9, color: COLORS.warningOrange, marginTop: 4, textAlign: 'center', maxWidth: 90, lineHeight: 12 },
+  notFoundMicrocopy: { fontSize: 8, color: COLORS.textMuted, marginTop: 2, textAlign: 'center', maxWidth: 90, lineHeight: 10, fontStyle: 'italic' },
+  importButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 20, marginBottom: 8 },
+  importButtonDisabled: { opacity: 0.6 },
+  importButtonText: { fontSize: 15, fontWeight: '600', color: COLORS.primary, marginLeft: 8 },
+  importDisclaimer: { fontSize: 11, color: COLORS.textMuted, textAlign: 'center', marginBottom: 16, paddingHorizontal: 12, lineHeight: 16, fontStyle: 'italic' },
   bottomSpacer: { height: 40 },
 });

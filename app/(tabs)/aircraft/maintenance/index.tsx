@@ -12,6 +12,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
@@ -27,6 +28,18 @@ const COLORS = {
   alertRed: '#E53935',
 };
 
+// Bilingual texts for badge explanation
+const BADGE_TEXTS = {
+  en: {
+    title: 'Reference Items Detected',
+    message: 'New reference items detected. This helps guide document verification. No compliance status is determined.',
+  },
+  fr: {
+    title: 'Éléments de référence détectés',
+    message: 'Nouveaux éléments de référence détectés. Ceci sert à orienter la vérification dans vos documents. Aucun statut de conformité n\'est déterminé.',
+  },
+};
+
 interface MaintenanceCardProps {
   icon: string;
   title: string;
@@ -35,6 +48,7 @@ interface MaintenanceCardProps {
   subtitleFr: string;
   onPress: () => void;
   showBadge?: boolean;
+  onBadgePress?: () => void;
 }
 
 function MaintenanceCard({ 
@@ -45,6 +59,7 @@ function MaintenanceCard({
   subtitleFr, 
   onPress,
   showBadge = false,
+  onBadgePress,
 }: MaintenanceCardProps) {
   const lang = getLanguage();
   
@@ -54,9 +69,15 @@ function MaintenanceCard({
         <View style={styles.cardIcon}>
           <Text style={styles.cardIconText}>{icon}</Text>
         </View>
-        {/* Red Alert Badge - Visual only, no text */}
+        {/* Red Alert Badge - Tappable for explanation */}
         {showBadge && (
-          <View style={styles.alertBadge} />
+          <TouchableOpacity 
+            style={styles.alertBadgeTouchable} 
+            onPress={onBadgePress}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <View style={styles.alertBadge} />
+          </TouchableOpacity>
         )}
       </View>
       <View style={styles.cardContent}>
@@ -71,7 +92,8 @@ function MaintenanceCard({
 export default function MaintenanceScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
-  const lang = getLanguage();
+  const lang = getLanguage() as 'en' | 'fr';
+  const badgeTexts = BADGE_TEXTS[lang];
   
   // Get aircraft data to check for new TC items
   const { getAircraftById } = useAircraftLocalStore();
@@ -85,6 +107,11 @@ export default function MaintenanceScreen() {
       pathname: `/(tabs)/aircraft/maintenance/${route}` as any,
       params: { aircraftId, registration },
     });
+  };
+
+  // Handler for badge tap - shows neutral explanation
+  const handleBadgePress = () => {
+    Alert.alert(badgeTexts.title, badgeTexts.message);
   };
 
   return (
@@ -142,6 +169,7 @@ export default function MaintenanceScreen() {
             subtitleFr="Consignes de navigabilité et bulletins de service"
             onPress={() => navigateTo('ad-sb')}
             showBadge={hasNewTcItems}
+            onBadgePress={handleBadgePress}
           />
 
           {/* STC */}
@@ -247,11 +275,14 @@ const styles = StyleSheet.create({
   cardIconText: {
     fontSize: 24,
   },
-  // Red alert badge - visual dot only, no text
-  alertBadge: {
+  // Red alert badge - visual dot only, tappable for explanation
+  alertBadgeTouchable: {
     position: 'absolute',
-    top: -4,
-    right: -4,
+    top: -6,
+    right: -6,
+    padding: 2,
+  },
+  alertBadge: {
     width: 14,
     height: 14,
     borderRadius: 7,

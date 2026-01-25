@@ -2,6 +2,8 @@
  * AD/SB Screen - Visual storage for Airworthiness Directives & Service Bulletins
  * TC-SAFE: Information only, no compliance decisions
  * Now syncs with backend
+ * 
+ * SOURCE: User's scanned documents (OCR) - NOT official TC data
  */
 
 import React, { useState, useEffect } from 'react';
@@ -19,6 +21,44 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
 import { useMaintenanceData } from '@/stores/maintenanceDataStore';
+
+// ============================================
+// BILINGUAL TEXTS
+// ============================================
+const TEXTS = {
+  en: {
+    screenTitle: 'AD / SB',
+    screenSubtitle: 'Scanned Documents',
+    headerExplainer: 'From your uploaded maintenance records',
+    noRecords: 'No AD/SB recorded',
+    addTitle: 'Add AD / SB',
+    delete: 'Delete',
+    cancel: 'Cancel',
+    add: 'Add',
+    numberPlaceholder: 'Number (e.g. AD 96-09-06)',
+    fillAllFields: 'Please fill all fields',
+    ocrComingSoon: 'OCR function coming soon',
+    deleteConfirm: 'Delete',
+    infoNotice: 'AD/SB are displayed for informational purposes only. No compliance is automatically deduced.',
+    disclaimer: 'Information only. Does not replace an AME nor an official record. All regulatory decisions remain with the owner and maintenance organization.',
+  },
+  fr: {
+    screenTitle: 'AD / SB',
+    screenSubtitle: 'Documents scannés',
+    headerExplainer: 'Issus de vos documents de maintenance',
+    noRecords: 'Aucun AD/SB enregistré',
+    addTitle: 'Ajouter AD / SB',
+    delete: 'Supprimer',
+    cancel: 'Annuler',
+    add: 'Ajouter',
+    numberPlaceholder: 'Numéro (ex: AD 96-09-06)',
+    fillAllFields: 'Veuillez remplir tous les champs',
+    ocrComingSoon: 'Fonction OCR bientôt disponible',
+    deleteConfirm: 'Supprimer',
+    infoNotice: 'Les AD/SB sont affichés à titre informatif uniquement. Aucune conformité n\'est déduite automatiquement.',
+    disclaimer: "Information seulement. Ne remplace pas un TEA/AME ni un registre officiel. Toute décision réglementaire appartient au propriétaire et à l'atelier.",
+  },
+};
 
 const COLORS = {
   primary: '#0033A0',
@@ -39,7 +79,8 @@ const COLORS = {
 export default function AdSbScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
-  const lang = getLanguage();
+  const lang = getLanguage() as 'en' | 'fr';
+  const texts = TEXTS[lang];
   const { adSbs, addAdSb, deleteAdSb, getAdSbsByAircraft, syncWithBackend, isLoading } = useMaintenanceData();
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -69,12 +110,12 @@ export default function AdSbScreen() {
 
   const handleDelete = (id: string, number: string) => {
     Alert.alert(
-      lang === 'fr' ? 'Supprimer' : 'Delete',
-      lang === 'fr' ? `Supprimer "${number}" ?` : `Delete "${number}"?`,
+      texts.delete,
+      `${texts.deleteConfirm} "${number}" ?`,
       [
-        { text: lang === 'fr' ? 'Annuler' : 'Cancel', style: 'cancel' },
+        { text: texts.cancel, style: 'cancel' },
         { 
-          text: lang === 'fr' ? 'Supprimer' : 'Delete', 
+          text: texts.delete, 
           style: 'destructive', 
           onPress: async () => {
             setDeletingId(id);
@@ -93,15 +134,12 @@ export default function AdSbScreen() {
   };
 
   const handleOcrMock = () => {
-    Alert.alert(
-      'OCR',
-      lang === 'fr' ? 'Fonction OCR bientôt disponible' : 'OCR function coming soon'
-    );
+    Alert.alert('OCR', texts.ocrComingSoon);
   };
 
   const handleAdd = () => {
     if (!newNumber.trim() || !newDescription.trim()) {
-      Alert.alert('Error', lang === 'fr' ? 'Veuillez remplir tous les champs' : 'Please fill all fields');
+      Alert.alert('Error', texts.fillAllFields);
       return;
     }
     addAdSb({
@@ -124,8 +162,8 @@ export default function AdSbScreen() {
           <Text style={styles.headerBackText}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>AD / SB</Text>
-          <Text style={styles.headerSubtitle}>{registration || 'Aircraft'}</Text>
+          <Text style={styles.headerTitle}>{texts.screenTitle}</Text>
+          <Text style={styles.headerSubtitle}>{texts.screenSubtitle}</Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity onPress={handleNavigateToTC} style={styles.headerTcButton}>
@@ -135,6 +173,11 @@ export default function AdSbScreen() {
             <Text style={styles.headerAddText}>+</Text>
           </TouchableOpacity>
         </View>
+      </View>
+
+      {/* Explainer Banner */}
+      <View style={styles.explainerBanner}>
+        <Text style={styles.explainerText}>📄 {texts.headerExplainer}</Text>
       </View>
 
       {/* Count Badges */}
@@ -160,9 +203,7 @@ export default function AdSbScreen() {
         {aircraftAdSbs.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>⚠️</Text>
-            <Text style={styles.emptyText}>
-              {lang === 'fr' ? 'Aucun AD/SB enregistré' : 'No AD/SB recorded'}
-            </Text>
+            <Text style={styles.emptyText}>{texts.noRecords}</Text>
           </View>
         ) : (
           <View style={styles.cardsContainer}>
@@ -185,7 +226,7 @@ export default function AdSbScreen() {
                     <Text style={styles.ocrButtonText}>📷 OCR</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item.id, item.number)}>
-                    <Text style={styles.deleteButtonText}>{lang === 'fr' ? 'Supprimer' : 'Delete'}</Text>
+                    <Text style={styles.deleteButtonText}>{texts.delete}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -196,21 +237,13 @@ export default function AdSbScreen() {
         {/* Visual Status Notice */}
         <View style={styles.noticeBox}>
           <Text style={styles.noticeIcon}>ℹ️</Text>
-          <Text style={styles.noticeText}>
-            {lang === 'fr'
-              ? 'Les AD/SB sont affichés à titre informatif uniquement. Aucune conformité n\'est déduite automatiquement.'
-              : 'AD/SB are displayed for informational purposes only. No compliance is automatically deduced.'}
-          </Text>
+          <Text style={styles.noticeText}>{texts.infoNotice}</Text>
         </View>
 
         {/* Disclaimer */}
         <View style={styles.disclaimer}>
           <Text style={styles.disclaimerIcon}>⚠️</Text>
-          <Text style={styles.disclaimerText}>
-            {lang === 'fr'
-              ? "Information seulement. Ne remplace pas un TEA/AME ni un registre officiel. Toute décision réglementaire appartient au propriétaire et à l'atelier."
-              : 'Information only. Does not replace an AME nor an official record. All regulatory decisions remain with the owner and maintenance organization.'}
-          </Text>
+          <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
         </View>
 
         <View style={{ height: 40 }} />
@@ -220,9 +253,7 @@ export default function AdSbScreen() {
       <Modal visible={showAddModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {lang === 'fr' ? 'Ajouter AD / SB' : 'Add AD / SB'}
-            </Text>
+            <Text style={styles.modalTitle}>{texts.addTitle}</Text>
             
             {/* Type Selector */}
             <View style={styles.typeSelector}>
@@ -242,7 +273,7 @@ export default function AdSbScreen() {
 
             <TextInput
               style={styles.modalInput}
-              placeholder={lang === 'fr' ? 'Numéro (ex: AD 96-09-06)' : 'Number (e.g. AD 96-09-06)'}
+              placeholder={texts.numberPlaceholder}
               placeholderTextColor={COLORS.textMuted}
               value={newNumber}
               onChangeText={setNewNumber}
@@ -258,10 +289,10 @@ export default function AdSbScreen() {
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setShowAddModal(false)}>
-                <Text style={styles.modalCancelText}>{lang === 'fr' ? 'Annuler' : 'Cancel'}</Text>
+                <Text style={styles.modalCancelText}>{texts.cancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalSave} onPress={handleAdd}>
-                <Text style={styles.modalSaveText}>{lang === 'fr' ? 'Ajouter' : 'Add'}</Text>
+                <Text style={styles.modalSaveText}>{texts.add}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -288,6 +319,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8 
   },
   headerTcText: { color: COLORS.white, fontSize: 12, fontWeight: '600' },
+  explainerBanner: {
+    backgroundColor: COLORS.blue + '15',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.blue + '30',
+  },
+  explainerText: {
+    fontSize: 12,
+    color: COLORS.blue,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
   headerAdd: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 },
   headerAddText: { color: COLORS.white, fontSize: 24, fontWeight: '600' },
   countContainer: { flexDirection: 'row', padding: 16, gap: 12, flexWrap: 'wrap' },
