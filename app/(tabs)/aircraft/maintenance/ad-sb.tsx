@@ -162,8 +162,8 @@ export default function AdSbScreen() {
           <Text style={styles.headerBackText}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>AD / SB</Text>
-          <Text style={styles.headerSubtitle}>{registration || 'Aircraft'}</Text>
+          <Text style={styles.headerTitle}>{texts.screenTitle}</Text>
+          <Text style={styles.headerSubtitle}>{texts.screenSubtitle}</Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity onPress={handleNavigateToTC} style={styles.headerTcButton}>
@@ -173,6 +173,11 @@ export default function AdSbScreen() {
             <Text style={styles.headerAddText}>+</Text>
           </TouchableOpacity>
         </View>
+      </View>
+
+      {/* Explainer Banner */}
+      <View style={styles.explainerBanner}>
+        <Text style={styles.explainerText}>📄 {texts.headerExplainer}</Text>
       </View>
 
       {/* Count Badges */}
