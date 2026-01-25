@@ -122,6 +122,7 @@ const TEXTS = {
 /**
  * Single AD or SB item from backend baseline
  * count_seen = how many times found in scanned OCR records
+ * origin = source of the reference (TC_BASELINE, USER_IMPORTED_REFERENCE, etc.)
  */
 interface ADSBBaselineItem {
   ref: string;
@@ -129,18 +130,27 @@ interface ADSBBaselineItem {
   title: string;
   recurrence?: string;
   count_seen: number;
+  origin?: string; // TC_BASELINE, USER_IMPORTED_REFERENCE, etc.
 }
 
 /**
  * Response from GET /api/adsb/baseline/{aircraft_id}
  * Pre-computed MongoDB data - NO live lookup
+ * 
+ * Backend may return:
+ * - items[] (legacy format)
+ * - ad_list[] + sb_list[] (new format)
  */
 interface ADSBBaselineResponse {
   aircraft: {
     manufacturer: string;
     model: string;
   };
-  items: ADSBBaselineItem[];
+  // Legacy format
+  items?: ADSBBaselineItem[];
+  // New format with separate lists
+  ad_list?: ADSBBaselineItem[];
+  sb_list?: ADSBBaselineItem[];
   count: {
     ad: number;
     sb: number;
@@ -291,9 +301,35 @@ export default function AdSbTcScreen() {
     fetchBaseline(true);
   }, [fetchBaseline]);
 
-  // Split items by type
-  const adItems = data?.items?.filter(item => item.type === 'AD') || [];
-  const sbItems = data?.items?.filter(item => item.type === 'SB') || [];
+  // ============================================================
+  // EXTRACT AD & SB LISTS - Support both legacy and new format
+  // NO FILTERING ON ORIGIN - Display ALL items regardless of origin
+  // ============================================================
+  
+  // New format: ad_list / sb_list (preferred)
+  // Legacy format: items[] filtered by type
+  const adItems: ADSBBaselineItem[] = (() => {
+    if (data?.ad_list && data.ad_list.length > 0) {
+      return data.ad_list;
+    }
+    if (data?.items) {
+      return data.items.filter(item => item.type === 'AD');
+    }
+    return [];
+  })();
+
+  const sbItems: ADSBBaselineItem[] = (() => {
+    if (data?.sb_list && data.sb_list.length > 0) {
+      return data.sb_list;
+    }
+    if (data?.items) {
+      return data.items.filter(item => item.type === 'SB');
+    }
+    return [];
+  })();
+
+  // Check if we have ANY data to display (corrected condition)
+  const hasData = adItems.length > 0 || sbItems.length > 0;
 
   // ============================================================
   // RENDER SINGLE ITEM
@@ -301,6 +337,7 @@ export default function AdSbTcScreen() {
   const renderItem = (item: ADSBBaselineItem, index: number) => {
     const isAD = item.type === 'AD';
     const notFound = item.count_seen === 0;
+    const isUserImported = item.origin === 'USER_IMPORTED_REFERENCE';
     
     return (
       <View 
@@ -325,7 +362,16 @@ export default function AdSbTcScreen() {
           </View>
           
           <View style={styles.itemContent}>
-            <Text style={styles.itemRef}>{item.ref}</Text>
+            <View style={styles.itemRefRow}>
+              <Text style={styles.itemRef}>{item.ref}</Text>
+              {/* Informational indicator for user-imported items */}
+              {isUserImported && (
+                <View style={styles.importedBadge}>
+                  <Ionicons name="document-attach" size={10} color={COLORS.primary} />
+                  <Text style={styles.importedBadgeText}>PDF</Text>
+                </View>
+              )}
+            </View>
             
             {item.title && (
               <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
@@ -449,7 +495,7 @@ export default function AdSbTcScreen() {
       );
     }
 
-    if (!data || !data.items || data.items.length === 0) {
+    if (!data || !hasData) {
       return (
         <ScrollView
           style={styles.scrollView}
@@ -552,13 +598,13 @@ export default function AdSbTcScreen() {
 
         <View style={styles.countersContainer}>
           <View style={[styles.counterBadge, { backgroundColor: COLORS.adRedBg }]}>
-            <Text style={[styles.counterText, { color: COLORS.adRed }]}>AD: {data.count?.ad || adItems.length}</Text>
+            <Text style={[styles.counterText, { color: COLORS.adRed }]}>AD: {data.count?.ad ?? adItems.length}</Text>
           </View>
           <View style={[styles.counterBadge, { backgroundColor: COLORS.sbBlueBg }]}>
-            <Text style={[styles.counterText, { color: COLORS.sbBlue }]}>SB: {data.count?.sb || sbItems.length}</Text>
+            <Text style={[styles.counterText, { color: COLORS.sbBlue }]}>SB: {data.count?.sb ?? sbItems.length}</Text>
           </View>
           <View style={[styles.counterBadge, { backgroundColor: COLORS.background }]}>
-            <Text style={[styles.counterText, { color: COLORS.textDark }]}>{texts.total}: {data.count?.total || data.items.length}</Text>
+            <Text style={[styles.counterText, { color: COLORS.textDark }]}>{texts.total}: {data.count?.total ?? (adItems.length + sbItems.length)}</Text>
           </View>
         </View>
 
@@ -641,7 +687,10 @@ const styles = StyleSheet.create({
   typeBadge: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, marginRight: 12, alignSelf: 'flex-start' },
   typeBadgeText: { fontSize: 11, fontWeight: '700' },
   itemContent: { flex: 1 },
-  itemRef: { fontSize: 15, fontWeight: '700', color: COLORS.textDark, marginBottom: 4 },
+  itemRefRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  itemRef: { fontSize: 15, fontWeight: '700', color: COLORS.textDark },
+  importedBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary + '15', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 },
+  importedBadgeText: { fontSize: 9, fontWeight: '600', color: COLORS.primary, marginLeft: 2 },
   itemTitle: { fontSize: 13, color: COLORS.textMuted, lineHeight: 18, marginBottom: 4 },
   recurrenceRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   recurrenceText: { fontSize: 12, color: COLORS.textMuted, marginLeft: 4 },
