@@ -2,6 +2,8 @@
  * AD/SB Screen - Visual storage for Airworthiness Directives & Service Bulletins
  * TC-SAFE: Information only, no compliance decisions
  * Now syncs with backend
+ * 
+ * SOURCE: User's scanned documents (OCR) - NOT official TC data
  */
 
 import React, { useState, useEffect } from 'react';
@@ -19,6 +21,44 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
 import { useMaintenanceData } from '@/stores/maintenanceDataStore';
+
+// ============================================
+// BILINGUAL TEXTS
+// ============================================
+const TEXTS = {
+  en: {
+    screenTitle: 'AD / SB',
+    screenSubtitle: 'Scanned Documents',
+    headerExplainer: 'From your uploaded maintenance records',
+    noRecords: 'No AD/SB recorded',
+    addTitle: 'Add AD / SB',
+    delete: 'Delete',
+    cancel: 'Cancel',
+    add: 'Add',
+    numberPlaceholder: 'Number (e.g. AD 96-09-06)',
+    fillAllFields: 'Please fill all fields',
+    ocrComingSoon: 'OCR function coming soon',
+    deleteConfirm: 'Delete',
+    infoNotice: 'AD/SB are displayed for informational purposes only. No compliance is automatically deduced.',
+    disclaimer: 'Information only. Does not replace an AME nor an official record. All regulatory decisions remain with the owner and maintenance organization.',
+  },
+  fr: {
+    screenTitle: 'AD / SB',
+    screenSubtitle: 'Documents scannés',
+    headerExplainer: 'Issus de vos documents de maintenance',
+    noRecords: 'Aucun AD/SB enregistré',
+    addTitle: 'Ajouter AD / SB',
+    delete: 'Supprimer',
+    cancel: 'Annuler',
+    add: 'Ajouter',
+    numberPlaceholder: 'Numéro (ex: AD 96-09-06)',
+    fillAllFields: 'Veuillez remplir tous les champs',
+    ocrComingSoon: 'Fonction OCR bientôt disponible',
+    deleteConfirm: 'Supprimer',
+    infoNotice: 'Les AD/SB sont affichés à titre informatif uniquement. Aucune conformité n\'est déduite automatiquement.',
+    disclaimer: "Information seulement. Ne remplace pas un TEA/AME ni un registre officiel. Toute décision réglementaire appartient au propriétaire et à l'atelier.",
+  },
+};
 
 const COLORS = {
   primary: '#0033A0',
