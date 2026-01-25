@@ -337,6 +337,7 @@ export default function AdSbTcScreen() {
   const renderItem = (item: ADSBBaselineItem, index: number) => {
     const isAD = item.type === 'AD';
     const notFound = item.count_seen === 0;
+    const isUserImported = item.origin === 'USER_IMPORTED_REFERENCE';
     
     return (
       <View 
@@ -361,7 +362,16 @@ export default function AdSbTcScreen() {
           </View>
           
           <View style={styles.itemContent}>
-            <Text style={styles.itemRef}>{item.ref}</Text>
+            <View style={styles.itemRefRow}>
+              <Text style={styles.itemRef}>{item.ref}</Text>
+              {/* Informational indicator for user-imported items */}
+              {isUserImported && (
+                <View style={styles.importedBadge}>
+                  <Ionicons name="document-attach" size={10} color={COLORS.primary} />
+                  <Text style={styles.importedBadgeText}>PDF</Text>
+                </View>
+              )}
+            </View>
             
             {item.title && (
               <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
