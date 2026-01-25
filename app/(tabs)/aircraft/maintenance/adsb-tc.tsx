@@ -481,7 +481,10 @@ export default function AdSbTcScreen() {
   // ============================================================
   const renderImportedCard = (item: ADSBBaselineItem, index: number) => {
     const isAD = item.type === 'AD';
-    const refId = item.ref; // Use ref for API calls
+    const pdfId = item.pdf_id;
+    const tcRefId = item.tc_reference_id;
+    const isDownloading = downloadingPdfId === pdfId;
+    const isDeleting = deletingRefId === tcRefId;
     
     return (
       <View 
@@ -518,16 +521,44 @@ export default function AdSbTcScreen() {
         <View style={styles.cardActions}>
           {/* View PDF Button */}
           <TouchableOpacity 
-            style={styles.viewPdfButton}
-            onPress={() => handleOpenPdf(refId)}
+            style={[styles.viewPdfButton, isDownloading && styles.buttonDisabled]}
+            onPress={() => pdfId && openTcPdf(pdfId, item.ref)}
             activeOpacity={0.7}
+            disabled={isDownloading || !pdfId}
           >
-            <Ionicons name="document-text-outline" size={18} color={COLORS.white} />
-            <Text style={styles.viewPdfButtonText}>{texts.viewPdf}</Text>
+            {isDownloading ? (
+              <>
+                <ActivityIndicator size="small" color={COLORS.white} />
+                <Text style={styles.viewPdfButtonText}>{texts.pdfDownloading}</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="document-text-outline" size={18} color={COLORS.white} />
+                <Text style={styles.viewPdfButtonText}>{texts.viewPdf}</Text>
+              </>
+            )}
           </TouchableOpacity>
 
           {/* Remove Button */}
           <TouchableOpacity 
+            style={[styles.removeButton, isDeleting && styles.buttonDisabled]}
+            onPress={() => handleDeleteReference(tcRefId, item.ref)}
+            activeOpacity={0.7}
+            disabled={isDeleting || !tcRefId}
+          >
+            {isDeleting ? (
+              <ActivityIndicator size="small" color={COLORS.dangerRed} />
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={18} color={COLORS.dangerRed} />
+                <Text style={styles.removeButtonText}>{texts.remove}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }; 
             style={styles.removeButton}
             onPress={() => handleDeleteReference(refId, refId)}
             activeOpacity={0.7}
