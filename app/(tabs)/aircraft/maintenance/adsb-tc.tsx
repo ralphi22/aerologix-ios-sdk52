@@ -463,8 +463,8 @@ export default function AdSbTcScreen() {
           <Ionicons name="chevron-back" size={28} color={COLORS.white} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>{texts.title}</Text>
-          <Text style={styles.headerSubtitle}>{registration || ''}</Text>
+          <Text style={styles.headerTitle}>{texts.screenTitle}</Text>
+          <Text style={styles.headerSubtitle}>{texts.screenSubtitle}</Text>
         </View>
         <View style={styles.headerRight} />
       </View>
