@@ -721,33 +721,28 @@ const styles = StyleSheet.create({
   warningCountText: { fontSize: 16, fontWeight: '700', color: COLORS.warningOrange },
   notFoundText: { fontSize: 9, color: COLORS.warningOrange, marginTop: 4, textAlign: 'center', maxWidth: 90, lineHeight: 12 },
   notFoundMicrocopy: { fontSize: 8, color: COLORS.textMuted, marginTop: 2, textAlign: 'center', maxWidth: 90, lineHeight: 10, fontStyle: 'italic' },
-  importButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 20, marginBottom: 8 },
+  importButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 20, marginBottom: 16 },
   importButtonDisabled: { opacity: 0.6 },
   importButtonText: { fontSize: 15, fontWeight: '600', color: COLORS.primary, marginLeft: 8 },
-  importDisclaimer: { fontSize: 11, color: COLORS.textMuted, textAlign: 'center', marginBottom: 12, paddingHorizontal: 12, lineHeight: 16, fontStyle: 'italic' },
-  // TC Search Button
-  tcSearchButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.background, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16, marginBottom: 16 },
-  tcSearchButtonText: { fontSize: 14, fontWeight: '500', color: COLORS.primary, marginLeft: 6 },
+  // TC Search Button - Primary action at top
+  tcSearchButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 20, marginBottom: 12 },
+  tcSearchButtonText: { fontSize: 15, fontWeight: '600', color: COLORS.white, marginLeft: 8 },
   // Imported Card Styles
   cardsList: { gap: 12 },
   importedCard: { backgroundColor: COLORS.white, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: COLORS.pdfBlue, borderLeftWidth: 4 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   cardRef: { flex: 1, fontSize: 16, fontWeight: '700', color: COLORS.textDark, marginLeft: 10 },
-  cardTitle: { fontSize: 13, color: COLORS.textMuted, lineHeight: 18, marginBottom: 8 },
   // PDF Badge
   pdfBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.pdfBlueBg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   pdfBadgeText: { fontSize: 10, fontWeight: '700', color: COLORS.pdfBlue, marginLeft: 4 },
-  // OCR Status badges
-  ocrStatusRow: { marginBottom: 12 },
-  ocrNotFoundBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.warningOrangeBg, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start' },
-  ocrNotFoundText: { fontSize: 11, color: COLORS.warningOrange, marginLeft: 6, fontWeight: '500' },
-  ocrFoundBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.successGreenBg, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start' },
-  ocrFoundText: { fontSize: 11, color: COLORS.successGreen, marginLeft: 6, fontWeight: '500' },
-  // Action buttons
-  cardActions: { flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' },
-  actionButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.background, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, gap: 4 },
-  deleteButton: { backgroundColor: COLORS.adRedBg },
-  actionButtonText: { fontSize: 12, fontWeight: '600', color: COLORS.primary },
+  // Card message (TC-SAFE)
+  cardMessage: { fontSize: 12, color: COLORS.textMuted, lineHeight: 18, marginBottom: 14, fontStyle: 'italic' },
+  // Card action buttons
+  cardActions: { flexDirection: 'row', gap: 10 },
+  viewPdfButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, flex: 1, justifyContent: 'center' },
+  viewPdfButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.white, marginLeft: 6 },
+  removeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.dangerRedBg, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: COLORS.dangerRed },
+  removeButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.dangerRed, marginLeft: 6 },
   // Card disclaimer
   cardDisclaimer: { fontSize: 10, color: COLORS.textMuted, fontStyle: 'italic', lineHeight: 14 },
   bottomSpacer: { height: 40 },
