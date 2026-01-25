@@ -280,6 +280,9 @@ export default function AdSbTcScreen() {
               <Text style={styles.notFoundText}>
                 {texts.notFoundInRecords}
               </Text>
+              <Text style={styles.notFoundMicrocopy}>
+                {texts.notFoundMicrocopy}
+              </Text>
             </>
           ) : (
             <>
