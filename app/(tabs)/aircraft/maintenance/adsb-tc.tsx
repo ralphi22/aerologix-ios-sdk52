@@ -10,9 +10,14 @@
  * 
  * ENDPOINTS:
  * - GET /api/adsb/baseline/{aircraft_id} - Fetch data
- * - GET /api/adsb/tc/pdf/{aircraft_id}/{ref} - Open PDF (via Linking)
- * - DELETE /api/adsb/tc/reference/{aircraft_id}/{ref} - Remove
+ * - GET /api/adsb/tc/pdf/{pdf_id} - Download PDF (authenticated)
+ * - DELETE /api/adsb/tc/reference/{tc_reference_id} - Remove reference
  * - POST /api/adsb/tc/import-pdf/{aircraft_id} - Import new PDF
+ * 
+ * PDF APPROACH (iOS TestFlight compatible):
+ * 1. Download PDF bytes with Bearer token
+ * 2. Write to FileSystem.cacheDirectory
+ * 3. Open with expo-sharing (shareAsync)
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -30,15 +35,14 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import Constants from 'expo-constants';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { getLanguage } from '@/i18n';
 import api from '@/services/api';
+import { useAuthStore } from '@/stores/authStore';
 
 // Transport Canada AD search URL
 const TC_AD_SEARCH_URL = 'https://wwwapps.tc.gc.ca/Saf-Sec-Sur/2/cawis-swimn/AD_as.aspx';
-
-// API base URL for direct PDF links
-const API_BASE_URL = Constants.expoConfig?.extra?.EXPO_BACKEND_URL || '';
 
 // ============================================================
 // COLORS
