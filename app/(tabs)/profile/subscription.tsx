@@ -722,14 +722,7 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '600',
   },
-  // Empty state
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    minHeight: 300,
-  },
+  // Empty state text
   emptyText: {
     marginTop: 12,
     fontSize: 16,
