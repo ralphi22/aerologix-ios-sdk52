@@ -12,6 +12,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
@@ -27,6 +28,18 @@ const COLORS = {
   alertRed: '#E53935',
 };
 
+// Bilingual texts for badge explanation
+const BADGE_TEXTS = {
+  en: {
+    title: 'Reference Items Detected',
+    message: 'New reference items detected. This helps guide document verification. No compliance status is determined.',
+  },
+  fr: {
+    title: 'Éléments de référence détectés',
+    message: 'Nouveaux éléments de référence détectés. Ceci sert à orienter la vérification dans vos documents. Aucun statut de conformité n\'est déterminé.',
+  },
+};
+
 interface MaintenanceCardProps {
   icon: string;
   title: string;
@@ -35,6 +48,7 @@ interface MaintenanceCardProps {
   subtitleFr: string;
   onPress: () => void;
   showBadge?: boolean;
+  onBadgePress?: () => void;
 }
 
 function MaintenanceCard({ 
