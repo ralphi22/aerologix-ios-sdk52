@@ -330,32 +330,34 @@ export default function AdSbTcScreen() {
   // Get auth token for authenticated requests
   const { token } = useAuthStore();
 
-  // State for PDF download
+  // State for PDF download and delete operations
   const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
   const [deletingRefId, setDeletingRefId] = useState<string | null>(null);
 
   // ============================================================
-  // PDF & DELETE HANDLERS
+  // PDF HANDLER - openTcPdf(tc_pdf_id)
   // ============================================================
 
   /**
-   * Open PDF using authenticated download + local share
+   * Open PDF using authenticated fetch + base64 + expo-sharing
    * iOS TestFlight compatible approach:
-   * 1. Download PDF bytes with Bearer token
-   * 2. Write to FileSystem.cacheDirectory
-   * 3. Open with expo-sharing
+   * 1. Fetch PDF with Authorization header
+   * 2. Convert response to base64
+   * 3. Write to FileSystem.cacheDirectory
+   * 4. Open via expo-sharing (shareAsync)
    * 
-   * @param pdfId - The pdf_id from baseline item
+   * @param tcPdfId - The tc_pdf_id from baseline item (REQUIRED)
    * @param refName - Reference name for filename
    */
-  const openTcPdf = async (pdfId: string, refName: string) => {
-    if (!pdfId) {
-      console.error('[PDF] No pdf_id provided');
+  const openTcPdf = async (tcPdfId: string | undefined, refName: string) => {
+    // Validation
+    if (!tcPdfId) {
+      console.error('[PDF] No tc_pdf_id provided');
       Alert.alert('', texts.pdfError);
       return;
     }
 
-    setDownloadingPdfId(pdfId);
+    setDownloadingPdfId(tcPdfId);
 
     try {
       // Check if sharing is available on this device
@@ -367,35 +369,55 @@ export default function AdSbTcScreen() {
         return;
       }
 
-      // Build download URL
-      const downloadUrl = `${api.defaults.baseURL}/api/adsb/tc/pdf/${pdfId}`;
-      const filename = `${refName.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
-      const localUri = `${FileSystem.cacheDirectory}${filename}`;
+      // Build API URL - use tc_pdf_id ONLY
+      const pdfUrl = `${api.defaults.baseURL}/api/adsb/tc/pdf/${tcPdfId}`;
+      console.log(`[PDF] Fetching: ${pdfUrl}`);
 
-      console.log(`[PDF] Downloading: ${downloadUrl}`);
+      // Fetch PDF with Authorization header
+      const response = await fetch(pdfUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Accept': 'application/pdf',
+        },
+      });
 
-      // Download with authentication header
-      const downloadResult = await FileSystem.downloadAsync(
-        downloadUrl,
-        localUri,
-        {
-          headers: {
-            Authorization: token ? `Bearer ${token}` : '',
-          },
-        }
-      );
+      console.log(`[PDF] Response status: ${response.status}`);
 
-      console.log(`[PDF] Download result: status=${downloadResult.status}, uri=${downloadResult.uri}`);
-
-      if (downloadResult.status !== 200) {
-        console.error(`[PDF] Download failed with status ${downloadResult.status}`);
+      if (!response.ok) {
+        console.error(`[PDF] Fetch failed: ${response.status} ${response.statusText}`);
         Alert.alert('', texts.pdfError);
         setDownloadingPdfId(null);
         return;
       }
 
-      // Open PDF using sharing (works on iOS TestFlight)
-      await Sharing.shareAsync(downloadResult.uri, {
+      // Convert to blob then to base64
+      const blob = await response.blob();
+      const reader = new FileReader();
+      
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const dataUrl = reader.result as string;
+          // Extract base64 part (remove "data:application/pdf;base64," prefix)
+          const base64 = dataUrl.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      // Write to cache directory
+      const filename = `${refName.replace(/[^a-zA-Z0-9-_]/g, '_')}_${Date.now()}.pdf`;
+      const localUri = `${FileSystem.cacheDirectory}${filename}`;
+      
+      console.log(`[PDF] Writing to: ${localUri}`);
+      await FileSystem.writeAsStringAsync(localUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Open PDF using expo-sharing (iOS TestFlight compatible)
+      console.log('[PDF] Opening with Sharing...');
+      await Sharing.shareAsync(localUri, {
         mimeType: 'application/pdf',
         UTI: 'com.adobe.pdf',
       });
@@ -409,12 +431,21 @@ export default function AdSbTcScreen() {
     }
   };
 
+  // ============================================================
+  // DELETE HANDLER - handleRemove(tc_reference_id)
+  // ============================================================
+
   /**
    * Delete a reference from workspace
-   * Uses tc_reference_id from baseline item
+   * Uses tc_reference_id ONLY (not pdf_id, not baseline.id, not index)
    * DELETE /api/adsb/tc/reference/{tc_reference_id}
+   * After success → refetch baseline
+   * 
+   * @param tcReferenceId - The tc_reference_id from baseline item (REQUIRED)
+   * @param refName - Reference name for display
    */
-  const handleDeleteReference = (tcReferenceId: string | undefined, refName: string) => {
+  const handleRemove = (tcReferenceId: string | undefined, refName: string) => {
+    // Validation
     if (!tcReferenceId) {
       console.error('[Delete] No tc_reference_id provided');
       Alert.alert('', texts.deleteError);
@@ -432,10 +463,14 @@ export default function AdSbTcScreen() {
           onPress: async () => {
             setDeletingRefId(tcReferenceId);
             try {
-              console.log(`[Delete] Deleting reference: ${tcReferenceId}`);
+              console.log(`[Delete] DELETE /api/adsb/tc/reference/${tcReferenceId}`);
+              
               await api.delete(`/api/adsb/tc/reference/${tcReferenceId}`);
+              
+              console.log('[Delete] Success');
               Alert.alert('', texts.deleteSuccess);
-              // Refresh baseline (source of truth)
+              
+              // Mandatory: refetch baseline (source of truth)
               fetchBaseline(true);
             } catch (err: any) {
               console.error('[Delete] Error:', err?.response?.status, err?.message);
