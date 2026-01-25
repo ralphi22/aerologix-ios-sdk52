@@ -507,6 +507,12 @@ export default function AdSbTcScreen() {
             <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
           </View>
 
+          {/* 🔝 TC Search Button - AT THE TOP */}
+          <TouchableOpacity style={styles.tcSearchButton} onPress={handleSearchTcAds} activeOpacity={0.7}>
+            <Ionicons name="search" size={18} color={COLORS.white} />
+            <Text style={styles.tcSearchButtonText}>{texts.searchTcAds}</Text>
+          </TouchableOpacity>
+
           {/* Import PDF Button */}
           <TouchableOpacity 
             style={[styles.importButton, isImporting && styles.importButtonDisabled]} 
@@ -525,15 +531,6 @@ export default function AdSbTcScreen() {
                 <Text style={styles.importButtonText}>{texts.importPdfButton}</Text>
               </>
             )}
-          </TouchableOpacity>
-
-          {/* Import Disclaimer */}
-          <Text style={styles.importDisclaimer}>{texts.importPdfDisclaimer}</Text>
-
-          {/* Search on TC Link */}
-          <TouchableOpacity style={styles.tcSearchButton} onPress={handleSearchOnTc} activeOpacity={0.7}>
-            <Ionicons name="search" size={18} color={COLORS.primary} />
-            <Text style={styles.tcSearchButtonText}>{texts.searchOnTc}</Text>
           </TouchableOpacity>
 
           {/* Empty state */}
@@ -561,6 +558,12 @@ export default function AdSbTcScreen() {
           <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
         </View>
 
+        {/* 🔝 TC Search Button - AT THE TOP */}
+        <TouchableOpacity style={styles.tcSearchButton} onPress={handleSearchTcAds} activeOpacity={0.7}>
+          <Ionicons name="search" size={18} color={COLORS.white} />
+          <Text style={styles.tcSearchButtonText}>{texts.searchTcAds}</Text>
+        </TouchableOpacity>
+
         {/* Import PDF Button */}
         <TouchableOpacity 
           style={[styles.importButton, isImporting && styles.importButtonDisabled]} 
@@ -581,21 +584,12 @@ export default function AdSbTcScreen() {
           )}
         </TouchableOpacity>
 
-        {/* Import Disclaimer */}
-        <Text style={styles.importDisclaimer}>{texts.importPdfDisclaimer}</Text>
-
-        {/* Search on TC Link */}
-        <TouchableOpacity style={styles.tcSearchButton} onPress={handleSearchOnTc} activeOpacity={0.7}>
-          <Ionicons name="search" size={18} color={COLORS.primary} />
-          <Text style={styles.tcSearchButtonText}>{texts.searchOnTc}</Text>
-        </TouchableOpacity>
-
         {/* Counters */}
         <View style={styles.countersContainer}>
           <View style={[styles.counterBadge, { backgroundColor: COLORS.pdfBlueBg }]}>
             <Ionicons name="document" size={14} color={COLORS.pdfBlue} />
             <Text style={[styles.counterText, { color: COLORS.pdfBlue, marginLeft: 4 }]}>
-              {userImportedItems.length} PDF
+              {importedAdItems.length + importedSbItems.length} PDF
             </Text>
           </View>
           <View style={[styles.counterBadge, { backgroundColor: COLORS.adRedBg }]}>
