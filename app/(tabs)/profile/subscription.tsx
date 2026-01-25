@@ -1,22 +1,22 @@
 /**
- * Subscription Management Screen
+ * Subscription Management Screen - DYNAMIC VERSION
  * 
- * iOS: Uses RevenueCat for In-App Purchases (Apple IAP)
- * - Loads offerings: pilot, pilot_pro, fleet
- * - Each offering has $rc_monthly and $rc_annual packages
- * - Checks entitlements: pilot, pilot_pro, fleet
+ * Apple Review Guideline 2.1 Compliant:
+ * - Uses offerings.current dynamically instead of hardcoded offering IDs
+ * - Renders whatever packages RevenueCat returns
+ * - Handles all states: loading, error, empty, available
  * 
  * FLOW:
  * 1. initRevenueCat()
- * 2. Load offerings + customerInfo in parallel
- * 3. User selects plan
- * 4. purchasePackage() / restorePurchases()
- * 5. Refresh customerInfo
- * 6. GET /api/auth/me to sync backend
- * 7. UI updated
+ * 2. Load offerings.current + customerInfo in parallel
+ * 3. Dynamically display available packages
+ * 4. User selects package
+ * 5. purchasePackage() / restorePurchases()
+ * 6. Refresh customerInfo
+ * 7. GET /api/auth/me to sync backend
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -41,20 +41,12 @@ import {
   purchasePackage,
   restorePurchases,
   hasEntitlement,
-  getPackage,
-  OFFERING_IDS,
   ENTITLEMENT_IDS,
-  PACKAGE_IDS,
   SUBSCRIPTION_MANAGEMENT_URL,
   type PurchasesOfferings,
   type CustomerInfo,
   type PurchasesPackage,
 } from '@/services/revenuecatService';
-import {
-  PLANS,
-  PlanCode,
-  formatLimit,
-} from '@/services/paymentService';
 
 // ============================================
 // CONSTANTS
@@ -75,47 +67,14 @@ const COLORS = {
   orange: '#F59E0B',
 };
 
-// Plan codes to display (always show all 4)
-const ALL_PLAN_CODES: PlanCode[] = ['BASIC', 'PILOT', 'PILOT_PRO', 'FLEET'];
-
-// Billing cycle type
-type BillingCycle = 'monthly' | 'yearly';
-
-/**
- * Get the RevenueCat offering ID for a plan code
- * CRITICAL: Each plan MUST map to its own offering
- * - PILOT → offerings.all.pilot
- * - PILOT_PRO → offerings.all.pilot_pro  
- * - FLEET → offerings.all.fleet
- */
-const getOfferingIdForPlan = (planCode: PlanCode): typeof OFFERING_IDS[keyof typeof OFFERING_IDS] | null => {
-  switch (planCode) {
-    case 'PILOT':
-      return OFFERING_IDS.PILOT; // 'pilot'
-    case 'PILOT_PRO':
-      return OFFERING_IDS.PILOT_PRO; // 'pilot_pro'
-    case 'FLEET':
-      return OFFERING_IDS.FLEET; // 'fleet'
-    default:
-      return null;
-  }
-};
-
-/**
- * Get the RevenueCat entitlement ID for a plan code
- */
-const getEntitlementIdForPlan = (planCode: PlanCode): typeof ENTITLEMENT_IDS[keyof typeof ENTITLEMENT_IDS] | null => {
-  switch (planCode) {
-    case 'PILOT':
-      return ENTITLEMENT_IDS.PILOT;
-    case 'PILOT_PRO':
-      return ENTITLEMENT_IDS.PILOT_PRO;
-    case 'FLEET':
-      return ENTITLEMENT_IDS.FLEET;
-    default:
-      return null;
-  }
-};
+// Package type colors for visual distinction
+const PACKAGE_COLORS = [
+  '#3B82F6', // Blue
+  '#8B5CF6', // Purple
+  '#F59E0B', // Orange
+  '#10B981', // Green
+  '#EF4444', // Red
+];
 
 // ============================================
 // TRANSLATIONS
@@ -124,7 +83,7 @@ const getEntitlementIdForPlan = (planCode: PlanCode): typeof ENTITLEMENT_IDS[key
 const TEXTS = {
   en: {
     title: 'Plans & Subscription',
-    allPlans: 'All available plans',
+    availablePlans: 'Available Plans',
     monthly: 'Monthly',
     yearly: 'Yearly',
     subscribe: 'Subscribe',
@@ -138,7 +97,8 @@ const TEXTS = {
     yourCurrentPlan: 'Your current plan',
     loading: 'Loading...',
     loadingPlans: 'Loading plans...',
-    errorLoading: 'Error loading plans',
+    errorLoading: 'Subscriptions unavailable. Please try again later.',
+    noPlansAvailable: 'No subscription plans are currently available.',
     tryAgain: 'Try Again',
     purchaseCancelled: 'Purchase cancelled',
     purchaseError: 'Purchase error',
@@ -154,18 +114,15 @@ const TEXTS = {
     save: 'Save',
     perMonth: 'month',
     perYear: 'year',
-    aircraft: 'Aircraft',
-    ocrMonth: 'OCR/month',
-    ameSharing: 'AME Sharing',
-    gpsLogbook: 'GPS Logbook',
-    unlimited: 'Unlimited',
+    basicPlan: 'Basic Plan',
+    basicDescription: 'Free tier with limited features',
     notAvailable: 'Not available on this platform',
     privacyPolicy: 'Privacy Policy',
     termsOfUse: 'Terms of Use (EULA)',
   },
   fr: {
     title: 'Plans & Abonnement',
-    allPlans: 'Tous les plans disponibles',
+    availablePlans: 'Plans disponibles',
     monthly: 'Mensuel',
     yearly: 'Annuel',
     subscribe: 'S\'abonner',
@@ -179,7 +136,8 @@ const TEXTS = {
     yourCurrentPlan: 'Votre plan actuel',
     loading: 'Chargement...',
     loadingPlans: 'Chargement des plans...',
-    errorLoading: 'Erreur de chargement',
+    errorLoading: 'Abonnements indisponibles. Veuillez réessayer plus tard.',
+    noPlansAvailable: 'Aucun plan d\'abonnement n\'est actuellement disponible.',
     tryAgain: 'Réessayer',
     purchaseCancelled: 'Achat annulé',
     purchaseError: 'Erreur d\'achat',
@@ -187,7 +145,7 @@ const TEXTS = {
     purchaseSuccessMessage: 'Votre abonnement est maintenant actif.',
     restoreSuccess: 'Achats restaurés !',
     restoreSuccessMessage: 'Votre abonnement a été restauré.',
-    restoreNoSubscription: 'No active subscription to restore.',
+    restoreNoSubscription: 'Aucun abonnement actif à restaurer.',
     networkError: 'Erreur réseau. Vérifiez votre connexion.',
     unknownError: 'Une erreur inattendue s\'est produite.',
     securityNote: 'Paiements sécurisés par Apple. Les abonnements se renouvellent automatiquement.',
@@ -195,11 +153,8 @@ const TEXTS = {
     save: 'Économisez',
     perMonth: 'mois',
     perYear: 'an',
-    aircraft: 'Aéronefs',
-    ocrMonth: 'OCR/mois',
-    ameSharing: 'Partage TEA/AMO',
-    gpsLogbook: 'Carnet GPS',
-    unlimited: 'Illimité',
+    basicPlan: 'Plan Basic',
+    basicDescription: 'Gratuit avec fonctionnalités limitées',
     notAvailable: 'Non disponible sur cette plateforme',
     privacyPolicy: 'Politique de confidentialité',
     termsOfUse: 'Conditions d\'utilisation (EULA)',
@@ -219,23 +174,38 @@ export default function SubscriptionScreen() {
   // State
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isPurchasing, setIsPurchasing] = useState<PlanCode | null>(null);
+  const [purchasingPackageId, setPurchasingPackageId] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [offerings, setOfferings] = useState<PurchasesOfferings | null>(null);
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
-  const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>('monthly');
 
-  // Determine current plan from RevenueCat entitlements
-  const getCurrentPlanCode = useCallback((): PlanCode => {
-    if (!customerInfo) return 'BASIC';
-    if (hasEntitlement(customerInfo, ENTITLEMENT_IDS.FLEET)) return 'FLEET';
-    if (hasEntitlement(customerInfo, ENTITLEMENT_IDS.PILOT_PRO)) return 'PILOT_PRO';
-    if (hasEntitlement(customerInfo, ENTITLEMENT_IDS.PILOT)) return 'PILOT';
-    return 'BASIC';
+  // Get available packages from offerings.current dynamically
+  const availablePackages = useMemo((): PurchasesPackage[] => {
+    if (!offerings?.current?.availablePackages) {
+      return [];
+    }
+    return offerings.current.availablePackages;
+  }, [offerings]);
+
+  // Check if user has any active subscription
+  const hasActiveSubscription = useMemo((): boolean => {
+    if (!customerInfo) return false;
+    return (
+      hasEntitlement(customerInfo, ENTITLEMENT_IDS.FLEET) ||
+      hasEntitlement(customerInfo, ENTITLEMENT_IDS.PILOT_PRO) ||
+      hasEntitlement(customerInfo, ENTITLEMENT_IDS.PILOT)
+    );
   }, [customerInfo]);
 
-  const currentPlanCode = getCurrentPlanCode();
+  // Get active plan name for display
+  const activePlanName = useMemo((): string | null => {
+    if (!customerInfo) return null;
+    if (hasEntitlement(customerInfo, ENTITLEMENT_IDS.FLEET)) return 'Fleet';
+    if (hasEntitlement(customerInfo, ENTITLEMENT_IDS.PILOT_PRO)) return 'Pilot Pro';
+    if (hasEntitlement(customerInfo, ENTITLEMENT_IDS.PILOT)) return 'Pilot';
+    return null;
+  }, [customerInfo]);
 
   // ============================================
   // INITIALIZATION & DATA LOADING
@@ -261,6 +231,9 @@ export default function SubscriptionScreen() {
         getOfferings(),
         getCustomerInfo(),
       ]);
+
+      console.log('[Subscription] Offerings loaded:', offeringsData?.current?.identifier || 'none');
+      console.log('[Subscription] Available packages:', offeringsData?.current?.availablePackages?.length || 0);
 
       setOfferings(offeringsData);
       setCustomerInfo(customerInfoData);
@@ -303,46 +276,20 @@ export default function SubscriptionScreen() {
     router.back();
   };
 
-  const handleSubscribe = async (planCode: PlanCode) => {
+  /**
+   * Handle subscription purchase - DYNAMIC
+   * Accepts any PurchasesPackage from offerings.current
+   */
+  const handleSubscribe = async (pkg: PurchasesPackage) => {
     if (Platform.OS !== 'ios') {
       Alert.alert('Info', texts.notAvailable);
       return;
     }
 
-    if (planCode === 'BASIC' || planCode === currentPlanCode) return;
-
-    // Get the CORRECT offering for this specific plan
-    const offeringId = getOfferingIdForPlan(planCode);
-    if (!offeringId || !offerings) {
-      // Silently return - button should already be disabled
-      console.log(`[Subscription] Cannot subscribe: offeringId=${offeringId}, offerings=${!!offerings}`);
-      return;
-    }
-
-    // Get the offering
-    const offering = offerings.all[offeringId];
-    if (!offering) {
-      // Silently return - button should already be disabled
-      console.log(`[Subscription] Offering not found: ${offeringId}`);
-      return;
-    }
-
-    const packageId = selectedBillingCycle === 'monthly' 
-      ? PACKAGE_IDS.MONTHLY 
-      : PACKAGE_IDS.ANNUAL;
-
-    // Use availablePackages.find() - NOT offering.monthly or offering.annual
-    const pkg = offering.availablePackages.find(p => p.identifier === packageId);
-    if (!pkg) {
-      // Silently return - button should already be disabled
-      console.log(`[Subscription] Package not found: ${offeringId} / ${packageId}`);
-      return;
-    }
-
     // Log which product is being purchased for debugging
-    console.log(`[Subscription] Purchasing: plan=${planCode}, offering=${offeringId}, package=${packageId}, productId=${pkg.product.identifier}`);
+    console.log(`[Subscription] Purchasing: package=${pkg.identifier}, productId=${pkg.product.identifier}, price=${pkg.product.priceString}`);
 
-    setIsPurchasing(planCode);
+    setPurchasingPackageId(pkg.identifier);
 
     try {
       const result = await purchasePackage(pkg);
@@ -366,7 +313,7 @@ export default function SubscriptionScreen() {
       console.error('Purchase error:', err);
       Alert.alert(texts.purchaseError, texts.unknownError);
     } finally {
-      setIsPurchasing(null);
+      setPurchasingPackageId(null);
     }
   };
 
@@ -420,235 +367,126 @@ export default function SubscriptionScreen() {
   // ============================================
 
   /**
-   * Check if a package is available for a plan
-   * Used to disable Subscribe button when package not loaded
+   * Get a color for a package based on its index
    */
-  const isPackageAvailable = (planCode: PlanCode, billingCycle: BillingCycle): boolean => {
-    if (planCode === 'BASIC') return true;
-    if (Platform.OS !== 'ios' || !offerings) return false;
-
-    const offeringId = getOfferingIdForPlan(planCode);
-    if (!offeringId) return false;
-
-    const packageId = billingCycle === 'monthly' ? PACKAGE_IDS.MONTHLY : PACKAGE_IDS.ANNUAL;
-    const pkg = getPackage(offerings, offeringId, packageId);
-    
-    return pkg !== null;
+  const getPackageColor = (index: number): string => {
+    return PACKAGE_COLORS[index % PACKAGE_COLORS.length];
   };
 
   /**
-   * Get the price string for a plan from RevenueCat
-   * IMPORTANT: Prices come ONLY from RevenueCat (package.product.priceString)
-   * NO static prices, NO fallbacks to PLANS
+   * Format package type for display (e.g., "$rc_monthly" -> "Monthly")
    */
-  const getPriceString = (planCode: PlanCode, billingCycle: BillingCycle): string => {
-    // BASIC is always free
-    if (planCode === 'BASIC') return texts.free;
-    
-    // Not iOS - show dash (not available)
-    if (Platform.OS !== 'ios') {
-      return '—';
+  const formatPackageType = (identifier: string): string => {
+    const id = identifier.toLowerCase();
+    if (id.includes('annual') || id.includes('yearly') || id.includes('year')) {
+      return lang === 'fr' ? 'Annuel' : 'Annual';
     }
-    
-    // Still loading offerings - show loading text
-    if (isLoading || !offerings) {
-      return texts.loading;
+    if (id.includes('monthly') || id.includes('month')) {
+      return lang === 'fr' ? 'Mensuel' : 'Monthly';
     }
-
-    // Get the CORRECT offering for this plan
-    const offeringId = getOfferingIdForPlan(planCode);
-    if (!offeringId) {
-      console.warn(`[Subscription] No offering ID for plan: ${planCode}`);
-      return '—';
+    if (id.includes('weekly') || id.includes('week')) {
+      return lang === 'fr' ? 'Hebdomadaire' : 'Weekly';
     }
-
-    // Get the package from the CORRECT offering using availablePackages.find()
-    const offering = offerings.all[offeringId];
-    if (!offering) {
-      console.warn(`[Subscription] Offering not found: ${offeringId}`);
-      return '—';
+    if (id.includes('lifetime')) {
+      return lang === 'fr' ? 'À vie' : 'Lifetime';
     }
-
-    const packageId = billingCycle === 'monthly' ? PACKAGE_IDS.MONTHLY : PACKAGE_IDS.ANNUAL;
-    const pkg = offering.availablePackages.find(p => p.identifier === packageId);
-
-    if (!pkg) {
-      console.warn(`[Subscription] Package not found: ${offeringId} / ${packageId}`);
-      return '—';
-    }
-
-    // Return ONLY the RevenueCat price string - no fallbacks
-    return pkg.product.priceString;
+    // Fallback: clean up the identifier
+    return identifier.replace(/^\$rc_/, '').replace(/_/g, ' ');
   };
 
   /**
-   * Calculate yearly savings percentage from RevenueCat prices
-   * Uses actual Apple prices, not static values
+   * Check if package appears to be a "best value" (annual/yearly)
    */
-  const getYearlySavings = (planCode: PlanCode): number => {
-    if (planCode === 'BASIC' || Platform.OS !== 'ios' || !offerings) return 0;
-
-    const offeringId = getOfferingIdForPlan(planCode);
-    if (!offeringId) return 0;
-
-    const offering = offerings.all[offeringId];
-    if (!offering) return 0;
-
-    // Use availablePackages.find() - NOT offering.monthly or offering.annual
-    const monthlyPkg = offering.availablePackages.find(p => p.identifier === PACKAGE_IDS.MONTHLY);
-    const annualPkg = offering.availablePackages.find(p => p.identifier === PACKAGE_IDS.ANNUAL);
-
-    if (!monthlyPkg || !annualPkg) return 0;
-
-    const monthlyPrice = monthlyPkg.product.price;
-    const annualPrice = annualPkg.product.price;
-
-    if (monthlyPrice <= 0) return 0;
-
-    const monthlyTotal = monthlyPrice * 12;
-    const savings = ((monthlyTotal - annualPrice) / monthlyTotal) * 100;
-    return Math.round(savings);
+  const isBestValue = (identifier: string): boolean => {
+    const id = identifier.toLowerCase();
+    return id.includes('annual') || id.includes('yearly') || id.includes('year');
   };
 
   // ============================================
-  // PLAN CARD COMPONENT
+  // PACKAGE CARD COMPONENT - DYNAMIC
   // ============================================
 
-  const PlanCard = ({ code }: { code: PlanCode }) => {
-    const plan = PLANS[code];
-    if (!plan) return null;
-
-    const isCurrentPlan = code === currentPlanCode;
-    const hasFreeTrial = code === 'PILOT' || code === 'PILOT_PRO';
-    const isLoadingThisPlan = isPurchasing === code;
-    const priceString = getPriceString(code, selectedBillingCycle);
-    const savings = getYearlySavings(code);
-    
-    // Check if the package is available for this plan
-    // Button will be disabled if package not loaded
-    const canSubscribe = isPackageAvailable(code, selectedBillingCycle);
-    const isButtonDisabled = isLoadingThisPlan || isPurchasing !== null || !canSubscribe;
+  const PackageCard = ({ pkg, index }: { pkg: PurchasesPackage; index: number }) => {
+    const color = getPackageColor(index);
+    const isLoadingThisPackage = purchasingPackageId === pkg.identifier;
+    const isAnyPurchasing = purchasingPackageId !== null;
+    const isButtonDisabled = isLoadingThisPackage || isAnyPurchasing;
+    const showBestValue = isBestValue(pkg.identifier);
+    const packageTypeName = formatPackageType(pkg.identifier);
 
     return (
       <View
         style={[
           styles.planCardMain,
-          { borderColor: plan.color },
-          isCurrentPlan && styles.currentPlanCardMain,
+          { borderColor: color },
         ]}
       >
-        {/* Popular badge */}
-        {plan.popular && (
-          <View style={[styles.popularBadge, { backgroundColor: plan.color }]}>
+        {/* Best Value badge for annual plans */}
+        {showBestValue && (
+          <View style={[styles.popularBadge, { backgroundColor: color }]}>
             <Text style={styles.popularBadgeText}>{texts.popular}</Text>
           </View>
         )}
 
-        {/* Current badge */}
-        {isCurrentPlan && (
-          <View style={styles.currentBadge}>
-            <Text style={styles.currentBadgeText}>✓ {texts.current}</Text>
+        {/* Product title from RevenueCat */}
+        <Text style={[styles.planCardTitle, { color }]}>
+          {pkg.product.title || packageTypeName}
+        </Text>
+
+        {/* Product description if available */}
+        {pkg.product.description ? (
+          <Text style={styles.planCardDescription}>
+            {pkg.product.description}
+          </Text>
+        ) : (
+          <Text style={styles.planCardDescription}>
+            {packageTypeName}
+          </Text>
+        )}
+
+        {/* Price from RevenueCat */}
+        <View style={styles.priceContainer}>
+          <Text style={styles.priceAmount}>{pkg.product.priceString}</Text>
+        </View>
+
+        {/* Subscription period info if available */}
+        {pkg.product.subscriptionPeriod && (
+          <View style={styles.periodBadge}>
+            <Text style={styles.periodText}>
+              {packageTypeName}
+            </Text>
           </View>
         )}
 
-        {/* Plan name and description */}
-        <Text style={[styles.planCardTitle, { color: plan.color }]}>
-          {lang === 'fr' ? plan.nameFr : plan.name}
-        </Text>
-        <Text style={styles.planCardDescription}>
-          {lang === 'fr' ? plan.descriptionFr : plan.description}
-        </Text>
-
-        {/* Price */}
-        <View style={styles.priceContainer}>
-          <Text style={styles.priceAmount}>{priceString}</Text>
-          {code !== 'BASIC' && (
-            <Text style={styles.pricePeriod}>
-              / {selectedBillingCycle === 'monthly' ? texts.perMonth : texts.perYear}
-            </Text>
-          )}
-        </View>
-
-        {/* Trial badge - PILOT & PILOT_PRO only */}
-        {hasFreeTrial && (
+        {/* Trial info if product has introductory offer */}
+        {pkg.product.introPrice && (
           <View style={styles.trialBadge}>
             <Ionicons name="gift-outline" size={14} color={COLORS.warning} />
-            <Text style={styles.trialBadgeText}>{texts.freeTrial}</Text>
-          </View>
-        )}
-
-        {/* Yearly savings */}
-        {selectedBillingCycle === 'yearly' && savings > 0 && (
-          <View style={styles.savingsBadge}>
-            <Text style={styles.savingsText}>
-              {texts.save} {savings}%
+            <Text style={styles.trialBadgeText}>
+              {pkg.product.introPrice.priceString === '$0.00' 
+                ? texts.freeTrial 
+                : `${pkg.product.introPrice.priceString} intro`}
             </Text>
           </View>
         )}
 
-        {/* Limits */}
-        <View style={styles.limitsContainer}>
-          <View style={styles.limitRow}>
-            <Ionicons name="airplane" size={16} color={plan.color} />
-            <Text style={styles.limitText}>
-              {texts.aircraft}:{' '}
-              <Text style={styles.limitValue}>
-                {formatLimit(plan.limits.max_aircrafts, lang)}
-              </Text>
-            </Text>
-          </View>
-          <View style={styles.limitRow}>
-            <Ionicons name="scan" size={16} color={plan.color} />
-            <Text style={styles.limitText}>
-              {texts.ocrMonth}:{' '}
-              <Text style={styles.limitValue}>
-                {formatLimit(plan.limits.ocr_per_month, lang)}
-              </Text>
-            </Text>
-          </View>
-          {plan.limits.tea_amo_sharing && (
-            <View style={styles.limitRow}>
-              <Ionicons name="share-social" size={16} color={plan.color} />
-              <Text style={styles.limitText}>{texts.ameSharing}</Text>
-            </View>
+        {/* Subscribe button */}
+        <TouchableOpacity
+          style={[
+            styles.selectButton, 
+            { backgroundColor: color },
+            isButtonDisabled && styles.selectButtonDisabled
+          ]}
+          onPress={() => handleSubscribe(pkg)}
+          disabled={isButtonDisabled}
+          activeOpacity={0.7}
+        >
+          {isLoadingThisPackage ? (
+            <ActivityIndicator size="small" color={COLORS.white} />
+          ) : (
+            <Text style={styles.selectButtonText}>{texts.choosePlan}</Text>
           )}
-          {plan.limits.gps_logbook && (
-            <View style={styles.limitRow}>
-              <Ionicons name="location" size={16} color={plan.color} />
-              <Text style={styles.limitText}>{texts.gpsLogbook}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Action button */}
-        {!isCurrentPlan && code !== 'BASIC' && Platform.OS === 'ios' && (
-          <TouchableOpacity
-            style={[
-              styles.selectButton, 
-              { backgroundColor: plan.color },
-              isButtonDisabled && styles.selectButtonDisabled
-            ]}
-            onPress={() => handleSubscribe(code)}
-            disabled={isButtonDisabled}
-            activeOpacity={0.7}
-          >
-            {isLoadingThisPlan ? (
-              <ActivityIndicator size="small" color={COLORS.white} />
-            ) : !canSubscribe ? (
-              <Text style={styles.selectButtonText}>{texts.loading}</Text>
-            ) : (
-              <Text style={styles.selectButtonText}>{texts.choosePlan}</Text>
-            )}
-          </TouchableOpacity>
-        )}
-
-        {/* Current plan indicator */}
-        {isCurrentPlan && code !== 'BASIC' && (
-          <View style={styles.currentPlanIndicator}>
-            <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-            <Text style={styles.currentPlanIndicatorText}>{texts.yourCurrentPlan}</Text>
-          </View>
-        )}
+        </TouchableOpacity>
       </View>
     );
   };
@@ -698,6 +536,28 @@ export default function SubscriptionScreen() {
     );
   }
 
+  // Empty state - No packages available
+  if (Platform.OS === 'ios' && availablePackages.length === 0 && !error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={28} color={COLORS.white} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{texts.title}</Text>
+          <View style={styles.backButton} />
+        </View>
+        <View style={styles.emptyContainer}>
+          <Ionicons name="pricetag-outline" size={48} color={COLORS.textMuted} />
+          <Text style={styles.emptyText}>{texts.noPlansAvailable}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadRevenueCatData}>
+            <Text style={styles.retryButtonText}>{texts.tryAgain}</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -721,63 +581,32 @@ export default function SubscriptionScreen() {
         }
       >
         {/* Current Status Banner */}
-        {currentPlanCode !== 'BASIC' && (
+        {hasActiveSubscription && activePlanName && (
           <View style={[styles.statusBanner, { backgroundColor: COLORS.success + '20', borderColor: COLORS.success }]}>
             <View style={[styles.statusDot, { backgroundColor: COLORS.success }]} />
             <Text style={[styles.statusBannerText, { color: COLORS.success }]}>
-              {texts.active}: {PLANS[currentPlanCode]?.name || currentPlanCode}
+              {texts.active}: {activePlanName}
             </Text>
           </View>
         )}
 
-        {/* Billing Cycle Toggle - Only show on iOS */}
-        {Platform.OS === 'ios' && (
-          <View style={styles.billingToggle}>
-            <TouchableOpacity
-              style={[
-                styles.billingOption,
-                selectedBillingCycle === 'monthly' && styles.billingOptionActive,
-              ]}
-              onPress={() => setSelectedBillingCycle('monthly')}
-            >
-              <Text
-                style={[
-                  styles.billingOptionText,
-                  selectedBillingCycle === 'monthly' && styles.billingOptionTextActive,
-                ]}
-              >
-                {texts.monthly}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.billingOption,
-                selectedBillingCycle === 'yearly' && styles.billingOptionActive,
-              ]}
-              onPress={() => setSelectedBillingCycle('yearly')}
-            >
-              <Text
-                style={[
-                  styles.billingOptionText,
-                  selectedBillingCycle === 'yearly' && styles.billingOptionTextActive,
-                ]}
-              >
-                {texts.yearly}
-              </Text>
-              <View style={styles.saveBadge}>
-                <Text style={styles.saveBadgeText}>-17%</Text>
-              </View>
-            </TouchableOpacity>
+        {/* Available Packages - Dynamically rendered */}
+        {Platform.OS === 'ios' && availablePackages.length > 0 && (
+          <View style={styles.plansSection}>
+            <Text style={styles.plansSectionTitle}>{texts.availablePlans}</Text>
+            {availablePackages.map((pkg, index) => (
+              <PackageCard key={pkg.identifier} pkg={pkg} index={index} />
+            ))}
           </View>
         )}
 
-        {/* ALL 4 PLANS - Always visible */}
-        <View style={styles.plansSection}>
-          <Text style={styles.plansSectionTitle}>{texts.allPlans}</Text>
-          {ALL_PLAN_CODES.map((code) => (
-            <PlanCard key={code} code={code} />
-          ))}
-        </View>
+        {/* Non-iOS message */}
+        {Platform.OS !== 'ios' && (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="phone-portrait-outline" size={48} color={COLORS.textMuted} />
+            <Text style={styles.emptyText}>{texts.notAvailable}</Text>
+          </View>
+        )}
 
         {/* Restore Purchases Button - iOS only */}
         {Platform.OS === 'ios' && (
@@ -798,7 +627,7 @@ export default function SubscriptionScreen() {
         )}
 
         {/* Manage Subscription Button - iOS only, when subscribed */}
-        {Platform.OS === 'ios' && currentPlanCode !== 'BASIC' && (
+        {Platform.OS === 'ios' && hasActiveSubscription && (
           <TouchableOpacity
             style={styles.manageButton}
             onPress={handleManageSubscription}
@@ -906,6 +735,21 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '600',
   },
+  // Empty state
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    minHeight: 300,
+  },
+  emptyText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
   // Status Banner
   statusBanner: {
     flexDirection: 'row',
@@ -925,47 +769,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     flex: 1,
-  },
-  // Billing Toggle
-  billingToggle: {
-    flexDirection: 'row',
-    padding: 4,
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 20,
-  },
-  billingOption: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  billingOptionActive: {
-    backgroundColor: COLORS.primary,
-  },
-  billingOptionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textMuted,
-  },
-  billingOptionTextActive: {
-    color: COLORS.white,
-  },
-  saveBadge: {
-    backgroundColor: COLORS.success,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 6,
-  },
-  saveBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.white,
   },
   // Plans Section
   plansSection: {
@@ -987,9 +790,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  currentPlanCardMain: {
-    borderWidth: 3,
-  },
   popularBadge: {
     position: 'absolute',
     top: 12,
@@ -1000,20 +800,6 @@ const styles = StyleSheet.create({
   },
   popularBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.white,
-  },
-  currentBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: COLORS.success,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  currentBadgeText: {
-    fontSize: 11,
     fontWeight: '700',
     color: COLORS.white,
   },
@@ -1031,17 +817,25 @@ const styles = StyleSheet.create({
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   priceAmount: {
     fontSize: 32,
     fontWeight: '800',
     color: COLORS.textDark,
   },
-  pricePeriod: {
-    fontSize: 14,
+  periodBadge: {
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  periodText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: COLORS.textMuted,
-    marginLeft: 4,
   },
   trialBadge: {
     flexDirection: 'row',
@@ -1051,44 +845,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 6,
     alignSelf: 'flex-start',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   trialBadgeText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#B45309',
     marginLeft: 4,
-  },
-  savingsBadge: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginBottom: 12,
-  },
-  savingsText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#15803D',
-  },
-  limitsContainer: {
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  limitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  limitText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    marginLeft: 8,
-  },
-  limitValue: {
-    fontWeight: '600',
-    color: COLORS.textDark,
   },
   selectButton: {
     paddingVertical: 14,
@@ -1104,20 +867,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.white,
-  },
-  currentPlanIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    backgroundColor: COLORS.background,
-    borderRadius: 10,
-  },
-  currentPlanIndicatorText: {
-    fontSize: 14,
-    color: COLORS.success,
-    fontWeight: '600',
-    marginLeft: 6,
   },
   // Restore Button
   restoreButton: {
