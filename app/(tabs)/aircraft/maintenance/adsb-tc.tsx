@@ -10,9 +10,14 @@
  * 
  * ENDPOINTS:
  * - GET /api/adsb/baseline/{aircraft_id} - Fetch data
- * - GET /api/adsb/tc/pdf/{aircraft_id}/{ref} - Open PDF (via Linking)
- * - DELETE /api/adsb/tc/reference/{aircraft_id}/{ref} - Remove
+ * - GET /api/adsb/tc/pdf/{pdf_id} - Download PDF (authenticated)
+ * - DELETE /api/adsb/tc/reference/{tc_reference_id} - Remove reference
  * - POST /api/adsb/tc/import-pdf/{aircraft_id} - Import new PDF
+ * 
+ * PDF APPROACH (iOS TestFlight compatible):
+ * 1. Download PDF bytes with Bearer token
+ * 2. Write to FileSystem.cacheDirectory
+ * 3. Open with expo-sharing (shareAsync)
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -30,15 +35,14 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import Constants from 'expo-constants';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { getLanguage } from '@/i18n';
 import api from '@/services/api';
+import { useAuthStore } from '@/stores/authStore';
 
 // Transport Canada AD search URL
 const TC_AD_SEARCH_URL = 'https://wwwapps.tc.gc.ca/Saf-Sec-Sur/2/cawis-swimn/AD_as.aspx';
-
-// API base URL for direct PDF links
-const API_BASE_URL = Constants.expoConfig?.extra?.EXPO_BACKEND_URL || '';
 
 // ============================================================
 // COLORS
@@ -95,6 +99,7 @@ const TEXTS = {
     deleteSuccess: 'Reference removed.',
     deleteError: 'Unable to remove reference.',
     pdfError: 'Unable to open PDF.',
+    pdfDownloading: 'Downloading...',
     // Card fixed message
     cardMessage: 'Imported reference for document review. This does not indicate compliance or airworthiness status.',
   },
@@ -127,6 +132,7 @@ const TEXTS = {
     deleteSuccess: 'Référence supprimée.',
     deleteError: 'Impossible de supprimer la référence.',
     pdfError: 'Impossible d\'ouvrir le PDF.',
+    pdfDownloading: 'Téléchargement du PDF...',
     // Card fixed message
     cardMessage: 'Référence importée pour révision documentaire. Ceci n\'indique pas un statut de conformité ou de navigabilité.',
   },
@@ -141,17 +147,20 @@ const TEXTS = {
  * 
  * For USER_IMPORTED_REFERENCE items:
  * - origin = 'USER_IMPORTED_REFERENCE'
- * - ref = identifier for PDF/delete operations
+ * - tc_reference_id = ID for DELETE operation
+ * - pdf_id = ID for PDF download
  */
 interface ADSBBaselineItem {
   ref: string;
-  identifier?: string; // Used for PDF/delete API calls
   type: 'AD' | 'SB';
   title: string;
   recurrence?: string;
-  count_seen: number;
+  count_seen?: number; // Optional - not used in TC page
   origin?: string; // 'USER_IMPORTED_REFERENCE' | 'TC_BASELINE' | etc.
   pdf_available?: boolean;
+  // IDs for API operations
+  tc_reference_id?: string; // Used for DELETE
+  pdf_id?: string; // Used for PDF download
 }
 
 /**
@@ -318,38 +327,99 @@ export default function AdSbTcScreen() {
     fetchBaseline(true);
   }, [fetchBaseline]);
 
+  // Get auth token for authenticated requests
+  const { token } = useAuthStore();
+
+  // State for PDF download
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
+  const [deletingRefId, setDeletingRefId] = useState<string | null>(null);
+
   // ============================================================
   // PDF & DELETE HANDLERS
   // ============================================================
 
   /**
-   * Open PDF for a reference
-   * GET /api/adsb/tc/pdf/{aircraft_id}/{identifier}
+   * Open PDF using authenticated download + local share
+   * iOS TestFlight compatible approach:
+   * 1. Download PDF bytes with Bearer token
+   * 2. Write to FileSystem.cacheDirectory
+   * 3. Open with expo-sharing
+   * 
+   * @param pdfId - The pdf_id from baseline item
+   * @param refName - Reference name for filename
    */
-  const handleOpenPdf = async (identifier: string) => {
-    if (!aircraftId || !identifier) return;
-    
-    try {
-      // Get PDF URL from backend
-      const response = await api.get(`/api/adsb/tc/pdf/${aircraftId}/${encodeURIComponent(identifier)}`);
-      
-      if (response.data?.url) {
-        await Linking.openURL(response.data.url);
-      } else {
-        Alert.alert('', texts.pdfError);
-      }
-    } catch (err) {
-      console.error('[PDF Open] Error:', err);
+  const openTcPdf = async (pdfId: string, refName: string) => {
+    if (!pdfId) {
+      console.error('[PDF] No pdf_id provided');
       Alert.alert('', texts.pdfError);
+      return;
+    }
+
+    setDownloadingPdfId(pdfId);
+
+    try {
+      // Check if sharing is available on this device
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        console.error('[PDF] Sharing not available on this device');
+        Alert.alert('', texts.pdfError);
+        setDownloadingPdfId(null);
+        return;
+      }
+
+      // Build download URL
+      const downloadUrl = `${api.defaults.baseURL}/api/adsb/tc/pdf/${pdfId}`;
+      const filename = `${refName.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
+      const localUri = `${FileSystem.cacheDirectory}${filename}`;
+
+      console.log(`[PDF] Downloading: ${downloadUrl}`);
+
+      // Download with authentication header
+      const downloadResult = await FileSystem.downloadAsync(
+        downloadUrl,
+        localUri,
+        {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : '',
+          },
+        }
+      );
+
+      console.log(`[PDF] Download result: status=${downloadResult.status}, uri=${downloadResult.uri}`);
+
+      if (downloadResult.status !== 200) {
+        console.error(`[PDF] Download failed with status ${downloadResult.status}`);
+        Alert.alert('', texts.pdfError);
+        setDownloadingPdfId(null);
+        return;
+      }
+
+      // Open PDF using sharing (works on iOS TestFlight)
+      await Sharing.shareAsync(downloadResult.uri, {
+        mimeType: 'application/pdf',
+        UTI: 'com.adobe.pdf',
+      });
+
+      console.log('[PDF] Opened successfully');
+    } catch (err: any) {
+      console.error('[PDF] Error:', err?.message || err);
+      Alert.alert('', texts.pdfError);
+    } finally {
+      setDownloadingPdfId(null);
     }
   };
 
   /**
    * Delete a reference from workspace
-   * DELETE /api/adsb/tc/reference/{aircraft_id}/{identifier}
+   * Uses tc_reference_id from baseline item
+   * DELETE /api/adsb/tc/reference/{tc_reference_id}
    */
-  const handleDeleteReference = (identifier: string, ref: string) => {
-    if (!aircraftId || !identifier) return;
+  const handleDeleteReference = (tcReferenceId: string | undefined, refName: string) => {
+    if (!tcReferenceId) {
+      console.error('[Delete] No tc_reference_id provided');
+      Alert.alert('', texts.deleteError);
+      return;
+    }
 
     Alert.alert(
       texts.deleteConfirmTitle,
@@ -360,14 +430,18 @@ export default function AdSbTcScreen() {
           text: texts.deleteConfirmOk,
           style: 'destructive',
           onPress: async () => {
+            setDeletingRefId(tcReferenceId);
             try {
-              await api.delete(`/api/adsb/tc/reference/${aircraftId}/${encodeURIComponent(identifier)}`);
+              console.log(`[Delete] Deleting reference: ${tcReferenceId}`);
+              await api.delete(`/api/adsb/tc/reference/${tcReferenceId}`);
               Alert.alert('', texts.deleteSuccess);
-              // Refresh data
+              // Refresh baseline (source of truth)
               fetchBaseline(true);
-            } catch (err) {
-              console.error('[Delete Reference] Error:', err);
+            } catch (err: any) {
+              console.error('[Delete] Error:', err?.response?.status, err?.message);
               Alert.alert('', texts.deleteError);
+            } finally {
+              setDeletingRefId(null);
             }
           },
         },
@@ -408,7 +482,10 @@ export default function AdSbTcScreen() {
   // ============================================================
   const renderImportedCard = (item: ADSBBaselineItem, index: number) => {
     const isAD = item.type === 'AD';
-    const refId = item.ref; // Use ref for API calls
+    const pdfId = item.pdf_id;
+    const tcRefId = item.tc_reference_id;
+    const isDownloading = downloadingPdfId === pdfId;
+    const isDeleting = deletingRefId === tcRefId;
     
     return (
       <View 
@@ -445,22 +522,39 @@ export default function AdSbTcScreen() {
         <View style={styles.cardActions}>
           {/* View PDF Button */}
           <TouchableOpacity 
-            style={styles.viewPdfButton}
-            onPress={() => handleOpenPdf(refId)}
+            style={[styles.viewPdfButton, isDownloading && styles.buttonDisabled]}
+            onPress={() => pdfId && openTcPdf(pdfId, item.ref)}
             activeOpacity={0.7}
+            disabled={isDownloading || !pdfId}
           >
-            <Ionicons name="document-text-outline" size={18} color={COLORS.white} />
-            <Text style={styles.viewPdfButtonText}>{texts.viewPdf}</Text>
+            {isDownloading ? (
+              <>
+                <ActivityIndicator size="small" color={COLORS.white} />
+                <Text style={styles.viewPdfButtonText}>{texts.pdfDownloading}</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="document-text-outline" size={18} color={COLORS.white} />
+                <Text style={styles.viewPdfButtonText}>{texts.viewPdf}</Text>
+              </>
+            )}
           </TouchableOpacity>
 
           {/* Remove Button */}
           <TouchableOpacity 
-            style={styles.removeButton}
-            onPress={() => handleDeleteReference(refId, refId)}
+            style={[styles.removeButton, isDeleting && styles.buttonDisabled]}
+            onPress={() => handleDeleteReference(tcRefId, item.ref)}
             activeOpacity={0.7}
+            disabled={isDeleting || !tcRefId}
           >
-            <Ionicons name="trash-outline" size={18} color={COLORS.dangerRed} />
-            <Text style={styles.removeButtonText}>{texts.remove}</Text>
+            {isDeleting ? (
+              <ActivityIndicator size="small" color={COLORS.dangerRed} />
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={18} color={COLORS.dangerRed} />
+                <Text style={styles.removeButtonText}>{texts.remove}</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -741,7 +835,8 @@ const styles = StyleSheet.create({
   cardActions: { flexDirection: 'row', gap: 10 },
   viewPdfButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, flex: 1, justifyContent: 'center' },
   viewPdfButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.white, marginLeft: 6 },
-  removeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.dangerRedBg, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: COLORS.dangerRed },
+  removeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.dangerRedBg, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: COLORS.dangerRed, justifyContent: 'center' },
   removeButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.dangerRed, marginLeft: 6 },
+  buttonDisabled: { opacity: 0.6 },
   bottomSpacer: { height: 40 },
 });
