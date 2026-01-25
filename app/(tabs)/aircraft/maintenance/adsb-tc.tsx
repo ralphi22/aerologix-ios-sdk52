@@ -511,15 +511,17 @@ export default function AdSbTcScreen() {
   const hasImportedData = importedAdItems.length > 0 || importedSbItems.length > 0;
 
   // ============================================================
-  // RENDER SINGLE IMPORTED CARD (SIMPLIFIED)
+  // RENDER SINGLE IMPORTED CARD
+  // Uses tc_pdf_id for PDF, tc_reference_id for DELETE
   // ❌ No OCR logic (count_seen)
   // ❌ No TC button per card (moved to header)
   // ============================================================
   const renderImportedCard = (item: ADSBBaselineItem, index: number) => {
     const isAD = item.type === 'AD';
-    const pdfId = item.pdf_id;
+    // Use EXACT backend field names
+    const tcPdfId = item.tc_pdf_id;
     const tcRefId = item.tc_reference_id;
-    const isDownloading = downloadingPdfId === pdfId;
+    const isDownloading = downloadingPdfId === tcPdfId;
     const isDeleting = deletingRefId === tcRefId;
     
     return (
