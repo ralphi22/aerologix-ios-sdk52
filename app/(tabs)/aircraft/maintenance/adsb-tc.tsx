@@ -402,19 +402,20 @@ export default function AdSbTcScreen() {
   const hasImportedData = importedAdItems.length > 0 || importedSbItems.length > 0;
 
   // ============================================================
-  // RENDER SINGLE IMPORTED ITEM CARD
+  // RENDER SINGLE IMPORTED CARD (SIMPLIFIED)
+  // ❌ No OCR logic (count_seen)
+  // ❌ No TC button per card (moved to header)
   // ============================================================
   const renderImportedCard = (item: ADSBBaselineItem, index: number) => {
     const isAD = item.type === 'AD';
-    const notFoundInOcr = item.count_seen === 0;
-    const identifier = item.identifier || item.ref;
+    const refId = item.ref; // Use ref for API calls
     
     return (
       <View 
         key={`${item.type}-${item.ref}-${index}`}
         style={styles.importedCard}
       >
-        {/* Header Row: Type Badge + Ref + PDF Badge */}
+        {/* Header Row: Type Badge + Identifier + PDF Badge */}
         <View style={styles.cardHeader}>
           <View style={[
             styles.typeBadge,
@@ -428,78 +429,40 @@ export default function AdSbTcScreen() {
             </Text>
           </View>
           
-          <Text style={styles.cardRef}>{item.ref}</Text>
+          <Text style={styles.cardRef}>{item.title || item.ref}</Text>
           
-          {/* PDF Badge - Always shown for imported items */}
+          {/* PDF Badge */}
           <View style={styles.pdfBadge}>
             <Ionicons name="document" size={12} color={COLORS.pdfBlue} />
-            <Text style={styles.pdfBadgeText}>{texts.pdfBadge}</Text>
+            <Text style={styles.pdfBadgeText}>PDF</Text>
           </View>
         </View>
 
-        {/* Title if available */}
-        {item.title && (
-          <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-        )}
+        {/* Fixed message - TC-SAFE */}
+        <Text style={styles.cardMessage}>{texts.cardMessage}</Text>
 
-        {/* Recurrence if available */}
-        {item.recurrence && (
-          <View style={styles.recurrenceRow}>
-            <Ionicons name="repeat" size={12} color={COLORS.textMuted} />
-            <Text style={styles.recurrenceText}>{texts.recurrence}: {item.recurrence}</Text>
-          </View>
-        )}
-
-        {/* OCR Status Badge */}
-        <View style={styles.ocrStatusRow}>
-          {notFoundInOcr ? (
-            <View style={styles.ocrNotFoundBadge}>
-              <Ionicons name="alert-circle" size={14} color={COLORS.warningOrange} />
-              <Text style={styles.ocrNotFoundText}>{texts.notFoundInRecords}</Text>
-            </View>
-          ) : (
-            <View style={styles.ocrFoundBadge}>
-              <Ionicons name="checkmark-circle" size={14} color={COLORS.successGreen} />
-              <Text style={styles.ocrFoundText}>{texts.seenTimes} {item.count_seen} {texts.times}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Action Buttons */}
+        {/* Action Buttons - ONLY View PDF and Remove */}
         <View style={styles.cardActions}>
           {/* View PDF Button */}
           <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => handleOpenPdf(identifier)}
+            style={styles.viewPdfButton}
+            onPress={() => handleOpenPdf(refId)}
             activeOpacity={0.7}
           >
-            <Ionicons name="document-text-outline" size={18} color={COLORS.primary} />
-            <Text style={styles.actionButtonText}>{texts.openPdf}</Text>
+            <Ionicons name="document-text-outline" size={18} color={COLORS.white} />
+            <Text style={styles.viewPdfButtonText}>{texts.viewPdf}</Text>
           </TouchableOpacity>
 
-          {/* Search on TC Button */}
+          {/* Remove Button */}
           <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleSearchOnTc}
+            style={styles.removeButton}
+            onPress={() => handleDeleteReference(refId, refId)}
             activeOpacity={0.7}
           >
-            <Ionicons name="search-outline" size={18} color={COLORS.primary} />
-            <Text style={styles.actionButtonText}>TC</Text>
-          </TouchableOpacity>
-
-          {/* Delete Button */}
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.deleteButton]}
-            onPress={() => handleDeleteReference(identifier, item.ref)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="trash-outline" size={18} color={COLORS.adRed} />
-            <Text style={[styles.actionButtonText, { color: COLORS.adRed }]}>{texts.deleteReference}</Text>
+            <Ionicons name="trash-outline" size={18} color={COLORS.dangerRed} />
+            <Text style={styles.removeButtonText}>{texts.remove}</Text>
           </TouchableOpacity>
         </View>
-
-        {/* TC-Safe Disclaimer under each card */}
-        <Text style={styles.cardDisclaimer}>{texts.cardDisclaimer}</Text>
       </View>
     );
   };
