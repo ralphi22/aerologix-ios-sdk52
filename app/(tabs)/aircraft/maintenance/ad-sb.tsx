@@ -319,6 +319,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8 
   },
   headerTcText: { color: COLORS.white, fontSize: 12, fontWeight: '600' },
+  explainerBanner: {
+    backgroundColor: COLORS.blue + '15',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.blue + '30',
+  },
+  explainerText: {
+    fontSize: 12,
+    color: COLORS.blue,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
   headerAdd: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 },
   headerAddText: { color: COLORS.white, fontSize: 24, fontWeight: '600' },
   countContainer: { flexDirection: 'row', padding: 16, gap: 12, flexWrap: 'wrap' },
