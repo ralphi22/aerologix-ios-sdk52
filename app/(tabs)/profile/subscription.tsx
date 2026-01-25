@@ -1,22 +1,22 @@
 /**
- * Subscription Management Screen
+ * Subscription Management Screen - DYNAMIC VERSION
  * 
- * iOS: Uses RevenueCat for In-App Purchases (Apple IAP)
- * - Loads offerings: pilot, pilot_pro, fleet
- * - Each offering has $rc_monthly and $rc_annual packages
- * - Checks entitlements: pilot, pilot_pro, fleet
+ * Apple Review Guideline 2.1 Compliant:
+ * - Uses offerings.current dynamically instead of hardcoded offering IDs
+ * - Renders whatever packages RevenueCat returns
+ * - Handles all states: loading, error, empty, available
  * 
  * FLOW:
  * 1. initRevenueCat()
- * 2. Load offerings + customerInfo in parallel
- * 3. User selects plan
- * 4. purchasePackage() / restorePurchases()
- * 5. Refresh customerInfo
- * 6. GET /api/auth/me to sync backend
- * 7. UI updated
+ * 2. Load offerings.current + customerInfo in parallel
+ * 3. Dynamically display available packages
+ * 4. User selects package
+ * 5. purchasePackage() / restorePurchases()
+ * 6. Refresh customerInfo
+ * 7. GET /api/auth/me to sync backend
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -41,20 +41,12 @@ import {
   purchasePackage,
   restorePurchases,
   hasEntitlement,
-  getPackage,
-  OFFERING_IDS,
   ENTITLEMENT_IDS,
-  PACKAGE_IDS,
   SUBSCRIPTION_MANAGEMENT_URL,
   type PurchasesOfferings,
   type CustomerInfo,
   type PurchasesPackage,
 } from '@/services/revenuecatService';
-import {
-  PLANS,
-  PlanCode,
-  formatLimit,
-} from '@/services/paymentService';
 
 // ============================================
 // CONSTANTS
