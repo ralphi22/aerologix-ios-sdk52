@@ -735,6 +735,21 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '600',
   },
+  // Empty state
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    minHeight: 300,
+  },
+  emptyText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
   // Status Banner
   statusBanner: {
     flexDirection: 'row',
@@ -754,47 +769,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     flex: 1,
-  },
-  // Billing Toggle
-  billingToggle: {
-    flexDirection: 'row',
-    padding: 4,
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 20,
-  },
-  billingOption: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  billingOptionActive: {
-    backgroundColor: COLORS.primary,
-  },
-  billingOptionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textMuted,
-  },
-  billingOptionTextActive: {
-    color: COLORS.white,
-  },
-  saveBadge: {
-    backgroundColor: COLORS.success,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 6,
-  },
-  saveBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.white,
   },
   // Plans Section
   plansSection: {
@@ -816,9 +790,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  currentPlanCardMain: {
-    borderWidth: 3,
-  },
   popularBadge: {
     position: 'absolute',
     top: 12,
@@ -829,20 +800,6 @@ const styles = StyleSheet.create({
   },
   popularBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.white,
-  },
-  currentBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: COLORS.success,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  currentBadgeText: {
-    fontSize: 11,
     fontWeight: '700',
     color: COLORS.white,
   },
@@ -860,17 +817,25 @@ const styles = StyleSheet.create({
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   priceAmount: {
     fontSize: 32,
     fontWeight: '800',
     color: COLORS.textDark,
   },
-  pricePeriod: {
-    fontSize: 14,
+  periodBadge: {
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  periodText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: COLORS.textMuted,
-    marginLeft: 4,
   },
   trialBadge: {
     flexDirection: 'row',
@@ -880,44 +845,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 6,
     alignSelf: 'flex-start',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   trialBadgeText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#B45309',
     marginLeft: 4,
-  },
-  savingsBadge: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginBottom: 12,
-  },
-  savingsText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#15803D',
-  },
-  limitsContainer: {
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  limitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  limitText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    marginLeft: 8,
-  },
-  limitValue: {
-    fontWeight: '600',
-    color: COLORS.textDark,
   },
   selectButton: {
     paddingVertical: 14,
@@ -933,20 +867,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.white,
-  },
-  currentPlanIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    backgroundColor: COLORS.background,
-    borderRadius: 10,
-  },
-  currentPlanIndicatorText: {
-    fontSize: 14,
-    color: COLORS.success,
-    fontWeight: '600',
-    marginLeft: 6,
   },
   // Restore Button
   restoreButton: {
