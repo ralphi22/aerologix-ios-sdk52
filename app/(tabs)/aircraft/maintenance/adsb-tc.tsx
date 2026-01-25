@@ -464,10 +464,27 @@ export default function AdSbTcScreen() {
           </View>
 
           {/* Phase 1: Import PDF Button */}
-          <TouchableOpacity style={styles.importButton} onPress={handleImportPdf} activeOpacity={0.7}>
-            <Ionicons name="document-attach-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.importButtonText}>{texts.importPdfButton}</Text>
+          <TouchableOpacity 
+            style={[styles.importButton, isImporting && styles.importButtonDisabled]} 
+            onPress={handleImportPdf} 
+            activeOpacity={0.7}
+            disabled={isImporting}
+          >
+            {isImporting ? (
+              <>
+                <ActivityIndicator size="small" color={COLORS.primary} />
+                <Text style={styles.importButtonText}>{texts.importPdfUploading}</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="document-attach-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.importButtonText}>{texts.importPdfButton}</Text>
+              </>
+            )}
           </TouchableOpacity>
+
+          {/* Import Disclaimer - TC-SAFE */}
+          <Text style={styles.importDisclaimer}>{texts.importPdfDisclaimer}</Text>
 
           {data?.aircraft && (
             <View style={styles.aircraftInfo}>
