@@ -340,44 +340,208 @@ export default function AdSbTcScreen() {
   }, [fetchBaseline]);
 
   // ============================================================
-  // EXTRACT AD & SB LISTS - Support both legacy and new format
-  // NO FILTERING ON ORIGIN - Display ALL items regardless of origin
+  // PDF & DELETE HANDLERS
+  // ============================================================
+
+  /**
+   * Open PDF for a reference
+   * GET /api/adsb/tc/pdf/{aircraft_id}/{identifier}
+   */
+  const handleOpenPdf = async (identifier: string) => {
+    if (!aircraftId || !identifier) return;
+    
+    try {
+      // Get PDF URL from backend
+      const response = await api.get(`/api/adsb/tc/pdf/${aircraftId}/${encodeURIComponent(identifier)}`);
+      
+      if (response.data?.url) {
+        await Linking.openURL(response.data.url);
+      } else {
+        Alert.alert('', texts.pdfError);
+      }
+    } catch (err) {
+      console.error('[PDF Open] Error:', err);
+      Alert.alert('', texts.pdfError);
+    }
+  };
+
+  /**
+   * Delete a reference from workspace
+   * DELETE /api/adsb/tc/reference/{aircraft_id}/{identifier}
+   */
+  const handleDeleteReference = (identifier: string, ref: string) => {
+    if (!aircraftId || !identifier) return;
+
+    Alert.alert(
+      texts.deleteConfirmTitle,
+      texts.deleteConfirmMessage,
+      [
+        { text: texts.deleteConfirmCancel, style: 'cancel' },
+        {
+          text: texts.deleteConfirmOk,
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/api/adsb/tc/reference/${aircraftId}/${encodeURIComponent(identifier)}`);
+              Alert.alert('', texts.deleteSuccess);
+              // Refresh data
+              fetchBaseline(true);
+            } catch (err) {
+              console.error('[Delete Reference] Error:', err);
+              Alert.alert('', texts.deleteError);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  /**
+   * Open Transport Canada search page
+   */
+  const handleSearchOnTc = () => {
+    Linking.openURL(TC_SEARCH_URL);
+  };
+
+  // ============================================================
+  // FILTER: ONLY USER IMPORTED PDF REFERENCES
   // ============================================================
   
-  // New format: ad_list / sb_list (preferred)
-  // Legacy format: items[] filtered by type
-  const adItems: ADSBBaselineItem[] = (() => {
-    if (data?.ad_list && data.ad_list.length > 0) {
-      return data.ad_list;
+  // Combine all items from both formats
+  const allItems: ADSBBaselineItem[] = (() => {
+    const items: ADSBBaselineItem[] = [];
+    
+    // From ad_list
+    if (data?.ad_list) {
+      items.push(...data.ad_list);
     }
-    if (data?.items) {
-      return data.items.filter(item => item.type === 'AD');
+    // From sb_list
+    if (data?.sb_list) {
+      items.push(...data.sb_list);
     }
-    return [];
+    // From legacy items (if no ad_list/sb_list)
+    if (items.length === 0 && data?.items) {
+      items.push(...data.items);
+    }
+    
+    return items;
   })();
 
-  const sbItems: ADSBBaselineItem[] = (() => {
-    if (data?.sb_list && data.sb_list.length > 0) {
-      return data.sb_list;
-    }
-    if (data?.items) {
-      return data.items.filter(item => item.type === 'SB');
-    }
-    return [];
-  })();
+  // FILTER: Only show USER_IMPORTED_REFERENCE with pdf_available
+  const userImportedItems = allItems.filter(item => 
+    item.origin === 'USER_IMPORTED_REFERENCE' && 
+    item.pdf_available === true
+  );
 
-  // Check if we have ANY data to display (corrected condition)
-  const hasData = adItems.length > 0 || sbItems.length > 0;
+  // Split by type for display
+  const importedAdItems = userImportedItems.filter(item => item.type === 'AD');
+  const importedSbItems = userImportedItems.filter(item => item.type === 'SB');
+
+  // Check if we have imported data to display
+  const hasImportedData = userImportedItems.length > 0;
 
   // ============================================================
-  // RENDER SINGLE ITEM
+  // RENDER SINGLE IMPORTED ITEM CARD
   // ============================================================
-  const renderItem = (item: ADSBBaselineItem, index: number) => {
+  const renderImportedCard = (item: ADSBBaselineItem, index: number) => {
     const isAD = item.type === 'AD';
-    const notFound = item.count_seen === 0;
-    const isUserImported = item.origin === 'USER_IMPORTED_REFERENCE';
+    const notFoundInOcr = item.count_seen === 0;
+    const identifier = item.identifier || item.ref;
     
     return (
+      <View 
+        key={`${item.type}-${item.ref}-${index}`}
+        style={styles.importedCard}
+      >
+        {/* Header Row: Type Badge + Ref + PDF Badge */}
+        <View style={styles.cardHeader}>
+          <View style={[
+            styles.typeBadge,
+            { backgroundColor: isAD ? COLORS.adRedBg : COLORS.sbBlueBg }
+          ]}>
+            <Text style={[
+              styles.typeBadgeText,
+              { color: isAD ? COLORS.adRed : COLORS.sbBlue }
+            ]}>
+              {item.type}
+            </Text>
+          </View>
+          
+          <Text style={styles.cardRef}>{item.ref}</Text>
+          
+          {/* PDF Badge - Always shown for imported items */}
+          <View style={styles.pdfBadge}>
+            <Ionicons name="document" size={12} color={COLORS.pdfBlue} />
+            <Text style={styles.pdfBadgeText}>{texts.pdfBadge}</Text>
+          </View>
+        </View>
+
+        {/* Title if available */}
+        {item.title && (
+          <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+        )}
+
+        {/* Recurrence if available */}
+        {item.recurrence && (
+          <View style={styles.recurrenceRow}>
+            <Ionicons name="repeat" size={12} color={COLORS.textMuted} />
+            <Text style={styles.recurrenceText}>{texts.recurrence}: {item.recurrence}</Text>
+          </View>
+        )}
+
+        {/* OCR Status Badge */}
+        <View style={styles.ocrStatusRow}>
+          {notFoundInOcr ? (
+            <View style={styles.ocrNotFoundBadge}>
+              <Ionicons name="alert-circle" size={14} color={COLORS.warningOrange} />
+              <Text style={styles.ocrNotFoundText}>{texts.notFoundInRecords}</Text>
+            </View>
+          ) : (
+            <View style={styles.ocrFoundBadge}>
+              <Ionicons name="checkmark-circle" size={14} color={COLORS.successGreen} />
+              <Text style={styles.ocrFoundText}>{texts.seenTimes} {item.count_seen} {texts.times}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.cardActions}>
+          {/* View PDF Button */}
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => handleOpenPdf(identifier)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="document-text-outline" size={18} color={COLORS.primary} />
+            <Text style={styles.actionButtonText}>{texts.openPdf}</Text>
+          </TouchableOpacity>
+
+          {/* Search on TC Button */}
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={handleSearchOnTc}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="search-outline" size={18} color={COLORS.primary} />
+            <Text style={styles.actionButtonText}>TC</Text>
+          </TouchableOpacity>
+
+          {/* Delete Button */}
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.deleteButton]}
+            onPress={() => handleDeleteReference(identifier, item.ref)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="trash-outline" size={18} color={COLORS.adRed} />
+            <Text style={[styles.actionButtonText, { color: COLORS.adRed }]}>{texts.deleteReference}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* TC-Safe Disclaimer under each card */}
+        <Text style={styles.cardDisclaimer}>{texts.cardDisclaimer}</Text>
+      </View>
+    );
+  };
       <View 
         key={`${item.type}-${item.ref}-${index}`}
         style={[
