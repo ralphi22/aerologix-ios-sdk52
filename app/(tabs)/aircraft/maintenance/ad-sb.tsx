@@ -253,9 +253,7 @@ export default function AdSbScreen() {
       <Modal visible={showAddModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {lang === 'fr' ? 'Ajouter AD / SB' : 'Add AD / SB'}
-            </Text>
+            <Text style={styles.modalTitle}>{texts.addTitle}</Text>
             
             {/* Type Selector */}
             <View style={styles.typeSelector}>
@@ -275,7 +273,7 @@ export default function AdSbScreen() {
 
             <TextInput
               style={styles.modalInput}
-              placeholder={lang === 'fr' ? 'Numéro (ex: AD 96-09-06)' : 'Number (e.g. AD 96-09-06)'}
+              placeholder={texts.numberPlaceholder}
               placeholderTextColor={COLORS.textMuted}
               value={newNumber}
               onChangeText={setNewNumber}
@@ -291,10 +289,10 @@ export default function AdSbScreen() {
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setShowAddModal(false)}>
-                <Text style={styles.modalCancelText}>{lang === 'fr' ? 'Annuler' : 'Cancel'}</Text>
+                <Text style={styles.modalCancelText}>{texts.cancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalSave} onPress={handleAdd}>
-                <Text style={styles.modalSaveText}>{lang === 'fr' ? 'Ajouter' : 'Add'}</Text>
+                <Text style={styles.modalSaveText}>{texts.add}</Text>
               </TouchableOpacity>
             </View>
           </View>
