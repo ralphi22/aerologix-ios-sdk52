@@ -275,11 +275,14 @@ const styles = StyleSheet.create({
   cardIconText: {
     fontSize: 24,
   },
-  // Red alert badge - visual dot only, no text
-  alertBadge: {
+  // Red alert badge - visual dot only, tappable for explanation
+  alertBadgeTouchable: {
     position: 'absolute',
-    top: -4,
-    right: -4,
+    top: -6,
+    right: -6,
+    padding: 2,
+  },
+  alertBadge: {
     width: 14,
     height: 14,
     borderRadius: 7,
