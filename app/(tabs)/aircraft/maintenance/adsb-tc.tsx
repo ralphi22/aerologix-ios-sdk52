@@ -148,7 +148,7 @@ const TEXTS = {
  * For USER_IMPORTED_REFERENCE items:
  * - origin = 'USER_IMPORTED_REFERENCE'
  * - tc_reference_id = ID for DELETE operation
- * - pdf_id = ID for PDF download
+ * - tc_pdf_id = ID for PDF download
  */
 interface ADSBBaselineItem {
   ref: string;
@@ -158,9 +158,9 @@ interface ADSBBaselineItem {
   count_seen?: number; // Optional - not used in TC page
   origin?: string; // 'USER_IMPORTED_REFERENCE' | 'TC_BASELINE' | etc.
   pdf_available?: boolean;
-  // IDs for API operations
-  tc_reference_id?: string; // Used for DELETE
-  pdf_id?: string; // Used for PDF download
+  // IDs for API operations - EXACT backend field names
+  tc_reference_id?: string; // Used for DELETE /api/adsb/tc/reference/{tc_reference_id}
+  tc_pdf_id?: string; // Used for GET /api/adsb/tc/pdf/{tc_pdf_id}
 }
 
 /**
@@ -330,32 +330,34 @@ export default function AdSbTcScreen() {
   // Get auth token for authenticated requests
   const { token } = useAuthStore();
 
-  // State for PDF download
+  // State for PDF download and delete operations
   const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
   const [deletingRefId, setDeletingRefId] = useState<string | null>(null);
 
   // ============================================================
-  // PDF & DELETE HANDLERS
+  // PDF HANDLER - openTcPdf(tc_pdf_id)
   // ============================================================
 
   /**
-   * Open PDF using authenticated download + local share
+   * Open PDF using authenticated fetch + base64 + expo-sharing
    * iOS TestFlight compatible approach:
-   * 1. Download PDF bytes with Bearer token
-   * 2. Write to FileSystem.cacheDirectory
-   * 3. Open with expo-sharing
+   * 1. Fetch PDF with Authorization header
+   * 2. Convert response to base64
+   * 3. Write to FileSystem.cacheDirectory
+   * 4. Open via expo-sharing (shareAsync)
    * 
-   * @param pdfId - The pdf_id from baseline item
+   * @param tcPdfId - The tc_pdf_id from baseline item (REQUIRED)
    * @param refName - Reference name for filename
    */
-  const openTcPdf = async (pdfId: string, refName: string) => {
-    if (!pdfId) {
-      console.error('[PDF] No pdf_id provided');
+  const openTcPdf = async (tcPdfId: string | undefined, refName: string) => {
+    // Validation
+    if (!tcPdfId) {
+      console.error('[PDF] No tc_pdf_id provided');
       Alert.alert('', texts.pdfError);
       return;
     }
 
-    setDownloadingPdfId(pdfId);
+    setDownloadingPdfId(tcPdfId);
 
     try {
       // Check if sharing is available on this device
@@ -367,35 +369,55 @@ export default function AdSbTcScreen() {
         return;
       }
 
-      // Build download URL
-      const downloadUrl = `${api.defaults.baseURL}/api/adsb/tc/pdf/${pdfId}`;
-      const filename = `${refName.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
-      const localUri = `${FileSystem.cacheDirectory}${filename}`;
+      // Build API URL - use tc_pdf_id ONLY
+      const pdfUrl = `${api.defaults.baseURL}/api/adsb/tc/pdf/${tcPdfId}`;
+      console.log(`[PDF] Fetching: ${pdfUrl}`);
 
-      console.log(`[PDF] Downloading: ${downloadUrl}`);
+      // Fetch PDF with Authorization header
+      const response = await fetch(pdfUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Accept': 'application/pdf',
+        },
+      });
 
-      // Download with authentication header
-      const downloadResult = await FileSystem.downloadAsync(
-        downloadUrl,
-        localUri,
-        {
-          headers: {
-            Authorization: token ? `Bearer ${token}` : '',
-          },
-        }
-      );
+      console.log(`[PDF] Response status: ${response.status}`);
 
-      console.log(`[PDF] Download result: status=${downloadResult.status}, uri=${downloadResult.uri}`);
-
-      if (downloadResult.status !== 200) {
-        console.error(`[PDF] Download failed with status ${downloadResult.status}`);
+      if (!response.ok) {
+        console.error(`[PDF] Fetch failed: ${response.status} ${response.statusText}`);
         Alert.alert('', texts.pdfError);
         setDownloadingPdfId(null);
         return;
       }
 
-      // Open PDF using sharing (works on iOS TestFlight)
-      await Sharing.shareAsync(downloadResult.uri, {
+      // Convert to blob then to base64
+      const blob = await response.blob();
+      const reader = new FileReader();
+      
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const dataUrl = reader.result as string;
+          // Extract base64 part (remove "data:application/pdf;base64," prefix)
+          const base64 = dataUrl.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      // Write to cache directory
+      const filename = `${refName.replace(/[^a-zA-Z0-9-_]/g, '_')}_${Date.now()}.pdf`;
+      const localUri = `${FileSystem.cacheDirectory}${filename}`;
+      
+      console.log(`[PDF] Writing to: ${localUri}`);
+      await FileSystem.writeAsStringAsync(localUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Open PDF using expo-sharing (iOS TestFlight compatible)
+      console.log('[PDF] Opening with Sharing...');
+      await Sharing.shareAsync(localUri, {
         mimeType: 'application/pdf',
         UTI: 'com.adobe.pdf',
       });
@@ -409,12 +431,21 @@ export default function AdSbTcScreen() {
     }
   };
 
+  // ============================================================
+  // DELETE HANDLER - handleRemove(tc_reference_id, identifier)
+  // ============================================================
+
   /**
    * Delete a reference from workspace
-   * Uses tc_reference_id from baseline item
-   * DELETE /api/adsb/tc/reference/{tc_reference_id}
+   * Uses tc_reference_id (ObjectId string) via the correct endpoint
+   * DELETE /api/adsb/tc/reference-by-id/{tc_reference_id}
+   * After success → refetch baseline
+   * 
+   * @param tcReferenceId - The tc_reference_id ObjectId from baseline item (REQUIRED)
+   * @param identifier - The identifier (CF-xxxx-xx) for logging
    */
-  const handleDeleteReference = (tcReferenceId: string | undefined, refName: string) => {
+  const handleRemove = (tcReferenceId: string | undefined, identifier: string) => {
+    // Validation
     if (!tcReferenceId) {
       console.error('[Delete] No tc_reference_id provided');
       Alert.alert('', texts.deleteError);
@@ -432,10 +463,16 @@ export default function AdSbTcScreen() {
           onPress: async () => {
             setDeletingRefId(tcReferenceId);
             try {
-              console.log(`[Delete] Deleting reference: ${tcReferenceId}`);
-              await api.delete(`/api/adsb/tc/reference/${tcReferenceId}`);
+              // Log before DELETE
+              console.log(`[Delete] tc_reference_id=${tcReferenceId}, identifier=${identifier}`);
+              console.log(`[Delete] DELETE /api/adsb/tc/reference-by-id/${tcReferenceId}`);
+              
+              await api.delete(`/api/adsb/tc/reference-by-id/${tcReferenceId}`);
+              
+              console.log('[Delete] Success');
               Alert.alert('', texts.deleteSuccess);
-              // Refresh baseline (source of truth)
+              
+              // Mandatory: refetch baseline (source of truth)
               fetchBaseline(true);
             } catch (err: any) {
               console.error('[Delete] Error:', err?.response?.status, err?.message);
@@ -476,15 +513,17 @@ export default function AdSbTcScreen() {
   const hasImportedData = importedAdItems.length > 0 || importedSbItems.length > 0;
 
   // ============================================================
-  // RENDER SINGLE IMPORTED CARD (SIMPLIFIED)
+  // RENDER SINGLE IMPORTED CARD
+  // Uses tc_pdf_id for PDF, tc_reference_id for DELETE
   // ❌ No OCR logic (count_seen)
   // ❌ No TC button per card (moved to header)
   // ============================================================
   const renderImportedCard = (item: ADSBBaselineItem, index: number) => {
     const isAD = item.type === 'AD';
-    const pdfId = item.pdf_id;
+    // Use EXACT backend field names
+    const tcPdfId = item.tc_pdf_id;
     const tcRefId = item.tc_reference_id;
-    const isDownloading = downloadingPdfId === pdfId;
+    const isDownloading = downloadingPdfId === tcPdfId;
     const isDeleting = deletingRefId === tcRefId;
     
     return (
@@ -520,12 +559,12 @@ export default function AdSbTcScreen() {
 
         {/* Action Buttons - ONLY View PDF and Remove */}
         <View style={styles.cardActions}>
-          {/* View PDF Button */}
+          {/* View PDF Button - uses tc_pdf_id */}
           <TouchableOpacity 
             style={[styles.viewPdfButton, isDownloading && styles.buttonDisabled]}
-            onPress={() => pdfId && openTcPdf(pdfId, item.ref)}
+            onPress={() => openTcPdf(tcPdfId, item.ref)}
             activeOpacity={0.7}
-            disabled={isDownloading || !pdfId}
+            disabled={isDownloading || !tcPdfId}
           >
             {isDownloading ? (
               <>
@@ -540,10 +579,10 @@ export default function AdSbTcScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Remove Button */}
+          {/* Remove Button - uses tc_reference_id */}
           <TouchableOpacity 
             style={[styles.removeButton, isDeleting && styles.buttonDisabled]}
-            onPress={() => handleDeleteReference(tcRefId, item.ref)}
+            onPress={() => handleRemove(tcRefId, item.ref)}
             activeOpacity={0.7}
             disabled={isDeleting || !tcRefId}
           >

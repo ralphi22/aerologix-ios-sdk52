@@ -1,182 +1,179 @@
-<analysis>**original_problem_statement**: The user wants to restore the full functionality of the AeroLogix AI mobile application from backup files. After the restoration, the user has requested several features and bug fixes to create a fully functional application with a working OCR feature, persistent data, and a stable UI.
+<analysis>
+<original_problem_statement>
+The user's latest set of requests focuses on correcting and finalizing the functionality of the **TC AD/SB Imported References** screen (). The core problems reported were that the View PDF and Remove actions were failing on iOS TestFlight.
 
-The main user requests included:
-1.  Restore the application from backup directories.
-2.  Fix bugs where data (aircraft list, photos, form inputs) did not persist.
-3.  Implement a fully functional OCR system for scanning maintenance documents.
-4.  Refine the OCR logic based on user feedback (e.g., extracting parts from invoices instead of maintenance reports).
-5.  Fix numerous app crashes on various screens (Rapport, OCR History, Report Settings).
-6.  Implement functional DELETE operations for all maintenance records (Parts, Invoices, AD/SB, STC).
-7.  Address UI layout issues, such as the keyboard hiding form fields.
+**PRODUCT REQUIREMENTS:**
 
-**User's preferred language**: Français (French). The next agent MUST communicate in French.
+1.  **Fix PDF Viewing on iOS:**
+    *   The View PDF action must correctly open the associated PDF.
+    *   This requires an authenticated download because the endpoint is protected.
+    *   The implementation must use  to download the PDF to the device's cache and  to open it, as  is not suitable for protected remote files on iOS.
+    *   The correct API endpoint is . The frontend must use the  field from the baseline data for this call.
+
+2.  **Fix Reference Deletion:**
+    *   The Remove action must correctly delete the imported reference from the backend.
+    *   The correct API endpoint is .
+    *   The frontend must use the  field (an ObjectId string) from the baseline data for this call.
+    *   After a successful deletion, the screen must automatically refresh its data by re-fetching the baseline.
+
+3.  **UI/UX Finalization:**
+    *   The screen must **only** display items from the baseline where . All other items (e.g., ) should be filtered out.
+    *   A single, top-level button should link to the Transport Canada search page. Per-item links must be removed.
+    *   Each item card must contain a View PDF button and a Remove button.
+    *   Each card must include a static, TC-safe disclaimer: Imported reference for document review. This does not indicate compliance or airworthiness status.
+
+</original_problem_statement>
+**User's preferred language**: français
 
 **what currently exists?**
-The project is a restored Expo (SDK 52) mobile application. The frontend code is in the  directory and communicates with an external FastAPI backend on Render. Most core features are implemented but have been undergoing extensive bug fixing.
+The application features a heavily modified AD/SB (Airworthiness Directives / Service Bulletins) module. The focus of recent work has been the  screen, which is intended to display a list of user-imported PDF references from Transport Canada (TC).
 
-Key functionalities implemented and fixed:
--   **Full Data Synchronization**: The app now syncs all maintenance data (Parts, Invoices, AD/SB, STC) with the backend upon entering relevant screens and after applying OCR scans. A dedicated  has been created for this.
--   **True Deletion**: All delete buttons for maintenance items now send  requests to the backend and only update the local state upon success, preventing items from reappearing.
--   **Form Persistence**: The Report Settings form now persists its values locally using , fixing a major bug where data was lost on navigation.
--   **Crash Fixes**: Numerous crashes have been resolved by making context provider hooks crash-proof (returning default values instead of throwing errors), adding the  to the main layout, and adding defensive coding in components.
--   **UI/UX Fixes**: The issue of the keyboard hiding the Add Part modal has been fixed with . The OCR History screen now features a modal to display the full, raw JSON data of a scan.
--   **Data Integrity**: A critical bug where  requests failed due to an  ID has been fixed by correctly mapping the backend's  field to the local state's uid=0(root) gid=0(root) groups=0(root) field.
+The agent has just finished an iteration of fixes on this screen:
+-   It installed  and  to handle authenticated PDF downloads.
+-   It rewrote the  handler to fetch the PDF data, save it to a local file, and use the sharing dialog to open it.
+-   It updated the  handler.
+-   Crucially, in the very last step, it corrected the API endpoints used in both handlers to  and  respectively.
+
+The code for these fixes has been written, but the changes have not been tested or verified by the user.
 
 **Last working item**:
--   **Last item agent was working:** The agent was debugging a native crash ( from a  file) that occurred after implementing persistence for the Report Settings form. The agent identified the root cause as the component's local state being initialized with empty strings while the store was still asynchronously loading data from .
--   **Status**: IN PROGRESS (Fix implemented, but user has not verified it).
--   **Agent Testing Done**: N
--   **Which testing method agent to use?**: Manual testing by the user is required to confirm the crash is resolved.
--   **User Testing Done**: N (The user provided the crash log but has not tested the subsequent fix).
+- Last item agent was working: The agent was finalizing the fix for the View PDF and Remove functionalities on the TC AD/SB screen (). The last action was updating the API call URLs in the  and  handlers to use the correct endpoints ( and ) and the correct IDs ( and ).
+- Status: IN PROGRESS
+- Agent Testing Done: N
+- Which testing method agent to use? Frontend testing agent
+- User Testing Done: N
 
 **All Pending/In progress Issue list**:
--   Issue 1: (P0) Native app crash when navigating to screens with recently modified state management.
--   Issue 2: (P1) Backend OCR logic needs correction.
--   Issue 3: (P1) Backend Pydantic validation for quantity fails on non-integer values.
--   Issue 4: (P2) User's OCR scan limit is too low for testing.
+-   Issue 1: (P0) PDF Viewing and Deletion on the TC AD/SB screen might still be broken.
+-   Issue 2: (P1) The main subscription screen is likely non-functional, displaying no subscription plans.
 
-Issues Detail:
--   **Issue 1: Native App Crash on Navigation**
-    -   **Attempted fixes**: The agent suspected the crash was due to state being initialized with empty values while data was loading asynchronously from . The fix involved changing the  initial values in  to be initialized directly from the context's values, which have safe defaults.
-    -   **Next debug checklist**:
-        1.  User needs to test the app to confirm if the crash is resolved.
-        2.  If the crash persists, review the  and  again to ensure the async loading flow is perfectly handled and no  values can cause rendering issues.
-        3.  Examine other components for similar race conditions between async data loading and rendering.
-    -   **Why fix this issue and what will be achieved with the fix?**: This is a critical, app-breaking crash that prevents users from accessing core settings.
-    -   **Status**: IN PROGRESS
-    -   **Is recurring issue?**: Y (Crashes have occurred on multiple screens throughout development).
-    -   **Should Test frontend/backend/both after fix?**: Frontend (User testing).
-    -   **Blocked on other issue**: None.
-
--   **Issue 2: Backend OCR logic needs correction**
-    -   **Attempted fixes**: This is an analysis-only task for the agent. The agent correctly identified from user feedback that the backend logic is flawed.
-    -   **Next debug checklist**: This is a **BACKEND ISSUE**. The backend code needs to be modified to:
-        1.  Extract Parts data when the document type is .
-        2.  Extract Hours and AD/SB data when the document type is  (or the newly suggested ).
-    -   **Why fix this issue and what will be achieved with the fix?**: The OCR feature does not meet user requirements, making it unreliable.
-    -   **Status**: NOT STARTED (Requires backend access).
-    -   **Is recurring issue?**: Y
-    -   **Should Test frontend/backend/both after fix?**: Backend.
-    -   **Blocked on other issue**: None.
-
--   **Issue 3: Backend Pydantic validation for quantity**
-    -   **Attempted fixes**: Analysis only. The agent identified the error  from backend logs.
-    -   **Next debug checklist**: This is a **BACKEND ISSUE**. The Pydantic model for  in the backend code must be changed to accept  for the  field instead of .
-    -   **Why fix this issue and what will be achieved with the fix?**: This error causes the entire OCR apply step to fail if the OCR extracts a non-integer value, blocking data entry.
-    -   **Status**: NOT STARTED (Requires backend access).
-    -   **Is recurring issue?**: Y
-    -   **Should Test frontend/backend/both after fix?**: Backend.
-    -   **Blocked on other issue**: None.
-
--   **Issue 4: User's OCR scan limit**
-    -   **Attempted fixes**: Analysis only. The agent identified the configuration in the backend file .
-    -   **Next debug checklist**: This is a **BACKEND ISSUE**. The value in  for the  tier needs to be increased to facilitate testing.
-    -   **Why fix this issue and what will be achieved with the fix?**: The user is blocked from testing the OCR feature after a few scans.
-    -   **Status**: NOT STARTED (Requires backend access).
-    -   **Is recurring issue?**: N
-    -   **Should Test frontend/backend/both after fix?**: Backend.
-    -   **Blocked on other issue**: None.
+  Issues Detail:
+  - Issue 1:
+     - Attempted fixes: The agent has rewritten the handlers (, ) in  to use the correct IDs (, ) and the user-specified API endpoints. The PDF handler now uses  and  for a robust iOS implementation.
+     - Next debug checklist:
+        1.  Start the frontend application.
+        2.  Navigate to an aircraft's maintenance section and then to the TC AD/SB screen (Page 2).
+        3.  Assuming there are user-imported PDF references, tap the View PDF button on one of them.
+        4.  **Expected:** The iOS share sheet should appear, allowing the user to view/save the PDF.
+        5.  **If it fails:** Check the console/device logs for the exact URL being called by  and any error messages from the  call or  operations. Verify  is being passed correctly.
+        6.  Tap the Remove button on an item.
+        7.  **Expected:** The item should be removed from the list after a brief loading state, and the list should refresh.
+        8.  **If it fails:** Check the console/device logs for the URL being called by  and the  being used. Verify the  request is correct.
+     - Why fix this issue and what will be achieved with the fix? This is the user's current, highest-priority request. Fixing it will complete the Phase 1 implementation of the TC PDF import feature, making it a functional documentary reference tool.
+     - Status:  IN PROGRESS
+     - Is recurring issue? Y
+     - Should Test frontend/backend/both after fix? frontend
+     - Blocked on other issue: None
+  - Issue 2:
+     - Attempted fixes: The agent refactored the subscription screen () to use  from RevenueCat. This was a user requirement. However, the user then reported that no plans were visible. The agent correctly diagnosed that this is likely because no Current Offering is configured in the user's RevenueCat dashboard. The user then pivoted to a different task before this could be resolved.
+     - Next debug checklist:
+        1.  Advise the user to check their RevenueCat dashboard and set a Current Offering.
+        2.  Alternatively, if the user wants to display plans from multiple named offerings, the code in  would need to be changed again to iterate through  instead of using .
+     - Why fix this issue and what will be achieved with the fix? This is a critical bug that prevents users from subscribing. It needs to be resolved for the app to be commercially viable.
+     - Status:  NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? frontend
+     - Blocked on other issue: User decision on how to proceed (configure RevenueCat vs. change code).
 
 **In progress Task List**:
--   None.
+-   None
 
 **Upcoming and Future Tasks**
--   There are no new features requested. The priority is to resolve all pending frontend and backend issues to stabilize the application for the user.
+-   None specified by the user. The immediate priority is to fix and verify the pending issues.
 
 **Completed work in this session**
--   **Implemented True Deletion**: Integrated backend  requests for Parts, Invoices, AD/SB, and STCs, with proper state management and error handling.
--   **Fixed Data Persistence**: Solved the issue of form values being lost in Report Settings by persisting the  state to .
--   **Solved  ID Bug**: Corrected the data mapping (uid=0(root) gid=0(root) groups=0(root) vs ) in  to ensure  requests are sent with valid IDs.
--   **Full Data Sync**: Created  and refactored  to fetch all maintenance data from the backend on screen load and after OCR data application.
--   **Enhanced OCR History**: Implemented a modal in the OCR History screen to display the full, raw JSON data from a selected scan.
--   **Crash Proofing**: Made all context provider hooks robust by returning default values instead of throwing errors, preventing a class of common crashes.
--   **Fixed Photo Persistence**: Correctly implemented the mapping and update logic for aircraft photos in .
--   **Multiple Crash Fixes**: Resolved crashes on the Rapport screen, and fixed  errors in OCR screens.
+- **TC AD/SB Module Overhaul ():**
+  - Performed a full audit of the module.
+  - Applied multiple UX and TC-safe patches (clarified titles, updated labels, added alerts).
+  - Implemented a Phase 1 PDF import feature using .
+  - Repeatedly refactored the screen to filter and display only user-imported references.
+  - Added View PDF, Remove, and Search TC actions.
+  - Attempted to fix bugs related to the PDF viewing and deletion functionality.
+- **Subscription Screen Refactor ():**
+  - Completed a major refactor to dynamically display plans from  to meet Apple's guidelines.
+  - Fixed a subsequent bug where legal links (Privacy/Terms) were not always visible by restructuring the component to have a persistent layout.
+
+**Earlier issues found/mentioned but not fixed**
+   - Issue 1: **Subscription screen shows no plans.** As detailed in Pending Issues, this screen was refactored but is likely not working because the user's RevenueCat account may not have a Current Offering configured. The user switched context before this was resolved.
+   - Issue 2: **Web preview build failures.** The project has a known, pre-existing dependency issue with  that causes the Expo web preview to fail. The user has instructed to ignore this and focus on native iOS builds.
+
+**Known issue recurrence from previous fork**
+  - None
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Frontend**: React Native, Expo SDK 52, Expo Router
--   **Backend**: External FastAPI API hosted on Render
--   **State Management**: React Context API for feature-specific state, with one-off hooks.
--   **Local Persistence**:  is now used to persist settings data across app sessions.
--   **API Communication**: Axios with a custom interceptor for authentication.
--   **Data Sync**: Frontend now proactively fetches fresh data from the backend after mutations (DELETE, OCR Apply) and on screen loads to ensure consistency.
+- **Frontend:** React Native, Expo (SDK 54, Managed Workflow)
+- **IAP:** RevenueCat ()
+- **File Handling:** , , 
+- **API Communication:** Axios for authenticated REST API calls (, , ).
+- **State Management:** Component state (, ) and Zustand stores.
+- **Styling:** 
 
 **key DB schema**
--   The backend database uses a numeric  as the primary key for its records, which is crucial for frontend mapping. Frontend models and mapping functions have been updated to handle uid=0(root) gid=0(root) groups=0(root) or .
+- N/A (Frontend agent)
 
 **changes in tech stack**
--   No new dependencies were added. Existing  was utilized to solve a persistence problem.
+- , , and  were added to implement the PDF import and viewing functionality.
 
 **All files of reference**
--   : **(CRITICAL for crash fix)**. Modified to use  for persistence.
--   : **(CRITICAL for crash fix)**. Modified to handle async loading of settings.
--   : **(CRITICAL for data integrity)**. Completely refactored to handle backend synchronization and true deletions.
--   : **(NEW & CRITICAL)**. Centralizes all GET and DELETE API calls for maintenance items.
--   : Example of a screen updated with async delete and sync logic.
--   : Implemented the detailed scan view modal.
--   : Updated to trigger the new global sync mechanism after applying OCR data.
+1.  ****: The primary file for the current task. Contains all logic for displaying, viewing, and deleting imported TC AD/SB PDF references.
+2.  ****: Contains all localized strings (FR/EN) used in the UI, which was updated multiple times.
+3.  ****: Contains a critical, unresolved issue where subscription plans may not be displayed.
+
+**Areas that need refactoring**:
+-    may need to be refactored again depending on the user's decision regarding the Current Offering issue.
 
 **key api endpoints**
--   : For OCR analysis.
--   : To apply extracted data.
--   : To fetch parts.
--   : To delete a part.
--   : To fetch invoices.
--   : To delete an invoice.
--   : To fetch AD/SB records.
--   : To delete an AD/SB record.
--   : To fetch STC records.
--   : To delete an STC record.
+-   : Fetches the combined list of AD/SB items.
+-   : Uploads a new PDF reference.
+-   : **(New)** Downloads the content of a specific imported PDF.
+-   : **(New)** Deletes a specific imported PDF reference.
 
 **Critical Info for New Agent**
--   **Communicate in French.**
--   **DO NOT try to fix backend issues.** The following are confirmed backend problems requiring code changes on the Render service, not the frontend:
-    1.  The OCR logic must be changed to extract parts from invoices and hours from maintenance reports.
-    2.  The Pydantic model for parts quantity must be changed from  to .
-    3.  The OCR scan limit must be increased in .
--   **Focus on frontend stability.** The immediate priority is to confirm that the latest crash fix for  is working.
--   **Data is synced, not just local.** The app has moved from a local-first state mutation model to a mutate on backend, then re-sync model. All new features should follow this pattern using  and the  function in .
--   The key for all database records from the backend is  (numeric), not uid=0(root) gid=0(root) groups=0(root). All data mapping must account for this.
+- **Verify the  fixes:** Your immediate task is to test the View PDF and Remove buttons on the TC AD/SB screen. The code has been written but is unverified. Follow the debug checklist.
+- **Be prepared to address the Subscription screen:** The user has a major unresolved issue on the  screen. After the current task, you should remind the user of this problem and ask for direction on how to solve it (either they configure RevenueCat, or you modify the code).
+- **Follow user instructions precisely:** The user provides very specific, iterative, and technically detailed requests, often including the exact API endpoints and implementation logic to use. Adherence is critical.
+- **TC-Safe Language:** All UI changes related to the AD/SB module must use neutral, non-regulatory language (e.g., documentary reference, not an indication of compliance).
 
-**documents and test reports created in this job**
--    was updated multiple times with progress.
--   Multiple  files were provided by the user and analyzed.
+**documents created in this job**
+- None
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (Latest):** Provided a new crash log and described form data not persisting on the Report Settings and Edit Aircraft pages. (IN PROGRESS)
-2.  **Agent:** Analyzed the issue, identified the root cause as lack of persistence in , and implemented a fix using . (Completed)
-3.  **User:** Stated that all  actions in the UI were not sending requests to the backend and items were reappearing. (Addressed)
-4.  **Agent:** Implemented true  requests for all maintenance items, ensuring local state is updated only after backend confirmation. (Completed)
-5.  **User:** Provided a detailed description of the desired OCR functionality. (Agent documented it).
-6.  **User:** Reported an error where  was extracted as a float () causing a backend validation error, and reiterated that parts should come from invoices. (Agent analyzed as backend issue).
-7.  **User:** oui et essayer de vous entendre les frontend /backend loll (Yes and try to get the frontend/backend to agree lol). Acknowledged the need for sync. (Agent implemented sync logic).
-8.  **User:** Provided extensive feedback and backend logs showing the OCR OpenAI call was now working but validation was failing, and several frontend sync issues existed. (Agent analyzed and created a plan).
-9.  **User:** Confirmed the agent should proceed with fixing the frontend issues. (Agent implemented fixes).
-10. **User:** Provided a new crash log. (Agent analyzed it).
+1.  **User:** Provided final, definitive API endpoints and IDs for fixing PDF and Delete actions. (IN PROGRESS)
+2.  **Agent:** Confirmed understanding and started the fix. (COMPLETED)
+3.  **User:** Reported PDF and Delete still broken, re-stating the required IDs (, ). (COMPLETED)
+4.  **Agent:** Implemented fixes using the specified IDs and a more robust file download method. (COMPLETED)
+5.  **User:** Reported PDF/Delete still not working and specified a new set of fixes (authenticated download, use of ). (COMPLETED)
+6.  **Agent:** Implemented the fixes as requested. (COMPLETED)
+7.  **User:** Requested final cleanup of the  screen UI/UX. (COMPLETED)
+8.  **Agent:** Implemented the cleanup. (COMPLETED)
+9.  **User:** Requested another major change to , to only show user-imported PDFs with specific actions. (COMPLETED)
+10. **Agent:** Implemented the major UI change. (COMPLETED)
 
 **Project Health Check:**
--   **Broken**:
-    -   The core OCR business logic in the backend is incorrect per user requirements (Issue #2).
-    -   The backend OCR data validation is too strict (Issue #3).
-    -   A native crash may still exist on the frontend, pending user verification of the latest fix (Issue #1).
--   **Mocked**: No mocked features remain.
+- **Broken:**
+    - The View PDF and Remove features in  are likely broken pending verification of the latest fix.
+    - The  screen is likely broken, showing no plans.
+    - The Expo web preview is intermittently broken (known issue, to be ignored).
+- **Mocked:** No components are currently mocked.
 
 **3rd Party Integrations**
--   **Render**: Hosts the FastAPI backend.
--   **OpenAI Vision**: Used by the backend for the OCR functionality. API key is managed on the Render service.
+- **RevenueCat:** For iOS In-App Purchases, via .
 
 **Testing status**
--   Testing agent used after significant changes: NO
--   Troubleshoot agent used after agent stuck in loop: NO
--   Test files created: None
--   Known regressions: The app has been unstable, with crashes moving between different screens as fixes are applied. A full regression test by the user is needed.
+- Testing agent used after significant changes: NO
+- Troubleshoot agent used after agent stuck in loop: NO
+- Test files created: []
+- Known regressions:
+    - The View PDF and Remove features on  have been recurring issues.
+    - The subscription screen is likely in a non-functional state after the last refactor.
 
 **Credentials to test flow:**
--   Email: 
--   Password: 
+- An API token is required for authenticated calls. The  service should handle this automatically.
+- A RevenueCat API key is in the environment, but testing requires a properly configured Sandbox environment.
 
 **What agent forgot to execute**
--   The agent has been very thorough in this session, catching and fixing a wide range of critical bugs. The main miss was initially implementing client-side-only deletions, but this was explicitly called out by the user and immediately corrected in a robust way. The agent correctly deferred all identified backend issues.</analysis>
+The agent did not forget to execute any tasks. It was actively working on the user's latest request. The major pending issue with the subscription screen was not forgotten but was deprioritized by a user-initiated context switch to the AD/SB module. The next agent should bring this back to the user's attention.
+</analysis>
