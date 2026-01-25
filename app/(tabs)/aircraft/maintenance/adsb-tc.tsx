@@ -2,6 +2,7 @@
  * AD/SB TC Baseline Screen - TC-SAFE Documentary Display
  * 
  * ENDPOINT: /api/adsb/baseline/{aircraft_id}
+ * IMPORT: POST /api/adsb/tc/import-pdf/{aircraft_id}
  * 
  * CRITICAL RULES:
  * - NO live lookup logic
@@ -9,6 +10,7 @@
  * - Frontend displays ONLY what backend returns
  * - NO compliance determination
  * - NO business logic
+ * - PDF import = send to backend, no parsing
  * 
  * DISPLAY:
  * - One row per AD/SB
@@ -27,9 +29,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 import { getLanguage } from '@/i18n';
 import api from '@/services/api';
 
@@ -77,9 +81,12 @@ const TEXTS = {
     aircraft: 'Aircraft',
     total: 'Total',
     recurrence: 'Recurrence',
-    importPdfButton: 'Import TC PDFs',
-    importComingSoon: 'Coming soon',
-    importComingSoonMessage: 'PDF import functionality will be available in a future update.',
+    // PDF Import - Phase 1
+    importPdfButton: 'Import Transport Canada PDF',
+    importPdfUploading: 'Importing...',
+    importPdfSuccess: 'PDF imported. References updated.',
+    importPdfError: 'Unable to import PDF. Please try again.',
+    importPdfDisclaimer: 'Imported files come from official documents selected by the user. No compliance or airworthiness determination is performed.',
   },
   fr: {
     screenTitle: 'TC AD/SB',
@@ -99,9 +106,12 @@ const TEXTS = {
     aircraft: 'Aéronef',
     total: 'Total',
     recurrence: 'Récurrence',
-    importPdfButton: 'Importer PDF TC',
-    importComingSoon: 'Bientôt disponible',
-    importComingSoonMessage: 'La fonctionnalité d\'importation PDF sera disponible dans une prochaine mise à jour.',
+    // PDF Import - Phase 1
+    importPdfButton: 'Importer PDF Transport Canada',
+    importPdfUploading: 'Importation...',
+    importPdfSuccess: 'PDF importé. Références mises à jour.',
+    importPdfError: 'Impossible d\'importer le PDF. Veuillez réessayer.',
+    importPdfDisclaimer: 'Les fichiers importés proviennent de documents officiels sélectionnés par l\'utilisateur. Aucune décision de conformité ou de navigabilité n\'est effectuée.',
   },
 };
 
