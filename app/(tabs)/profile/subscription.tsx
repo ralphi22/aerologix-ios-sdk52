@@ -692,23 +692,19 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   // Loading
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
     color: COLORS.textMuted,
   },
-  // Error
-  errorContainer: {
-    flex: 1,
+  // State container (used for loading, error, empty states)
+  stateContainer: {
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+    minHeight: 200,
   },
+  // Error
   errorText: {
     marginTop: 12,
     fontSize: 16,
