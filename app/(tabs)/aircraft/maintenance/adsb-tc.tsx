@@ -163,18 +163,79 @@ export default function AdSbTcScreen() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ADSBBaselineResponse | null>(null);
 
   /**
-   * Placeholder for Phase 1 PDF import
-   * TODO: Implement when backend endpoint is available
+   * Phase 1: Import TC PDF
+   * - Opens iOS document picker (PDF only, multi-select)
+   * - Sends each file to backend via POST /api/adsb/tc/import-pdf/{aircraftId}
+   * - NO parsing, NO logic, just network orchestration
+   * - Refreshes baseline data after success
    */
-  const handleImportPdf = () => {
-    Alert.alert(
-      texts.importComingSoon,
-      texts.importComingSoonMessage
-    );
+  const handleImportPdf = async () => {
+    if (!aircraftId) return;
+
+    try {
+      // Open document picker - PDF only, allow multiple
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+
+      // User cancelled - exit silently
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      setIsImporting(true);
+
+      // Upload each selected PDF
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const asset of result.assets) {
+        try {
+          // Build FormData for multipart upload
+          const formData = new FormData();
+          formData.append('file', {
+            uri: asset.uri,
+            type: 'application/pdf',
+            name: asset.name || 'tc_document.pdf',
+          } as any);
+
+          // POST to backend - no parsing on frontend
+          await api.post(`/api/adsb/tc/import-pdf/${aircraftId}`, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+
+          successCount++;
+          console.log(`[TC Import] Uploaded: ${asset.name}`);
+        } catch (uploadErr) {
+          errorCount++;
+          console.warn(`[TC Import] Failed to upload: ${asset.name}`, uploadErr);
+        }
+      }
+
+      setIsImporting(false);
+
+      // Show result
+      if (successCount > 0) {
+        Alert.alert('', texts.importPdfSuccess);
+        // Refresh baseline data from backend
+        fetchBaseline(true);
+      } else if (errorCount > 0) {
+        Alert.alert('', texts.importPdfError);
+      }
+    } catch (err) {
+      console.error('[TC Import] Error:', err);
+      setIsImporting(false);
+      Alert.alert('', texts.importPdfError);
+    }
   };
 
   /**
