@@ -148,7 +148,7 @@ const TEXTS = {
  * For USER_IMPORTED_REFERENCE items:
  * - origin = 'USER_IMPORTED_REFERENCE'
  * - tc_reference_id = ID for DELETE operation
- * - pdf_id = ID for PDF download
+ * - tc_pdf_id = ID for PDF download
  */
 interface ADSBBaselineItem {
   ref: string;
@@ -158,9 +158,9 @@ interface ADSBBaselineItem {
   count_seen?: number; // Optional - not used in TC page
   origin?: string; // 'USER_IMPORTED_REFERENCE' | 'TC_BASELINE' | etc.
   pdf_available?: boolean;
-  // IDs for API operations
-  tc_reference_id?: string; // Used for DELETE
-  pdf_id?: string; // Used for PDF download
+  // IDs for API operations - EXACT backend field names
+  tc_reference_id?: string; // Used for DELETE /api/adsb/tc/reference/{tc_reference_id}
+  tc_pdf_id?: string; // Used for GET /api/adsb/tc/pdf/{tc_pdf_id}
 }
 
 /**
