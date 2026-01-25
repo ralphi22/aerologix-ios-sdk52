@@ -158,25 +158,26 @@ const TEXTS = {
 
 /**
  * Single AD or SB item from backend baseline
- * count_seen = how many times found in scanned OCR records
- * origin = source of the reference (TC_BASELINE, USER_IMPORTED_REFERENCE, etc.)
+ * 
+ * For USER_IMPORTED_REFERENCE items:
+ * - origin = 'USER_IMPORTED_REFERENCE'
+ * - pdf_available = true
+ * - identifier = unique ID for PDF/delete operations
  */
 interface ADSBBaselineItem {
   ref: string;
+  identifier?: string; // Used for PDF/delete API calls
   type: 'AD' | 'SB';
   title: string;
   recurrence?: string;
   count_seen: number;
-  origin?: string; // TC_BASELINE, USER_IMPORTED_REFERENCE, etc.
+  origin?: string; // 'USER_IMPORTED_REFERENCE' | 'TC_BASELINE' | etc.
+  pdf_available?: boolean;
 }
 
 /**
  * Response from GET /api/adsb/baseline/{aircraft_id}
  * Pre-computed MongoDB data - NO live lookup
- * 
- * Backend may return:
- * - items[] (legacy format)
- * - ad_list[] + sb_list[] (new format)
  */
 interface ADSBBaselineResponse {
   aircraft: {
