@@ -558,17 +558,6 @@ export default function AdSbTcScreen() {
         </View>
       </View>
     );
-  }; 
-            style={styles.removeButton}
-            onPress={() => handleDeleteReference(refId, refId)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="trash-outline" size={18} color={COLORS.dangerRed} />
-            <Text style={styles.removeButtonText}>{texts.remove}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
   };
 
   // ============================================================
