@@ -92,7 +92,8 @@ function MaintenanceCard({
 export default function MaintenanceScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
-  const lang = getLanguage();
+  const lang = getLanguage() as 'en' | 'fr';
+  const badgeTexts = BADGE_TEXTS[lang];
   
   // Get aircraft data to check for new TC items
   const { getAircraftById } = useAircraftLocalStore();
@@ -106,6 +107,11 @@ export default function MaintenanceScreen() {
       pathname: `/(tabs)/aircraft/maintenance/${route}` as any,
       params: { aircraftId, registration },
     });
+  };
+
+  // Handler for badge tap - shows neutral explanation
+  const handleBadgePress = () => {
+    Alert.alert(badgeTexts.title, badgeTexts.message);
   };
 
   return (
