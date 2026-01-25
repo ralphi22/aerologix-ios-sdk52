@@ -542,135 +542,6 @@ export default function AdSbTcScreen() {
       </View>
     );
   };
-      <View 
-        key={`${item.type}-${item.ref}-${index}`}
-        style={[
-          styles.itemRow,
-          notFound && styles.itemRowWarning,
-        ]}
-      >
-        {/* Left: Type Badge + Content */}
-        <View style={styles.itemLeft}>
-          <View style={[
-            styles.typeBadge,
-            { backgroundColor: isAD ? COLORS.adRedBg : COLORS.sbBlueBg }
-          ]}>
-            <Text style={[
-              styles.typeBadgeText,
-              { color: isAD ? COLORS.adRed : COLORS.sbBlue }
-            ]}>
-              {item.type}
-            </Text>
-          </View>
-          
-          <View style={styles.itemContent}>
-            <View style={styles.itemRefRow}>
-              <Text style={styles.itemRef}>{item.ref}</Text>
-              {/* Informational indicator for user-imported items */}
-              {isUserImported && (
-                <View style={styles.importedBadge}>
-                  <Ionicons name="document-attach" size={10} color={COLORS.primary} />
-                  <Text style={styles.importedBadgeText}>PDF</Text>
-                </View>
-              )}
-            </View>
-            
-            {item.title && (
-              <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
-            )}
-            
-            {item.recurrence && (
-              <View style={styles.recurrenceRow}>
-                <Ionicons name="repeat" size={12} color={COLORS.textMuted} />
-                <Text style={styles.recurrenceText}>{texts.recurrence}: {item.recurrence}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* Right: Count Display */}
-        <View style={styles.itemRight}>
-          {notFound ? (
-            <>
-              <View style={styles.warningBadge}>
-                <Ionicons name="alert-circle" size={16} color={COLORS.warningOrange} />
-                <Text style={styles.warningCountText}>0</Text>
-              </View>
-              <Text style={styles.notFoundText}>
-                {texts.notFoundInRecords}
-              </Text>
-              <Text style={styles.notFoundMicrocopy}>
-                {texts.notFoundMicrocopy}
-              </Text>
-            </>
-          ) : (
-            <>
-              <View style={styles.countBadge}>
-                <Text style={styles.countNumber}>{item.count_seen}</Text>
-              </View>
-              <Text style={styles.countLabel}>
-                {texts.seenTimes} {item.count_seen} {texts.times}
-              </Text>
-            </>
-          )}
-        </View>
-      </View>
-    );
-  };
-
-  // ============================================================
-  // RENDER SECTION
-  // ============================================================
-  const renderSection = (title: string, items: ADSBBaselineItem[], type: 'AD' | 'SB') => {
-    const isAD = type === 'AD';
-    const missingCount = items.filter(i => i.count_seen === 0).length;
-    
-    return (
-      <View style={styles.section}>
-        <View style={[
-          styles.sectionHeader,
-          { backgroundColor: isAD ? COLORS.adRedBg : COLORS.sbBlueBg }
-        ]}>
-          <Text style={[
-            styles.sectionTitle,
-            { color: isAD ? COLORS.adRed : COLORS.sbBlue }
-          ]}>
-            {title}
-          </Text>
-          <View style={styles.sectionBadges}>
-            <View style={[styles.sectionCountBadge, { backgroundColor: COLORS.white }]}>
-              <Text style={[
-                styles.sectionCountText,
-                { color: isAD ? COLORS.adRed : COLORS.sbBlue }
-              ]}>
-                {items.length}
-              </Text>
-            </View>
-            {missingCount > 0 && (
-              <View style={[styles.sectionCountBadge, { backgroundColor: COLORS.warningOrangeBg }]}>
-                <Ionicons name="alert-circle" size={12} color={COLORS.warningOrange} />
-                <Text style={[styles.sectionCountText, { color: COLORS.warningOrange, marginLeft: 4 }]}>
-                  {missingCount}
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {items.length === 0 ? (
-          <View style={styles.emptySection}>
-            <Text style={styles.emptySectionText}>
-              {lang === 'fr' ? 'Aucun élément' : 'No items'}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.itemsList}>
-            {items.map((item, index) => renderItem(item, index))}
-          </View>
-        )}
-      </View>
-    );
-  };
 
   // ============================================================
   // RENDER CONTENT
@@ -697,7 +568,8 @@ export default function AdSbTcScreen() {
       );
     }
 
-    if (!data || !hasData) {
+    // EMPTY STATE: No imported PDF references
+    if (!hasImportedData) {
       return (
         <ScrollView
           style={styles.scrollView}
