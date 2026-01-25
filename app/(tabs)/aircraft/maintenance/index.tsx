@@ -169,6 +169,7 @@ export default function MaintenanceScreen() {
             subtitleFr="Consignes de navigabilité et bulletins de service"
             onPress={() => navigateTo('ad-sb')}
             showBadge={hasNewTcItems}
+            onBadgePress={handleBadgePress}
           />
 
           {/* STC */}
