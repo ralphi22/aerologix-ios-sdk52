@@ -99,6 +99,7 @@ const TEXTS = {
     deleteSuccess: 'Reference removed.',
     deleteError: 'Unable to remove reference.',
     pdfError: 'Unable to open PDF.',
+    pdfDownloading: 'Downloading...',
     // Card fixed message
     cardMessage: 'Imported reference for document review. This does not indicate compliance or airworthiness status.',
   },
