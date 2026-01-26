@@ -566,12 +566,18 @@ export default function AdSbTcScreen() {
     const isDownloading = downloadingPdfId === tcPdfId;
     const isDeleting = deletingRefId === tcRefId;
     
+    // Display logic:
+    // - Main title: item.title if present, otherwise item.identifier, fallback to generic
+    // - Subtitle badge: item.identifier (AD number like "CF-2024-01")
+    const displayTitle = item.title || item.identifier || texts.fallbackTitle;
+    const displayIdentifier = item.identifier || item.ref;
+    
     return (
       <View 
         key={`${item.type}-${item.ref}-${index}`}
         style={styles.importedCard}
       >
-        {/* Header Row: Type Badge + Identifier + PDF Badge */}
+        {/* Header Row: Type Badge + Identifier Badge + PDF Badge */}
         <View style={styles.cardHeader}>
           <View style={[
             styles.typeBadge,
@@ -585,7 +591,10 @@ export default function AdSbTcScreen() {
             </Text>
           </View>
           
-          <Text style={styles.cardRef}>{item.title || item.ref}</Text>
+          {/* Identifier Badge (AD number) */}
+          <View style={styles.identifierBadge}>
+            <Text style={styles.identifierBadgeText}>{displayIdentifier}</Text>
+          </View>
           
           {/* PDF Badge */}
           <View style={styles.pdfBadge}>
@@ -594,7 +603,10 @@ export default function AdSbTcScreen() {
           </View>
         </View>
 
-        {/* Fixed message - TC-SAFE */}
+        {/* Title / Description */}
+        <Text style={styles.cardTitle}>{displayTitle}</Text>
+
+        {/* Fixed message - TC-SAFE (gray italic) */}
         <Text style={styles.cardMessage}>{texts.cardMessage}</Text>
 
         {/* Action Buttons - ONLY View PDF and Remove */}
@@ -602,7 +614,7 @@ export default function AdSbTcScreen() {
           {/* View PDF Button - uses tc_pdf_id */}
           <TouchableOpacity 
             style={[styles.viewPdfButton, isDownloading && styles.buttonDisabled]}
-            onPress={() => openTcPdf(tcPdfId, item.ref)}
+            onPress={() => openTcPdf(tcPdfId, displayIdentifier)}
             activeOpacity={0.7}
             disabled={isDownloading || !tcPdfId}
           >
@@ -619,10 +631,10 @@ export default function AdSbTcScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Remove Button - uses tc_reference_id */}
+          {/* Remove Button - uses tc_reference_id - DO NOT MODIFY */}
           <TouchableOpacity 
             style={[styles.removeButton, isDeleting && styles.buttonDisabled]}
-            onPress={() => handleRemove(tcRefId, item.ref)}
+            onPress={() => handleRemove(tcRefId, displayIdentifier)}
             activeOpacity={0.7}
             disabled={isDeleting || !tcRefId}
           >
