@@ -37,7 +37,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { encode as btoa } from 'base64-arraybuffer';
+import { encode } from 'base64-arraybuffer';
 import { getLanguage } from '@/i18n';
 import api from '@/services/api';
 
@@ -343,20 +343,19 @@ export default function AdSbTcScreen() {
   // ============================================================
 
   /**
-   * Open PDF using Axios (api.get) + expo-file-system + expo-sharing
-   * iOS TestFlight / React Native compatible approach.
+   * Open PDF using Axios + expo-file-system + expo-sharing
+   * iOS TestFlight / React Native compatible.
    * 
    * Uses:
-   * - Axios interceptor for JWT injection (no manual token)
-   * - responseType: 'arraybuffer' (NOT blob - blob doesn't work in RN)
-   * - base64-arraybuffer for direct ArrayBuffer → base64 conversion
-   * - expo-file-system to write file
-   * - expo-sharing to open via iOS share sheet
+   * - Axios interceptor for JWT (auto)
+   * - responseType: 'arraybuffer'
+   * - base64-arraybuffer for conversion
+   * - FileSystem.documentDirectory for persistent storage
+   * - expo-sharing for iOS share sheet
    * 
-   * FORBIDDEN: fetch(), Linking.openURL, WebView, FileReader
-   * 
-   * @param tcPdfId - The tc_pdf_id from baseline item (REQUIRED)
-   * @param refName - Reference name for filename
+   * REQUIRED LOGS before rebuild:
+   * - [PDF FILE CHECK] exists=true size=XXXXX
+   * - [PDF SHARE AVAILABLE] true
    */
   const openTcPdf = async (tcPdfId: string | undefined, refName: string) => {
     // Guard: tc_pdf_id required
@@ -369,15 +368,7 @@ export default function AdSbTcScreen() {
     setDownloadingPdfId(tcPdfId);
 
     try {
-      // Step 1: Check if sharing is available on this device
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (!isAvailable) {
-        console.error('[PDF] Sharing not available on this device');
-        Alert.alert('', texts.pdfError);
-        return;
-      }
-
-      // Step 2: Download PDF via Axios with arraybuffer (JWT auto-injected)
+      // Step 1: Download PDF via Axios with arraybuffer
       console.log(`[PDF] Fetching: /api/adsb/tc/pdf/${tcPdfId}`);
       
       const response = await api.get(`/api/adsb/tc/pdf/${tcPdfId}`, {
@@ -389,7 +380,7 @@ export default function AdSbTcScreen() {
 
       console.log(`[PDF] Response status: ${response.status}`);
 
-      // Step 3: Validate response data
+      // Step 2: Validate ArrayBuffer
       const arrayBuffer = response.data as ArrayBuffer;
       
       if (!arrayBuffer) {
@@ -401,15 +392,14 @@ export default function AdSbTcScreen() {
       const byteLength = arrayBuffer.byteLength;
       console.log(`[PDF] ArrayBuffer size: ${byteLength} bytes`);
 
-      // Guard: must have content
       if (byteLength === 0) {
         console.error('[PDF] PDF file is empty (byteLength === 0)');
         Alert.alert('', texts.pdfEmpty || 'PDF file is empty');
         return;
       }
 
-      // Step 4: Convert ArrayBuffer to base64 (NO FileReader needed)
-      const base64Data = btoa(arrayBuffer);
+      // Step 3: Convert ArrayBuffer to base64
+      const base64Data = encode(arrayBuffer);
       console.log(`[PDF] Base64 length: ${base64Data.length}`);
 
       if (!base64Data || base64Data.length === 0) {
@@ -418,33 +408,48 @@ export default function AdSbTcScreen() {
         return;
       }
 
-      // Step 5: Write to cache directory
-      const sanitizedName = refName.replace(/[^a-zA-Z0-9-_]/g, '_');
-      const filename = `${sanitizedName}_${Date.now()}.pdf`;
-      const localUri = `${FileSystem.cacheDirectory}${filename}`;
+      // Step 4: Write to documentDirectory (NOT cacheDirectory)
+      const fileUri = FileSystem.documentDirectory + `tc_${tcPdfId}.pdf`;
       
-      console.log(`[PDF] Writing to: ${localUri}`);
-      await FileSystem.writeAsStringAsync(localUri, base64Data, {
+      console.log(`[PDF] Writing to: ${fileUri}`);
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Step 6: Verify file exists
-      const fileInfo = await FileSystem.getInfoAsync(localUri);
+      // Step 5: MANDATORY CHECK - Verify file exists and size
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      console.log(`[PDF FILE CHECK] exists=${fileInfo.exists} size=${fileInfo.exists ? fileInfo.size : 0}`);
+      
       if (!fileInfo.exists) {
         console.error('[PDF] File write failed - file does not exist');
         Alert.alert('', texts.pdfError);
         return;
       }
-      console.log(`[PDF] File written: ${fileInfo.size} bytes`);
+      
+      if (fileInfo.size && fileInfo.size <= 1000) {
+        console.error(`[PDF] File too small (${fileInfo.size} bytes) - PDF invalid`);
+        Alert.alert('', texts.pdfError);
+        return;
+      }
+
+      // Step 6: MANDATORY CHECK - Verify sharing available
+      const sharingAvailable = await Sharing.isAvailableAsync();
+      console.log(`[PDF SHARE AVAILABLE] ${sharingAvailable}`);
+      
+      if (!sharingAvailable) {
+        console.error('[PDF] Sharing not available on this device');
+        Alert.alert('', texts.pdfError);
+        return;
+      }
 
       // Step 7: Open PDF via iOS share sheet
       console.log('[PDF] Opening with Sharing...');
-      await Sharing.shareAsync(localUri, {
+      await Sharing.shareAsync(fileUri, {
         mimeType: 'application/pdf',
         UTI: 'com.adobe.pdf',
       });
 
-      console.log('[PDF] Opened successfully');
+      console.log('[PDF] Share sheet opened successfully');
     } catch (err: any) {
       console.error('[PDF] Error:', err?.message || err);
       if (err?.response?.status === 401) {
