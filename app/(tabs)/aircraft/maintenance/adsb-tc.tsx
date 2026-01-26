@@ -99,9 +99,12 @@ const TEXTS = {
     deleteSuccess: 'Reference removed.',
     deleteError: 'Unable to remove reference.',
     pdfError: 'Unable to open PDF.',
+    pdfEmpty: 'PDF file is empty.',
     pdfDownloading: 'Downloading...',
     // Card fixed message
     cardMessage: 'Imported reference for document review. This does not indicate compliance or airworthiness status.',
+    // Fallback title
+    fallbackTitle: 'Imported TC reference',
   },
   fr: {
     screenTitle: 'TC AD/SB',
