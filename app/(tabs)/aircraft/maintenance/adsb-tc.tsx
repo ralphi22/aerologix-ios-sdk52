@@ -39,7 +39,6 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getLanguage } from '@/i18n';
 import api from '@/services/api';
-import { useAuthStore } from '@/stores/authStore';
 
 // Transport Canada AD search URL
 const TC_AD_SEARCH_URL = 'https://wwwapps.tc.gc.ca/Saf-Sec-Sur/2/cawis-swimn/AD_as.aspx';
@@ -334,9 +333,6 @@ export default function AdSbTcScreen() {
     fetchBaseline(true);
   }, [fetchBaseline]);
 
-  // Get auth token for authenticated requests
-  const { token } = useAuthStore();
-
   // State for PDF download and delete operations
   const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
   const [deletingRefId, setDeletingRefId] = useState<string | null>(null);
@@ -346,16 +342,20 @@ export default function AdSbTcScreen() {
   // ============================================================
 
   /**
-   * Open PDF using authenticated fetch + base64 + expo-sharing
-   * iOS TestFlight compatible approach with STRICT validation:
-   * 1. Fetch PDF with Authorization header
-   * 2. Validate response.ok
-   * 3. Convert to blob and validate blob.size > 0
-   * 4. Convert to base64
-   * 5. Write to FileSystem.cacheDirectory
-   * 6. Open via expo-sharing (shareAsync)
+   * Open PDF using Axios (api.get) + expo-file-system + expo-sharing
+   * iOS TestFlight compatible approach with STRICT validation.
    * 
-   * FORBIDDEN: Linking.openURL, WebView
+   * Uses Axios interceptor for JWT injection (no manual token handling).
+   * 
+   * Steps:
+   * 1. Check sharing availability
+   * 2. Download PDF via api.get with responseType: 'blob'
+   * 3. Validate blob exists and size > 0
+   * 4. Convert blob to base64
+   * 5. Write to FileSystem.cacheDirectory
+   * 6. Open via expo-sharing (share sheet iOS)
+   * 
+   * FORBIDDEN: Linking.openURL, WebView, manual Authorization header
    * 
    * @param tcPdfId - The tc_pdf_id from baseline item (REQUIRED)
    * @param refName - Reference name for filename
@@ -379,40 +379,37 @@ export default function AdSbTcScreen() {
         return; // finally will reset state
       }
 
-      // Step 2: Build API URL - GET /api/adsb/tc/pdf/{tc_pdf_id}
-      const pdfUrl = `${api.defaults.baseURL}/api/adsb/tc/pdf/${tcPdfId}`;
-      console.log(`[PDF] Fetching: ${pdfUrl}`);
-
-      // Step 3: Fetch PDF with Authorization header
-      const response = await fetch(pdfUrl, {
-        method: 'GET',
+      // Step 2: Download PDF via Axios (interceptor injects JWT automatically)
+      console.log(`[PDF] Fetching: /api/adsb/tc/pdf/${tcPdfId}`);
+      
+      const response = await api.get(`/api/adsb/tc/pdf/${tcPdfId}`, {
+        responseType: 'blob',
         headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
           'Accept': 'application/pdf',
         },
       });
 
       console.log(`[PDF] Response status: ${response.status}`);
 
-      // Guard: response.ok must be true
-      if (!response.ok) {
-        console.error(`[PDF] Fetch failed: ${response.status} ${response.statusText}`);
+      // Step 3: Validate blob
+      const blob = response.data as Blob;
+      
+      if (!blob) {
+        console.error('[PDF] No data received from server');
         Alert.alert('', texts.pdfError);
         return; // finally will reset state
       }
 
-      // Step 4: Convert to blob
-      const blob = await response.blob();
       console.log(`[PDF] Blob size: ${blob.size} bytes`);
 
       // Guard: blob.size must be > 0
-      if (!blob || blob.size === 0) {
+      if (blob.size === 0) {
         console.error('[PDF] PDF file is empty (blob.size === 0)');
         Alert.alert('', texts.pdfEmpty || 'PDF file is empty');
         return; // finally will reset state
       }
 
-      // Step 5: Convert blob to base64
+      // Step 4: Convert blob to base64
       const base64Data = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -435,7 +432,7 @@ export default function AdSbTcScreen() {
 
       console.log(`[PDF] Base64 length: ${base64Data.length}`);
 
-      // Step 6: Write to cache directory
+      // Step 5: Write to cache directory
       const sanitizedName = refName.replace(/[^a-zA-Z0-9-_]/g, '_');
       const filename = `${sanitizedName}_${Date.now()}.pdf`;
       const localUri = `${FileSystem.cacheDirectory}${filename}`;
@@ -445,7 +442,7 @@ export default function AdSbTcScreen() {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Step 7: Verify file exists before opening
+      // Step 6: Verify file exists before opening
       const fileInfo = await FileSystem.getInfoAsync(localUri);
       if (!fileInfo.exists) {
         console.error('[PDF] File write failed - file does not exist');
@@ -454,7 +451,7 @@ export default function AdSbTcScreen() {
       }
       console.log(`[PDF] File written successfully, size: ${fileInfo.size} bytes`);
 
-      // Step 8: Open PDF using expo-sharing (iOS TestFlight compatible)
+      // Step 7: Open PDF using expo-sharing (iOS TestFlight compatible)
       console.log('[PDF] Opening with Sharing...');
       await Sharing.shareAsync(localUri, {
         mimeType: 'application/pdf',
@@ -464,6 +461,12 @@ export default function AdSbTcScreen() {
       console.log('[PDF] Opened successfully');
     } catch (err: any) {
       console.error('[PDF] Error:', err?.message || err);
+      // Check for specific HTTP errors
+      if (err?.response?.status === 401) {
+        console.error('[PDF] Authentication failed (401)');
+      } else if (err?.response?.status === 404) {
+        console.error('[PDF] PDF not found (404)');
+      }
       Alert.alert('', texts.pdfError);
     } finally {
       // ALWAYS reset downloading state
