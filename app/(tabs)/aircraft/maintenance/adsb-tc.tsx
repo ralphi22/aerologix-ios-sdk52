@@ -399,7 +399,7 @@ export default function AdSbTcScreen() {
       }
 
       // Step 3: Convert ArrayBuffer to base64
-      const base64Data = btoa(arrayBuffer);
+      const base64Data = encode(arrayBuffer);
       console.log(`[PDF] Base64 length: ${base64Data.length}`);
 
       if (!base64Data || base64Data.length === 0) {
