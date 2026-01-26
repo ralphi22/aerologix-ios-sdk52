@@ -37,6 +37,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { encode as btoa } from 'base64-arraybuffer';
 import { getLanguage } from '@/i18n';
 import api from '@/services/api';
 
@@ -343,19 +344,16 @@ export default function AdSbTcScreen() {
 
   /**
    * Open PDF using Axios (api.get) + expo-file-system + expo-sharing
-   * iOS TestFlight compatible approach with STRICT validation.
+   * iOS TestFlight / React Native compatible approach.
    * 
-   * Uses Axios interceptor for JWT injection (no manual token handling).
+   * Uses:
+   * - Axios interceptor for JWT injection (no manual token)
+   * - responseType: 'arraybuffer' (NOT blob - blob doesn't work in RN)
+   * - base64-arraybuffer for direct ArrayBuffer → base64 conversion
+   * - expo-file-system to write file
+   * - expo-sharing to open via iOS share sheet
    * 
-   * Steps:
-   * 1. Check sharing availability
-   * 2. Download PDF via api.get with responseType: 'blob'
-   * 3. Validate blob exists and size > 0
-   * 4. Convert blob to base64
-   * 5. Write to FileSystem.cacheDirectory
-   * 6. Open via expo-sharing (share sheet iOS)
-   * 
-   * FORBIDDEN: Linking.openURL, WebView, manual Authorization header
+   * FORBIDDEN: fetch(), Linking.openURL, WebView, FileReader
    * 
    * @param tcPdfId - The tc_pdf_id from baseline item (REQUIRED)
    * @param refName - Reference name for filename
@@ -376,14 +374,14 @@ export default function AdSbTcScreen() {
       if (!isAvailable) {
         console.error('[PDF] Sharing not available on this device');
         Alert.alert('', texts.pdfError);
-        return; // finally will reset state
+        return;
       }
 
-      // Step 2: Download PDF via Axios (interceptor injects JWT automatically)
+      // Step 2: Download PDF via Axios with arraybuffer (JWT auto-injected)
       console.log(`[PDF] Fetching: /api/adsb/tc/pdf/${tcPdfId}`);
       
       const response = await api.get(`/api/adsb/tc/pdf/${tcPdfId}`, {
-        responseType: 'blob',
+        responseType: 'arraybuffer',
         headers: {
           'Accept': 'application/pdf',
         },
@@ -391,46 +389,34 @@ export default function AdSbTcScreen() {
 
       console.log(`[PDF] Response status: ${response.status}`);
 
-      // Step 3: Validate blob
-      const blob = response.data as Blob;
+      // Step 3: Validate response data
+      const arrayBuffer = response.data as ArrayBuffer;
       
-      if (!blob) {
+      if (!arrayBuffer) {
         console.error('[PDF] No data received from server');
         Alert.alert('', texts.pdfError);
-        return; // finally will reset state
+        return;
       }
 
-      console.log(`[PDF] Blob size: ${blob.size} bytes`);
+      const byteLength = arrayBuffer.byteLength;
+      console.log(`[PDF] ArrayBuffer size: ${byteLength} bytes`);
 
-      // Guard: blob.size must be > 0
-      if (blob.size === 0) {
-        console.error('[PDF] PDF file is empty (blob.size === 0)');
+      // Guard: must have content
+      if (byteLength === 0) {
+        console.error('[PDF] PDF file is empty (byteLength === 0)');
         Alert.alert('', texts.pdfEmpty || 'PDF file is empty');
-        return; // finally will reset state
+        return;
       }
 
-      // Step 4: Convert blob to base64
-      const base64Data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const dataUrl = reader.result as string;
-          if (!dataUrl || !dataUrl.includes(',')) {
-            reject(new Error('Invalid base64 conversion'));
-            return;
-          }
-          // Extract base64 part (remove "data:application/pdf;base64," prefix)
-          const base64 = dataUrl.split(',')[1];
-          if (!base64 || base64.length === 0) {
-            reject(new Error('Empty base64 data'));
-            return;
-          }
-          resolve(base64);
-        };
-        reader.onerror = () => reject(new Error('FileReader error'));
-        reader.readAsDataURL(blob);
-      });
-
+      // Step 4: Convert ArrayBuffer to base64 (NO FileReader needed)
+      const base64Data = btoa(arrayBuffer);
       console.log(`[PDF] Base64 length: ${base64Data.length}`);
+
+      if (!base64Data || base64Data.length === 0) {
+        console.error('[PDF] Base64 conversion failed');
+        Alert.alert('', texts.pdfError);
+        return;
+      }
 
       // Step 5: Write to cache directory
       const sanitizedName = refName.replace(/[^a-zA-Z0-9-_]/g, '_');
@@ -442,16 +428,16 @@ export default function AdSbTcScreen() {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Step 6: Verify file exists before opening
+      // Step 6: Verify file exists
       const fileInfo = await FileSystem.getInfoAsync(localUri);
       if (!fileInfo.exists) {
         console.error('[PDF] File write failed - file does not exist');
         Alert.alert('', texts.pdfError);
-        return; // finally will reset state
+        return;
       }
-      console.log(`[PDF] File written successfully, size: ${fileInfo.size} bytes`);
+      console.log(`[PDF] File written: ${fileInfo.size} bytes`);
 
-      // Step 7: Open PDF using expo-sharing (iOS TestFlight compatible)
+      // Step 7: Open PDF via iOS share sheet
       console.log('[PDF] Opening with Sharing...');
       await Sharing.shareAsync(localUri, {
         mimeType: 'application/pdf',
@@ -461,15 +447,13 @@ export default function AdSbTcScreen() {
       console.log('[PDF] Opened successfully');
     } catch (err: any) {
       console.error('[PDF] Error:', err?.message || err);
-      // Check for specific HTTP errors
       if (err?.response?.status === 401) {
-        console.error('[PDF] Authentication failed (401)');
+        console.error('[PDF] Auth failed (401)');
       } else if (err?.response?.status === 404) {
-        console.error('[PDF] PDF not found (404)');
+        console.error('[PDF] Not found (404)');
       }
       Alert.alert('', texts.pdfError);
     } finally {
-      // ALWAYS reset downloading state
       setDownloadingPdfId(null);
     }
   };
