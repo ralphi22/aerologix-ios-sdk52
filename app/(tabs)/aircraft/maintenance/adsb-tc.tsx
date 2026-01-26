@@ -37,7 +37,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { encode as btoa } from 'base64-arraybuffer';
+import { encode } from 'base64-arraybuffer';
 import { getLanguage } from '@/i18n';
 import api from '@/services/api';
 
