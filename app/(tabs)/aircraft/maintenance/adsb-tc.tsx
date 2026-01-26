@@ -153,13 +153,14 @@ const TEXTS = {
 interface ADSBBaselineItem {
   ref: string;
   type: 'AD' | 'SB';
-  title: string;
+  title?: string;
+  identifier?: string; // AD number (e.g., "CF-2024-01")
   recurrence?: string;
   count_seen?: number; // Optional - not used in TC page
   origin?: string; // 'USER_IMPORTED_REFERENCE' | 'TC_BASELINE' | etc.
   pdf_available?: boolean;
   // IDs for API operations - EXACT backend field names
-  tc_reference_id?: string; // Used for DELETE /api/adsb/tc/reference/{tc_reference_id}
+  tc_reference_id?: string; // Used for DELETE /api/adsb/tc/reference-by-id/{tc_reference_id}
   tc_pdf_id?: string; // Used for GET /api/adsb/tc/pdf/{tc_pdf_id}
 }
 
