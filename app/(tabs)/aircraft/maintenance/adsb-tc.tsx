@@ -39,7 +39,6 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getLanguage } from '@/i18n';
 import api from '@/services/api';
-import { useAuthStore } from '@/stores/authStore';
 
 // Transport Canada AD search URL
 const TC_AD_SEARCH_URL = 'https://wwwapps.tc.gc.ca/Saf-Sec-Sur/2/cawis-swimn/AD_as.aspx';
