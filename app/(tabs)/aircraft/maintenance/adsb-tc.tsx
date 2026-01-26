@@ -135,9 +135,12 @@ const TEXTS = {
     deleteSuccess: 'Référence supprimée.',
     deleteError: 'Impossible de supprimer la référence.',
     pdfError: 'Impossible d\'ouvrir le PDF.',
+    pdfEmpty: 'Le fichier PDF est vide.',
     pdfDownloading: 'Téléchargement du PDF...',
     // Card fixed message
     cardMessage: 'Référence importée pour révision documentaire. Ceci n\'indique pas un statut de conformité ou de navigabilité.',
+    // Fallback title
+    fallbackTitle: 'Référence TC importée',
   },
 };
 
