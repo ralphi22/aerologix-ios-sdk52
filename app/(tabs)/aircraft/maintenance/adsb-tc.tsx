@@ -915,8 +915,13 @@ const styles = StyleSheet.create({
   // Imported Card Styles
   cardsList: { gap: 12 },
   importedCard: { backgroundColor: COLORS.white, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: COLORS.pdfBlue, borderLeftWidth: 4 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 },
   cardRef: { flex: 1, fontSize: 16, fontWeight: '700', color: COLORS.textDark, marginLeft: 10 },
+  // Identifier Badge (AD number)
+  identifierBadge: { backgroundColor: COLORS.primary + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginLeft: 8 },
+  identifierBadgeText: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
+  // Card title (description)
+  cardTitle: { fontSize: 15, fontWeight: '600', color: COLORS.textDark, marginBottom: 8, lineHeight: 20 },
   // PDF Badge
   pdfBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.pdfBlueBg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   pdfBadgeText: { fontSize: 10, fontWeight: '700', color: COLORS.pdfBlue, marginLeft: 4 },
