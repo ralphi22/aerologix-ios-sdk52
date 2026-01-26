@@ -99,9 +99,12 @@ const TEXTS = {
     deleteSuccess: 'Reference removed.',
     deleteError: 'Unable to remove reference.',
     pdfError: 'Unable to open PDF.',
+    pdfEmpty: 'PDF file is empty.',
     pdfDownloading: 'Downloading...',
     // Card fixed message
     cardMessage: 'Imported reference for document review. This does not indicate compliance or airworthiness status.',
+    // Fallback title
+    fallbackTitle: 'Imported TC reference',
   },
   fr: {
     screenTitle: 'TC AD/SB',
@@ -132,9 +135,12 @@ const TEXTS = {
     deleteSuccess: 'Référence supprimée.',
     deleteError: 'Impossible de supprimer la référence.',
     pdfError: 'Impossible d\'ouvrir le PDF.',
+    pdfEmpty: 'Le fichier PDF est vide.',
     pdfDownloading: 'Téléchargement du PDF...',
     // Card fixed message
     cardMessage: 'Référence importée pour révision documentaire. Ceci n\'indique pas un statut de conformité ou de navigabilité.',
+    // Fallback title
+    fallbackTitle: 'Référence TC importée',
   },
 };
 
@@ -153,13 +159,14 @@ const TEXTS = {
 interface ADSBBaselineItem {
   ref: string;
   type: 'AD' | 'SB';
-  title: string;
+  title?: string;
+  identifier?: string; // AD number (e.g., "CF-2024-01")
   recurrence?: string;
   count_seen?: number; // Optional - not used in TC page
   origin?: string; // 'USER_IMPORTED_REFERENCE' | 'TC_BASELINE' | etc.
   pdf_available?: boolean;
   // IDs for API operations - EXACT backend field names
-  tc_reference_id?: string; // Used for DELETE /api/adsb/tc/reference/{tc_reference_id}
+  tc_reference_id?: string; // Used for DELETE /api/adsb/tc/reference-by-id/{tc_reference_id}
   tc_pdf_id?: string; // Used for GET /api/adsb/tc/pdf/{tc_pdf_id}
 }
 
@@ -340,17 +347,21 @@ export default function AdSbTcScreen() {
 
   /**
    * Open PDF using authenticated fetch + base64 + expo-sharing
-   * iOS TestFlight compatible approach:
+   * iOS TestFlight compatible approach with STRICT validation:
    * 1. Fetch PDF with Authorization header
-   * 2. Convert response to base64
-   * 3. Write to FileSystem.cacheDirectory
-   * 4. Open via expo-sharing (shareAsync)
+   * 2. Validate response.ok
+   * 3. Convert to blob and validate blob.size > 0
+   * 4. Convert to base64
+   * 5. Write to FileSystem.cacheDirectory
+   * 6. Open via expo-sharing (shareAsync)
+   * 
+   * FORBIDDEN: Linking.openURL, WebView
    * 
    * @param tcPdfId - The tc_pdf_id from baseline item (REQUIRED)
    * @param refName - Reference name for filename
    */
   const openTcPdf = async (tcPdfId: string | undefined, refName: string) => {
-    // Validation
+    // Guard: tc_pdf_id required
     if (!tcPdfId) {
       console.error('[PDF] No tc_pdf_id provided');
       Alert.alert('', texts.pdfError);
@@ -360,20 +371,19 @@ export default function AdSbTcScreen() {
     setDownloadingPdfId(tcPdfId);
 
     try {
-      // Check if sharing is available on this device
+      // Step 1: Check if sharing is available on this device
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
         console.error('[PDF] Sharing not available on this device');
         Alert.alert('', texts.pdfError);
-        setDownloadingPdfId(null);
-        return;
+        return; // finally will reset state
       }
 
-      // Build API URL - use tc_pdf_id ONLY
+      // Step 2: Build API URL - GET /api/adsb/tc/pdf/{tc_pdf_id}
       const pdfUrl = `${api.defaults.baseURL}/api/adsb/tc/pdf/${tcPdfId}`;
       console.log(`[PDF] Fetching: ${pdfUrl}`);
 
-      // Fetch PDF with Authorization header
+      // Step 3: Fetch PDF with Authorization header
       const response = await fetch(pdfUrl, {
         method: 'GET',
         headers: {
@@ -384,30 +394,50 @@ export default function AdSbTcScreen() {
 
       console.log(`[PDF] Response status: ${response.status}`);
 
+      // Guard: response.ok must be true
       if (!response.ok) {
         console.error(`[PDF] Fetch failed: ${response.status} ${response.statusText}`);
         Alert.alert('', texts.pdfError);
-        setDownloadingPdfId(null);
-        return;
+        return; // finally will reset state
       }
 
-      // Convert to blob then to base64
+      // Step 4: Convert to blob
       const blob = await response.blob();
-      const reader = new FileReader();
-      
+      console.log(`[PDF] Blob size: ${blob.size} bytes`);
+
+      // Guard: blob.size must be > 0
+      if (!blob || blob.size === 0) {
+        console.error('[PDF] PDF file is empty (blob.size === 0)');
+        Alert.alert('', texts.pdfEmpty || 'PDF file is empty');
+        return; // finally will reset state
+      }
+
+      // Step 5: Convert blob to base64
       const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
         reader.onloadend = () => {
           const dataUrl = reader.result as string;
+          if (!dataUrl || !dataUrl.includes(',')) {
+            reject(new Error('Invalid base64 conversion'));
+            return;
+          }
           // Extract base64 part (remove "data:application/pdf;base64," prefix)
           const base64 = dataUrl.split(',')[1];
+          if (!base64 || base64.length === 0) {
+            reject(new Error('Empty base64 data'));
+            return;
+          }
           resolve(base64);
         };
-        reader.onerror = reject;
+        reader.onerror = () => reject(new Error('FileReader error'));
         reader.readAsDataURL(blob);
       });
 
-      // Write to cache directory
-      const filename = `${refName.replace(/[^a-zA-Z0-9-_]/g, '_')}_${Date.now()}.pdf`;
+      console.log(`[PDF] Base64 length: ${base64Data.length}`);
+
+      // Step 6: Write to cache directory
+      const sanitizedName = refName.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const filename = `${sanitizedName}_${Date.now()}.pdf`;
       const localUri = `${FileSystem.cacheDirectory}${filename}`;
       
       console.log(`[PDF] Writing to: ${localUri}`);
@@ -415,7 +445,16 @@ export default function AdSbTcScreen() {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Open PDF using expo-sharing (iOS TestFlight compatible)
+      // Step 7: Verify file exists before opening
+      const fileInfo = await FileSystem.getInfoAsync(localUri);
+      if (!fileInfo.exists) {
+        console.error('[PDF] File write failed - file does not exist');
+        Alert.alert('', texts.pdfError);
+        return; // finally will reset state
+      }
+      console.log(`[PDF] File written successfully, size: ${fileInfo.size} bytes`);
+
+      // Step 8: Open PDF using expo-sharing (iOS TestFlight compatible)
       console.log('[PDF] Opening with Sharing...');
       await Sharing.shareAsync(localUri, {
         mimeType: 'application/pdf',
@@ -427,6 +466,7 @@ export default function AdSbTcScreen() {
       console.error('[PDF] Error:', err?.message || err);
       Alert.alert('', texts.pdfError);
     } finally {
+      // ALWAYS reset downloading state
       setDownloadingPdfId(null);
     }
   };
@@ -526,12 +566,18 @@ export default function AdSbTcScreen() {
     const isDownloading = downloadingPdfId === tcPdfId;
     const isDeleting = deletingRefId === tcRefId;
     
+    // Display logic:
+    // - Main title: item.title if present, otherwise item.identifier, fallback to generic
+    // - Subtitle badge: item.identifier (AD number like "CF-2024-01")
+    const displayTitle = item.title || item.identifier || texts.fallbackTitle;
+    const displayIdentifier = item.identifier || item.ref;
+    
     return (
       <View 
         key={`${item.type}-${item.ref}-${index}`}
         style={styles.importedCard}
       >
-        {/* Header Row: Type Badge + Identifier + PDF Badge */}
+        {/* Header Row: Type Badge + Identifier Badge + PDF Badge */}
         <View style={styles.cardHeader}>
           <View style={[
             styles.typeBadge,
@@ -545,7 +591,10 @@ export default function AdSbTcScreen() {
             </Text>
           </View>
           
-          <Text style={styles.cardRef}>{item.title || item.ref}</Text>
+          {/* Identifier Badge (AD number) */}
+          <View style={styles.identifierBadge}>
+            <Text style={styles.identifierBadgeText}>{displayIdentifier}</Text>
+          </View>
           
           {/* PDF Badge */}
           <View style={styles.pdfBadge}>
@@ -554,7 +603,10 @@ export default function AdSbTcScreen() {
           </View>
         </View>
 
-        {/* Fixed message - TC-SAFE */}
+        {/* Title / Description */}
+        <Text style={styles.cardTitle}>{displayTitle}</Text>
+
+        {/* Fixed message - TC-SAFE (gray italic) */}
         <Text style={styles.cardMessage}>{texts.cardMessage}</Text>
 
         {/* Action Buttons - ONLY View PDF and Remove */}
@@ -562,7 +614,7 @@ export default function AdSbTcScreen() {
           {/* View PDF Button - uses tc_pdf_id */}
           <TouchableOpacity 
             style={[styles.viewPdfButton, isDownloading && styles.buttonDisabled]}
-            onPress={() => openTcPdf(tcPdfId, item.ref)}
+            onPress={() => openTcPdf(tcPdfId, displayIdentifier)}
             activeOpacity={0.7}
             disabled={isDownloading || !tcPdfId}
           >
@@ -579,10 +631,10 @@ export default function AdSbTcScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Remove Button - uses tc_reference_id */}
+          {/* Remove Button - uses tc_reference_id - DO NOT MODIFY */}
           <TouchableOpacity 
             style={[styles.removeButton, isDeleting && styles.buttonDisabled]}
-            onPress={() => handleRemove(tcRefId, item.ref)}
+            onPress={() => handleRemove(tcRefId, displayIdentifier)}
             activeOpacity={0.7}
             disabled={isDeleting || !tcRefId}
           >
@@ -863,8 +915,13 @@ const styles = StyleSheet.create({
   // Imported Card Styles
   cardsList: { gap: 12 },
   importedCard: { backgroundColor: COLORS.white, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: COLORS.pdfBlue, borderLeftWidth: 4 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 },
   cardRef: { flex: 1, fontSize: 16, fontWeight: '700', color: COLORS.textDark, marginLeft: 10 },
+  // Identifier Badge (AD number)
+  identifierBadge: { backgroundColor: COLORS.primary + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginLeft: 8 },
+  identifierBadgeText: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
+  // Card title (description)
+  cardTitle: { fontSize: 15, fontWeight: '600', color: COLORS.textDark, marginBottom: 8, lineHeight: 20 },
   // PDF Badge
   pdfBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.pdfBlueBg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   pdfBadgeText: { fontSize: 10, fontWeight: '700', color: COLORS.pdfBlue, marginLeft: 4 },
