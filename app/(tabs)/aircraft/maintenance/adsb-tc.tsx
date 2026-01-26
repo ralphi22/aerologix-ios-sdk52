@@ -341,17 +341,21 @@ export default function AdSbTcScreen() {
 
   /**
    * Open PDF using authenticated fetch + base64 + expo-sharing
-   * iOS TestFlight compatible approach:
+   * iOS TestFlight compatible approach with STRICT validation:
    * 1. Fetch PDF with Authorization header
-   * 2. Convert response to base64
-   * 3. Write to FileSystem.cacheDirectory
-   * 4. Open via expo-sharing (shareAsync)
+   * 2. Validate response.ok
+   * 3. Convert to blob and validate blob.size > 0
+   * 4. Convert to base64
+   * 5. Write to FileSystem.cacheDirectory
+   * 6. Open via expo-sharing (shareAsync)
+   * 
+   * FORBIDDEN: Linking.openURL, WebView
    * 
    * @param tcPdfId - The tc_pdf_id from baseline item (REQUIRED)
    * @param refName - Reference name for filename
    */
   const openTcPdf = async (tcPdfId: string | undefined, refName: string) => {
-    // Validation
+    // Guard: tc_pdf_id required
     if (!tcPdfId) {
       console.error('[PDF] No tc_pdf_id provided');
       Alert.alert('', texts.pdfError);
@@ -361,20 +365,19 @@ export default function AdSbTcScreen() {
     setDownloadingPdfId(tcPdfId);
 
     try {
-      // Check if sharing is available on this device
+      // Step 1: Check if sharing is available on this device
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
         console.error('[PDF] Sharing not available on this device');
         Alert.alert('', texts.pdfError);
-        setDownloadingPdfId(null);
-        return;
+        return; // finally will reset state
       }
 
-      // Build API URL - use tc_pdf_id ONLY
+      // Step 2: Build API URL - GET /api/adsb/tc/pdf/{tc_pdf_id}
       const pdfUrl = `${api.defaults.baseURL}/api/adsb/tc/pdf/${tcPdfId}`;
       console.log(`[PDF] Fetching: ${pdfUrl}`);
 
-      // Fetch PDF with Authorization header
+      // Step 3: Fetch PDF with Authorization header
       const response = await fetch(pdfUrl, {
         method: 'GET',
         headers: {
@@ -385,30 +388,50 @@ export default function AdSbTcScreen() {
 
       console.log(`[PDF] Response status: ${response.status}`);
 
+      // Guard: response.ok must be true
       if (!response.ok) {
         console.error(`[PDF] Fetch failed: ${response.status} ${response.statusText}`);
         Alert.alert('', texts.pdfError);
-        setDownloadingPdfId(null);
-        return;
+        return; // finally will reset state
       }
 
-      // Convert to blob then to base64
+      // Step 4: Convert to blob
       const blob = await response.blob();
-      const reader = new FileReader();
-      
+      console.log(`[PDF] Blob size: ${blob.size} bytes`);
+
+      // Guard: blob.size must be > 0
+      if (!blob || blob.size === 0) {
+        console.error('[PDF] PDF file is empty (blob.size === 0)');
+        Alert.alert('', texts.pdfEmpty || 'PDF file is empty');
+        return; // finally will reset state
+      }
+
+      // Step 5: Convert blob to base64
       const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
         reader.onloadend = () => {
           const dataUrl = reader.result as string;
+          if (!dataUrl || !dataUrl.includes(',')) {
+            reject(new Error('Invalid base64 conversion'));
+            return;
+          }
           // Extract base64 part (remove "data:application/pdf;base64," prefix)
           const base64 = dataUrl.split(',')[1];
+          if (!base64 || base64.length === 0) {
+            reject(new Error('Empty base64 data'));
+            return;
+          }
           resolve(base64);
         };
-        reader.onerror = reject;
+        reader.onerror = () => reject(new Error('FileReader error'));
         reader.readAsDataURL(blob);
       });
 
-      // Write to cache directory
-      const filename = `${refName.replace(/[^a-zA-Z0-9-_]/g, '_')}_${Date.now()}.pdf`;
+      console.log(`[PDF] Base64 length: ${base64Data.length}`);
+
+      // Step 6: Write to cache directory
+      const sanitizedName = refName.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const filename = `${sanitizedName}_${Date.now()}.pdf`;
       const localUri = `${FileSystem.cacheDirectory}${filename}`;
       
       console.log(`[PDF] Writing to: ${localUri}`);
@@ -416,7 +439,16 @@ export default function AdSbTcScreen() {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Open PDF using expo-sharing (iOS TestFlight compatible)
+      // Step 7: Verify file exists before opening
+      const fileInfo = await FileSystem.getInfoAsync(localUri);
+      if (!fileInfo.exists) {
+        console.error('[PDF] File write failed - file does not exist');
+        Alert.alert('', texts.pdfError);
+        return; // finally will reset state
+      }
+      console.log(`[PDF] File written successfully, size: ${fileInfo.size} bytes`);
+
+      // Step 8: Open PDF using expo-sharing (iOS TestFlight compatible)
       console.log('[PDF] Opening with Sharing...');
       await Sharing.shareAsync(localUri, {
         mimeType: 'application/pdf',
@@ -428,6 +460,7 @@ export default function AdSbTcScreen() {
       console.error('[PDF] Error:', err?.message || err);
       Alert.alert('', texts.pdfError);
     } finally {
+      // ALWAYS reset downloading state
       setDownloadingPdfId(null);
     }
   };
