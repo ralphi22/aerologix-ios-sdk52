@@ -353,6 +353,85 @@ export default function AdSbTcScreen() {
   };
 
   // ============================================================
+  // SAFE DIRECTORY UTILITY
+  // ============================================================
+
+  /**
+   * Get a safe, verified directory for PDF storage.
+   * Creates /tc_pdfs/ subfolder if needed.
+   * Throws if no valid directory available.
+   */
+  const getSafePdfDirectory = async (): Promise<string> => {
+    // Step A: Determine base directory
+    let baseDir: string | null = null;
+    
+    // Try documentDirectory first
+    if (FileSystem.documentDirectory && FileSystem.documentDirectory.length > 0) {
+      baseDir = FileSystem.documentDirectory;
+      debugLog(`[DIR] Using documentDirectory: ${baseDir}`);
+    }
+    // Fallback to cacheDirectory
+    else if (FileSystem.cacheDirectory && FileSystem.cacheDirectory.length > 0) {
+      baseDir = FileSystem.cacheDirectory;
+      debugLog(`[DIR] Fallback to cacheDirectory: ${baseDir}`);
+    }
+    
+    // If still no directory, try to get it dynamically
+    if (!baseDir) {
+      debugLog('[DIR] Static dirs empty, checking dynamically...');
+      try {
+        const docInfo = await FileSystem.getInfoAsync(FileSystem.documentDirectory || '');
+        if (docInfo.exists) {
+          baseDir = FileSystem.documentDirectory;
+          debugLog(`[DIR] Dynamic documentDirectory found: ${baseDir}`);
+        }
+      } catch (e) {
+        debugLog(`[DIR] documentDirectory check failed: ${e}`);
+      }
+    }
+    
+    if (!baseDir) {
+      try {
+        const cacheInfo = await FileSystem.getInfoAsync(FileSystem.cacheDirectory || '');
+        if (cacheInfo.exists) {
+          baseDir = FileSystem.cacheDirectory;
+          debugLog(`[DIR] Dynamic cacheDirectory found: ${baseDir}`);
+        }
+      } catch (e) {
+        debugLog(`[DIR] cacheDirectory check failed: ${e}`);
+      }
+    }
+    
+    // Final check
+    if (!baseDir) {
+      debugLog('[DIR] FATAL: No valid directory available');
+      throw new Error('No valid directory available for PDF storage');
+    }
+    
+    // Step B: Create /tc_pdfs/ subfolder
+    const tcPdfDir = `${baseDir}tc_pdfs/`;
+    debugLog(`[DIR] Target subfolder: ${tcPdfDir}`);
+    
+    try {
+      const dirInfo = await FileSystem.getInfoAsync(tcPdfDir);
+      debugLog(`[DIR] Subfolder exists: ${dirInfo.exists}`);
+      
+      if (!dirInfo.exists) {
+        debugLog('[DIR] Creating subfolder...');
+        await FileSystem.makeDirectoryAsync(tcPdfDir, { intermediates: true });
+        debugLog('[DIR] Subfolder created successfully');
+      }
+    } catch (mkdirErr: any) {
+      debugLog(`[DIR] makeDirectoryAsync error: ${mkdirErr?.message}`);
+      // If mkdir fails, try using base directory directly
+      debugLog('[DIR] Falling back to base directory');
+      return baseDir;
+    }
+    
+    return tcPdfDir;
+  };
+
+  // ============================================================
   // PDF HANDLER - openTcPdf(tc_pdf_id)
   // ============================================================
 
@@ -416,17 +495,13 @@ export default function AdSbTcScreen() {
         return;
       }
 
-      // Step 4: Write to documentDirectory (with fallback to cacheDirectory)
-      const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory || '';
-      debugLog(`[PDF] Step 4: baseDir=${baseDir}`);
+      // Step 4: Get safe directory and write file
+      debugLog('[PDF] Step 4: Getting safe directory...');
+      const safeDir = await getSafePdfDirectory();
+      debugLog(`[PDF] Step 4: safeDir=${safeDir}`);
       
-      if (!baseDir) {
-        debugLog('[PDF] ERROR: No valid directory available');
-        Alert.alert('', texts.pdfError);
-        return;
-      }
-      
-      const fileUri = `${baseDir}tc_${tcPdfId}.pdf`;
+      const fileName = `tc_${tcPdfId}.pdf`;
+      const fileUri = `${safeDir}${fileName}`;
       debugLog(`[PDF] Step 4: Writing to ${fileUri}`);
       
       await FileSystem.writeAsStringAsync(fileUri, base64Data, {
