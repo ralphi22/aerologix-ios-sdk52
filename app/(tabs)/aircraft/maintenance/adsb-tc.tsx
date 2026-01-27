@@ -340,6 +340,19 @@ export default function AdSbTcScreen() {
   const [deletingRefId, setDeletingRefId] = useState<string | null>(null);
 
   // ============================================================
+  // DEBUG LOGS IN-APP (TEMPORAIRE)
+  // ============================================================
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [showDebug, setShowDebug] = useState(false);
+
+  const debugLog = (msg: string) => {
+    const timestamp = new Date().toISOString().slice(11, 19);
+    const logMsg = `[${timestamp}] ${msg}`;
+    console.log(logMsg);
+    setDebugLogs((prev) => [...prev.slice(-50), logMsg]);
+  };
+
+  // ============================================================
   // PDF HANDLER - openTcPdf(tc_pdf_id)
   // ============================================================
 
