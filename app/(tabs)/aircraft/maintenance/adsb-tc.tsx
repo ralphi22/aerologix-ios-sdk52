@@ -476,14 +476,6 @@ export default function AdSbTcScreen() {
       setDownloadingPdfId(null);
     }
   };
-      } else if (err?.response?.status === 404) {
-        console.error('[PDF] Not found (404)');
-      }
-      Alert.alert('', texts.pdfError);
-    } finally {
-      setDownloadingPdfId(null);
-    }
-  };
 
   // ============================================================
   // DELETE HANDLER - handleRemove(tc_reference_id, identifier)
