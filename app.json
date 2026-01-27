@@ -18,7 +18,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "12",
+      "buildNumber": "13",
       "bundleIdentifier": "com.ralphi.frontendsdk52clean",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
