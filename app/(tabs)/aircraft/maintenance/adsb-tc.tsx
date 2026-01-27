@@ -978,4 +978,18 @@ const styles = StyleSheet.create({
   removeButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.dangerRed, marginLeft: 6 },
   buttonDisabled: { opacity: 0.6 },
   bottomSpacer: { height: 40 },
+  // DEBUG STYLES (TEMPORAIRE)
+  debugButton: { position: 'absolute', bottom: 20, right: 20, backgroundColor: '#FF0000', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6 },
+  debugButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  debugModal: { flex: 1, backgroundColor: '#1a1a1a', paddingTop: 50 },
+  debugHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#333' },
+  debugTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
+  debugCloseBtn: { backgroundColor: '#FF0000', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6 },
+  debugCloseBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  debugClearBtn: { alignSelf: 'flex-start', marginLeft: 16, marginTop: 8, marginBottom: 8, backgroundColor: '#333', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 4 },
+  debugClearBtnText: { color: '#AAA', fontSize: 12 },
+  debugScrollView: { flex: 1 },
+  debugScrollContent: { padding: 16 },
+  debugEmpty: { color: '#666', fontSize: 14, fontStyle: 'italic' },
+  debugLogLine: { color: '#00FF00', fontSize: 11, fontFamily: 'monospace', marginBottom: 4, lineHeight: 16 },
 });
