@@ -416,8 +416,17 @@ export default function AdSbTcScreen() {
         return;
       }
 
-      // Step 4: Write to documentDirectory
-      const fileUri = FileSystem.documentDirectory + `tc_${tcPdfId}.pdf`;
+      // Step 4: Write to documentDirectory (with fallback to cacheDirectory)
+      const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory || '';
+      debugLog(`[PDF] Step 4: baseDir=${baseDir}`);
+      
+      if (!baseDir) {
+        debugLog('[PDF] ERROR: No valid directory available');
+        Alert.alert('', texts.pdfError);
+        return;
+      }
+      
+      const fileUri = `${baseDir}tc_${tcPdfId}.pdf`;
       debugLog(`[PDF] Step 4: Writing to ${fileUri}`);
       
       await FileSystem.writeAsStringAsync(fileUri, base64Data, {
