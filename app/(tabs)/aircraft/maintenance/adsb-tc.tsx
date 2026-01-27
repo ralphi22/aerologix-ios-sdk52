@@ -31,6 +31,7 @@ import {
   RefreshControl,
   Alert,
   Linking,
+  Modal,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -339,37 +340,42 @@ export default function AdSbTcScreen() {
   const [deletingRefId, setDeletingRefId] = useState<string | null>(null);
 
   // ============================================================
+  // DEBUG LOGS IN-APP (TEMPORAIRE)
+  // ============================================================
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [showDebug, setShowDebug] = useState(false);
+
+  const debugLog = (msg: string) => {
+    const timestamp = new Date().toISOString().slice(11, 19);
+    const logMsg = `[${timestamp}] ${msg}`;
+    console.log(logMsg);
+    setDebugLogs((prev) => [...prev.slice(-50), logMsg]);
+  };
+
+  // ============================================================
   // PDF HANDLER - openTcPdf(tc_pdf_id)
   // ============================================================
 
   /**
    * Open PDF using Axios + expo-file-system + expo-sharing
    * iOS TestFlight / React Native compatible.
-   * 
-   * Uses:
-   * - Axios interceptor for JWT (auto)
-   * - responseType: 'arraybuffer'
-   * - base64-arraybuffer for conversion
-   * - FileSystem.documentDirectory for persistent storage
-   * - expo-sharing for iOS share sheet
-   * 
-   * REQUIRED LOGS before rebuild:
-   * - [PDF FILE CHECK] exists=true size=XXXXX
-   * - [PDF SHARE AVAILABLE] true
    */
   const openTcPdf = async (tcPdfId: string | undefined, refName: string) => {
+    debugLog('[PDF] openTcPdf CALLED');
+    
     // Guard: tc_pdf_id required
     if (!tcPdfId) {
-      console.error('[PDF] No tc_pdf_id provided');
+      debugLog('[PDF] ERROR: No tc_pdf_id provided');
       Alert.alert('', texts.pdfError);
       return;
     }
 
+    debugLog(`[PDF] tc_pdf_id=${tcPdfId}`);
     setDownloadingPdfId(tcPdfId);
 
     try {
       // Step 1: Download PDF via Axios with arraybuffer
-      console.log(`[PDF] Fetching: /api/adsb/tc/pdf/${tcPdfId}`);
+      debugLog(`[PDF] Step 1: Fetching /api/adsb/tc/pdf/${tcPdfId}`);
       
       const response = await api.get(`/api/adsb/tc/pdf/${tcPdfId}`, {
         responseType: 'arraybuffer',
@@ -378,87 +384,95 @@ export default function AdSbTcScreen() {
         },
       });
 
-      console.log(`[PDF] Response status: ${response.status}`);
+      debugLog(`[PDF] Step 1 DONE: status=${response.status}`);
 
       // Step 2: Validate ArrayBuffer
+      debugLog('[PDF] Step 2: Validating ArrayBuffer');
       const arrayBuffer = response.data as ArrayBuffer;
       
       if (!arrayBuffer) {
-        console.error('[PDF] No data received from server');
+        debugLog('[PDF] ERROR: No data received from server');
         Alert.alert('', texts.pdfError);
         return;
       }
 
       const byteLength = arrayBuffer.byteLength;
-      console.log(`[PDF] ArrayBuffer size: ${byteLength} bytes`);
+      debugLog(`[PDF] Step 2 DONE: ArrayBuffer size=${byteLength} bytes`);
 
       if (byteLength === 0) {
-        console.error('[PDF] PDF file is empty (byteLength === 0)');
+        debugLog('[PDF] ERROR: PDF file is empty (byteLength === 0)');
         Alert.alert('', texts.pdfEmpty || 'PDF file is empty');
         return;
       }
 
       // Step 3: Convert ArrayBuffer to base64
+      debugLog('[PDF] Step 3: Converting to base64');
       const base64Data = encode(arrayBuffer);
-      console.log(`[PDF] Base64 length: ${base64Data.length}`);
+      debugLog(`[PDF] Step 3 DONE: Base64 length=${base64Data.length}`);
 
       if (!base64Data || base64Data.length === 0) {
-        console.error('[PDF] Base64 conversion failed');
+        debugLog('[PDF] ERROR: Base64 conversion failed');
         Alert.alert('', texts.pdfError);
         return;
       }
 
-      // Step 4: Write to documentDirectory (NOT cacheDirectory)
+      // Step 4: Write to documentDirectory
       const fileUri = FileSystem.documentDirectory + `tc_${tcPdfId}.pdf`;
+      debugLog(`[PDF] Step 4: Writing to ${fileUri}`);
       
-      console.log(`[PDF] Writing to: ${fileUri}`);
       await FileSystem.writeAsStringAsync(fileUri, base64Data, {
         encoding: FileSystem.EncodingType.Base64,
       });
+      debugLog('[PDF] Step 4 DONE: File written');
 
       // Step 5: MANDATORY CHECK - Verify file exists and size
+      debugLog('[PDF] Step 5: Checking file info');
       const fileInfo = await FileSystem.getInfoAsync(fileUri);
-      console.log(`[PDF FILE CHECK] exists=${fileInfo.exists} size=${fileInfo.exists ? fileInfo.size : 0}`);
+      debugLog(`[PDF FILE CHECK] exists=${fileInfo.exists} size=${fileInfo.exists ? fileInfo.size : 0}`);
       
       if (!fileInfo.exists) {
-        console.error('[PDF] File write failed - file does not exist');
+        debugLog('[PDF] ERROR: File does not exist after write');
         Alert.alert('', texts.pdfError);
         return;
       }
       
       if (fileInfo.size && fileInfo.size <= 1000) {
-        console.error(`[PDF] File too small (${fileInfo.size} bytes) - PDF invalid`);
+        debugLog(`[PDF] ERROR: File too small (${fileInfo.size} bytes)`);
         Alert.alert('', texts.pdfError);
         return;
       }
+      debugLog('[PDF] Step 5 DONE: File valid');
 
       // Step 6: MANDATORY CHECK - Verify sharing available
+      debugLog('[PDF] Step 6: Checking Sharing availability');
       const sharingAvailable = await Sharing.isAvailableAsync();
-      console.log(`[PDF SHARE AVAILABLE] ${sharingAvailable}`);
+      debugLog(`[PDF SHARE AVAILABLE] ${sharingAvailable}`);
       
       if (!sharingAvailable) {
-        console.error('[PDF] Sharing not available on this device');
+        debugLog('[PDF] ERROR: Sharing not available on this device');
         Alert.alert('', texts.pdfError);
         return;
       }
+      debugLog('[PDF] Step 6 DONE: Sharing available');
 
       // Step 7: Open PDF via iOS share sheet
-      console.log('[PDF] Opening with Sharing...');
+      debugLog('[PDF] Step 7: Calling Sharing.shareAsync...');
       await Sharing.shareAsync(fileUri, {
         mimeType: 'application/pdf',
         UTI: 'com.adobe.pdf',
       });
 
-      console.log('[PDF] Share sheet opened successfully');
+      debugLog('[PDF] Step 7 DONE: Share sheet opened successfully');
     } catch (err: any) {
-      console.error('[PDF] Error:', err?.message || err);
+      debugLog(`[PDF] CATCH ERROR: ${err?.message || err}`);
       if (err?.response?.status === 401) {
-        console.error('[PDF] Auth failed (401)');
+        debugLog('[PDF] Auth failed (401)');
       } else if (err?.response?.status === 404) {
-        console.error('[PDF] Not found (404)');
+        debugLog('[PDF] Not found (404)');
       }
       Alert.alert('', texts.pdfError);
     } finally {
+      debugLog('[PDF] FINALLY: Resetting downloadingPdfId');
       setDownloadingPdfId(null);
     }
   };
@@ -833,6 +847,43 @@ export default function AdSbTcScreen() {
       </View>
 
       {renderContent()}
+
+      {/* DEBUG PDF BUTTON (TEMPORAIRE) */}
+      <TouchableOpacity 
+        onPress={() => setShowDebug(true)} 
+        style={styles.debugButton}
+      >
+        <Text style={styles.debugButtonText}>DEBUG PDF LOGS ({debugLogs.length})</Text>
+      </TouchableOpacity>
+
+      {/* DEBUG LOGS MODAL */}
+      <Modal
+        visible={showDebug}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowDebug(false)}
+      >
+        <View style={styles.debugModal}>
+          <View style={styles.debugHeader}>
+            <Text style={styles.debugTitle}>PDF Debug Logs</Text>
+            <TouchableOpacity onPress={() => setShowDebug(false)} style={styles.debugCloseBtn}>
+              <Text style={styles.debugCloseBtnText}>CLOSE</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity onPress={() => setDebugLogs([])} style={styles.debugClearBtn}>
+            <Text style={styles.debugClearBtnText}>Clear Logs</Text>
+          </TouchableOpacity>
+          <ScrollView style={styles.debugScrollView} contentContainerStyle={styles.debugScrollContent}>
+            {debugLogs.length === 0 ? (
+              <Text style={styles.debugEmpty}>No logs yet. Tap "View PDF" to start.</Text>
+            ) : (
+              debugLogs.map((log, index) => (
+                <Text key={index} style={styles.debugLogLine}>{log}</Text>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -927,4 +978,18 @@ const styles = StyleSheet.create({
   removeButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.dangerRed, marginLeft: 6 },
   buttonDisabled: { opacity: 0.6 },
   bottomSpacer: { height: 40 },
+  // DEBUG STYLES (TEMPORAIRE)
+  debugButton: { position: 'absolute', bottom: 20, right: 20, backgroundColor: '#FF0000', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6 },
+  debugButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  debugModal: { flex: 1, backgroundColor: '#1a1a1a', paddingTop: 50 },
+  debugHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#333' },
+  debugTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
+  debugCloseBtn: { backgroundColor: '#FF0000', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6 },
+  debugCloseBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  debugClearBtn: { alignSelf: 'flex-start', marginLeft: 16, marginTop: 8, marginBottom: 8, backgroundColor: '#333', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 4 },
+  debugClearBtnText: { color: '#AAA', fontSize: 12 },
+  debugScrollView: { flex: 1 },
+  debugScrollContent: { padding: 16 },
+  debugEmpty: { color: '#666', fontSize: 14, fontStyle: 'italic' },
+  debugLogLine: { color: '#00FF00', fontSize: 11, fontFamily: 'monospace', marginBottom: 4, lineHeight: 16 },
 });
