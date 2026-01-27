@@ -847,6 +847,43 @@ export default function AdSbTcScreen() {
       </View>
 
       {renderContent()}
+
+      {/* DEBUG PDF BUTTON (TEMPORAIRE) */}
+      <TouchableOpacity 
+        onPress={() => setShowDebug(true)} 
+        style={styles.debugButton}
+      >
+        <Text style={styles.debugButtonText}>DEBUG PDF LOGS ({debugLogs.length})</Text>
+      </TouchableOpacity>
+
+      {/* DEBUG LOGS MODAL */}
+      <Modal
+        visible={showDebug}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowDebug(false)}
+      >
+        <View style={styles.debugModal}>
+          <View style={styles.debugHeader}>
+            <Text style={styles.debugTitle}>PDF Debug Logs</Text>
+            <TouchableOpacity onPress={() => setShowDebug(false)} style={styles.debugCloseBtn}>
+              <Text style={styles.debugCloseBtnText}>CLOSE</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity onPress={() => setDebugLogs([])} style={styles.debugClearBtn}>
+            <Text style={styles.debugClearBtnText}>Clear Logs</Text>
+          </TouchableOpacity>
+          <ScrollView style={styles.debugScrollView} contentContainerStyle={styles.debugScrollContent}>
+            {debugLogs.length === 0 ? (
+              <Text style={styles.debugEmpty}>No logs yet. Tap "View PDF" to start.</Text>
+            ) : (
+              debugLogs.map((log, index) => (
+                <Text key={index} style={styles.debugLogLine}>{log}</Text>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
