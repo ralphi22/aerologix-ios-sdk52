@@ -359,31 +359,23 @@ export default function AdSbTcScreen() {
   /**
    * Open PDF using Axios + expo-file-system + expo-sharing
    * iOS TestFlight / React Native compatible.
-   * 
-   * Uses:
-   * - Axios interceptor for JWT (auto)
-   * - responseType: 'arraybuffer'
-   * - base64-arraybuffer for conversion
-   * - FileSystem.documentDirectory for persistent storage
-   * - expo-sharing for iOS share sheet
-   * 
-   * REQUIRED LOGS before rebuild:
-   * - [PDF FILE CHECK] exists=true size=XXXXX
-   * - [PDF SHARE AVAILABLE] true
    */
   const openTcPdf = async (tcPdfId: string | undefined, refName: string) => {
+    debugLog('[PDF] openTcPdf CALLED');
+    
     // Guard: tc_pdf_id required
     if (!tcPdfId) {
-      console.error('[PDF] No tc_pdf_id provided');
+      debugLog('[PDF] ERROR: No tc_pdf_id provided');
       Alert.alert('', texts.pdfError);
       return;
     }
 
+    debugLog(`[PDF] tc_pdf_id=${tcPdfId}`);
     setDownloadingPdfId(tcPdfId);
 
     try {
       // Step 1: Download PDF via Axios with arraybuffer
-      console.log(`[PDF] Fetching: /api/adsb/tc/pdf/${tcPdfId}`);
+      debugLog(`[PDF] Step 1: Fetching /api/adsb/tc/pdf/${tcPdfId}`);
       
       const response = await api.get(`/api/adsb/tc/pdf/${tcPdfId}`, {
         responseType: 'arraybuffer',
@@ -392,82 +384,98 @@ export default function AdSbTcScreen() {
         },
       });
 
-      console.log(`[PDF] Response status: ${response.status}`);
+      debugLog(`[PDF] Step 1 DONE: status=${response.status}`);
 
       // Step 2: Validate ArrayBuffer
+      debugLog('[PDF] Step 2: Validating ArrayBuffer');
       const arrayBuffer = response.data as ArrayBuffer;
       
       if (!arrayBuffer) {
-        console.error('[PDF] No data received from server');
+        debugLog('[PDF] ERROR: No data received from server');
         Alert.alert('', texts.pdfError);
         return;
       }
 
       const byteLength = arrayBuffer.byteLength;
-      console.log(`[PDF] ArrayBuffer size: ${byteLength} bytes`);
+      debugLog(`[PDF] Step 2 DONE: ArrayBuffer size=${byteLength} bytes`);
 
       if (byteLength === 0) {
-        console.error('[PDF] PDF file is empty (byteLength === 0)');
+        debugLog('[PDF] ERROR: PDF file is empty (byteLength === 0)');
         Alert.alert('', texts.pdfEmpty || 'PDF file is empty');
         return;
       }
 
       // Step 3: Convert ArrayBuffer to base64
+      debugLog('[PDF] Step 3: Converting to base64');
       const base64Data = encode(arrayBuffer);
-      console.log(`[PDF] Base64 length: ${base64Data.length}`);
+      debugLog(`[PDF] Step 3 DONE: Base64 length=${base64Data.length}`);
 
       if (!base64Data || base64Data.length === 0) {
-        console.error('[PDF] Base64 conversion failed');
+        debugLog('[PDF] ERROR: Base64 conversion failed');
         Alert.alert('', texts.pdfError);
         return;
       }
 
-      // Step 4: Write to documentDirectory (NOT cacheDirectory)
+      // Step 4: Write to documentDirectory
       const fileUri = FileSystem.documentDirectory + `tc_${tcPdfId}.pdf`;
+      debugLog(`[PDF] Step 4: Writing to ${fileUri}`);
       
-      console.log(`[PDF] Writing to: ${fileUri}`);
       await FileSystem.writeAsStringAsync(fileUri, base64Data, {
         encoding: FileSystem.EncodingType.Base64,
       });
+      debugLog('[PDF] Step 4 DONE: File written');
 
       // Step 5: MANDATORY CHECK - Verify file exists and size
+      debugLog('[PDF] Step 5: Checking file info');
       const fileInfo = await FileSystem.getInfoAsync(fileUri);
-      console.log(`[PDF FILE CHECK] exists=${fileInfo.exists} size=${fileInfo.exists ? fileInfo.size : 0}`);
+      debugLog(`[PDF FILE CHECK] exists=${fileInfo.exists} size=${fileInfo.exists ? fileInfo.size : 0}`);
       
       if (!fileInfo.exists) {
-        console.error('[PDF] File write failed - file does not exist');
+        debugLog('[PDF] ERROR: File does not exist after write');
         Alert.alert('', texts.pdfError);
         return;
       }
       
       if (fileInfo.size && fileInfo.size <= 1000) {
-        console.error(`[PDF] File too small (${fileInfo.size} bytes) - PDF invalid`);
+        debugLog(`[PDF] ERROR: File too small (${fileInfo.size} bytes)`);
         Alert.alert('', texts.pdfError);
         return;
       }
+      debugLog('[PDF] Step 5 DONE: File valid');
 
       // Step 6: MANDATORY CHECK - Verify sharing available
+      debugLog('[PDF] Step 6: Checking Sharing availability');
       const sharingAvailable = await Sharing.isAvailableAsync();
-      console.log(`[PDF SHARE AVAILABLE] ${sharingAvailable}`);
+      debugLog(`[PDF SHARE AVAILABLE] ${sharingAvailable}`);
       
       if (!sharingAvailable) {
-        console.error('[PDF] Sharing not available on this device');
+        debugLog('[PDF] ERROR: Sharing not available on this device');
         Alert.alert('', texts.pdfError);
         return;
       }
+      debugLog('[PDF] Step 6 DONE: Sharing available');
 
       // Step 7: Open PDF via iOS share sheet
-      console.log('[PDF] Opening with Sharing...');
+      debugLog('[PDF] Step 7: Calling Sharing.shareAsync...');
       await Sharing.shareAsync(fileUri, {
         mimeType: 'application/pdf',
         UTI: 'com.adobe.pdf',
       });
 
-      console.log('[PDF] Share sheet opened successfully');
+      debugLog('[PDF] Step 7 DONE: Share sheet opened successfully');
     } catch (err: any) {
-      console.error('[PDF] Error:', err?.message || err);
+      debugLog(`[PDF] CATCH ERROR: ${err?.message || err}`);
       if (err?.response?.status === 401) {
-        console.error('[PDF] Auth failed (401)');
+        debugLog('[PDF] Auth failed (401)');
+      } else if (err?.response?.status === 404) {
+        debugLog('[PDF] Not found (404)');
+      }
+      Alert.alert('', texts.pdfError);
+    } finally {
+      debugLog('[PDF] FINALLY: Resetting downloadingPdfId');
+      setDownloadingPdfId(null);
+    }
+  };
       } else if (err?.response?.status === 404) {
         console.error('[PDF] Not found (404)');
       }
