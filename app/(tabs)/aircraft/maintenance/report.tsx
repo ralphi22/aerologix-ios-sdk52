@@ -78,17 +78,20 @@ function calculateDateProgress(lastDate: string, limitMonths: number): { percent
 
 interface ProgressBarProps {
   percent: number;
-  status: 'ok' | 'warning' | 'exceeded';
+  status: 'ok' | 'warning' | 'exceeded' | 'unknown';
 }
 
 function ProgressBar({ percent, status }: ProgressBarProps) {
-  const color = status === 'exceeded' ? COLORS.red : status === 'warning' ? COLORS.orange : COLORS.green;
+  // TC-SAFE: Show grey bar for unknown status
+  const color = status === 'unknown' ? COLORS.grey : 
+                status === 'exceeded' ? COLORS.red : 
+                status === 'warning' ? COLORS.orange : COLORS.green;
   return (
     <View style={styles.progressContainer}>
       <View style={styles.progressTrack}>
         <View style={[styles.progressBar, { width: `${Math.min(percent, 100)}%`, backgroundColor: color }]} />
       </View>
-      <Text style={styles.progressPercent}>{percent}%</Text>
+      <Text style={styles.progressPercent}>{status === 'unknown' ? 'N/D' : `${percent}%`}</Text>
     </View>
   );
 }
