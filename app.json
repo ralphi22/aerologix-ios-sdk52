@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "frontend-sdk52-clean",
+    "name": "AeroLogix AI",
     "slug": "frontend-sdk52-clean",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -21,7 +21,8 @@
       "buildNumber": "13",
       "bundleIdentifier": "com.ralphi.frontendsdk52clean",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDisplayName": "AeroLogix"
       }
     },
     "android": {
