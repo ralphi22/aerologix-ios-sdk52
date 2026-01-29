@@ -137,7 +137,7 @@ interface CriticalElementCardProps {
   limitValue: string;
   limitLabel: string;
   percent: number;
-  status: 'ok' | 'warning' | 'exceeded';
+  status: 'ok' | 'warning' | 'exceeded' | 'unknown';
   regulatorySystem?: RegulatorySystem;
   limitationText?: string;
 }
