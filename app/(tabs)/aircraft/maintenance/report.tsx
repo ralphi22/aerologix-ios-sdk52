@@ -230,13 +230,32 @@ export default function ReportScreen() {
   const pompeProgress = calculateHoursProgress(settings.pompeVideHoursUsed, limits.pompeVideHours);
   
   // ELT progress from ELT store (with fallback)
+  // TC-SAFE: Check if ANY ELT date is present before showing 'ok' status
   const eltTestProgressData = eltContext?.getTestProgress?.() || { percent: 0, status: 'operational' };
-  const eltData = eltContext?.eltData || { lastTestDate: '' };
-  const eltProgress = {
-    percent: eltTestProgressData.percent || 0,
-    status: eltTestProgressData.status === 'operational' ? 'ok' as const : 
-            eltTestProgressData.status === 'attention' ? 'warning' as const : 'exceeded' as const,
-  };
+  const eltData = eltContext?.eltData || { lastTestDate: '', lastBatteryDate: '', batteryExpiryDate: '', activationDate: '', serviceDate: '' };
+  const eltStatus = eltContext?.getEltStatus?.() || 'unknown';
+  
+  // TC-SAFE: Check if any ELT date exists
+  const hasAnyEltDate = !!(
+    eltData.lastTestDate ||
+    eltData.lastBatteryDate ||
+    eltData.batteryExpiryDate ||
+    eltData.activationDate ||
+    eltData.serviceDate
+  );
+  
+  // Map ELT status to card status, respecting TC-SAFE rule
+  const eltProgress: { percent: number; status: 'ok' | 'warning' | 'exceeded' | 'unknown' } = hasAnyEltDate
+    ? {
+        percent: eltTestProgressData.percent || 0,
+        status: eltStatus === 'operational' ? 'ok' : 
+                eltStatus === 'attention' ? 'warning' : 
+                eltStatus === 'expired' ? 'exceeded' : 'unknown',
+      }
+    : {
+        percent: 0,
+        status: 'unknown',
+      };
 
   const navigateToSettings = () => {
     router.push({
