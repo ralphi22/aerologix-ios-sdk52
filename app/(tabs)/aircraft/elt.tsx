@@ -58,7 +58,7 @@ function StatusIndicator({ status }: { status: EltStatus }) {
         return {
           color: COLORS.green,
           bgColor: COLORS.greenLight,
-          text: lang === 'fr' ? 'Opérationnel' : 'Operational',
+          text: lang === 'fr' ? 'Statut visuel' : 'Visual status',
           icon: '✓',
         };
       case 'attention':
@@ -69,13 +69,20 @@ function StatusIndicator({ status }: { status: EltStatus }) {
           icon: '⚠',
         };
       case 'expired':
-      default:
-        // Fallback défensif - évite crash si status undefined/inconnu
         return {
           color: COLORS.red,
           bgColor: COLORS.redLight,
           text: lang === 'fr' ? 'À vérifier' : 'Check Required',
           icon: '✕',
+        };
+      case 'unknown':
+      default:
+        // TC-SAFE: No ELT date available - show neutral/unknown status
+        return {
+          color: '#757575', // Grey
+          bgColor: '#EEEEEE', // Light grey
+          text: lang === 'fr' ? 'Aucune donnée ELT' : 'No ELT data',
+          icon: '?',
         };
     }
   };
@@ -90,7 +97,9 @@ function StatusIndicator({ status }: { status: EltStatus }) {
       <View style={styles.statusTextContainer}>
         <Text style={[styles.statusValue, { color: config.color }]}>{config.text}</Text>
         <Text style={styles.statusLabel}>
-          {lang === 'fr' ? 'Statut visuel' : 'Visual status'}
+          {status === 'unknown' 
+            ? (lang === 'fr' ? 'Statut inconnu' : 'Unknown status')
+            : (lang === 'fr' ? 'Statut visuel' : 'Visual status')}
         </Text>
       </View>
     </View>
