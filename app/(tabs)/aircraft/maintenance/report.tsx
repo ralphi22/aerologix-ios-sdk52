@@ -429,16 +429,16 @@ export default function ReportScreen() {
           {/* ELT */}
           <CriticalElementCard
             icon="📍"
-            iconBg={eltProgress.status === 'exceeded' ? COLORS.redLight : COLORS.greenLight}
+            iconBg={eltProgress.status === 'exceeded' ? COLORS.redLight : eltProgress.status === 'unknown' ? COLORS.greyLight : COLORS.greenLight}
             title="ELT"
             subtitle="Date"
-            currentValue={`Test: ${eltData.lastTestDate || 'N/A'}`}
+            currentValue={`Test: ${eltData.lastTestDate || (lang === 'fr' ? 'Aucune date' : 'No date')}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
             limitValue={`${ELT_FIXED_LIMITS.TEST_MONTHS}m / Batt ${ELT_FIXED_LIMITS.BATTERY_MIN_MONTHS}-${ELT_FIXED_LIMITS.BATTERY_MAX_MONTHS}m`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
             percent={eltProgress.percent}
             status={eltProgress.status}
-            regulatorySystem="elt"
+            regulatorySystem={eltProgress.status !== 'unknown' ? 'elt' : undefined}
           />
         </View>
 
