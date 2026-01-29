@@ -70,7 +70,7 @@ export interface OcrScanRecord {
   aircraftId: string;
 }
 
-export type EltStatus = 'operational' | 'attention' | 'expired';
+export type EltStatus = 'operational' | 'attention' | 'expired' | 'unknown';
 
 interface EltContextType {
   eltData: EltData;
