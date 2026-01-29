@@ -360,6 +360,20 @@ export function EltProvider({ children }: { children: ReactNode }) {
   }, [eltData.batteryExpiryDate, eltData.lastBatteryDate]);
 
   const getEltStatus = useCallback((): EltStatus => {
+    // TC-SAFE: Check if ANY ELT date is present
+    const hasAnyEltDate = !!(
+      eltData.lastTestDate ||
+      eltData.lastBatteryDate ||
+      eltData.batteryExpiryDate ||
+      eltData.activationDate ||
+      eltData.serviceDate
+    );
+    
+    // If no ELT date is present, return 'unknown' status
+    if (!hasAnyEltDate) {
+      return 'unknown';
+    }
+    
     const testProgress = getTestProgress();
     const batteryProgress = getBatteryProgress();
     
@@ -370,7 +384,7 @@ export function EltProvider({ children }: { children: ReactNode }) {
       return 'attention';
     }
     return 'operational';
-  }, [getTestProgress, getBatteryProgress]);
+  }, [eltData, getTestProgress, getBatteryProgress]);
 
   return React.createElement(
     EltContext.Provider,
