@@ -94,11 +94,24 @@ function ProgressBar({ percent, status }: ProgressBarProps) {
 }
 
 interface StatusBadgeProps {
-  status: 'ok' | 'warning' | 'exceeded';
+  status: 'ok' | 'warning' | 'exceeded' | 'unknown';
 }
 
 function StatusBadge({ status }: StatusBadgeProps) {
   const lang = getLanguage();
+  
+  // TC-SAFE: Handle unknown status (no data)
+  if (status === 'unknown') {
+    return (
+      <View style={[styles.statusBadge, { backgroundColor: '#EEEEEE' }]}>
+        <View style={[styles.statusDot, { backgroundColor: COLORS.grey }]} />
+        <Text style={[styles.statusText, { color: COLORS.grey }]}>
+          {lang === 'fr' ? 'Aucune donnée' : 'No data'}
+        </Text>
+      </View>
+    );
+  }
+  
   const color = status === 'exceeded' ? COLORS.red : status === 'warning' ? COLORS.orange : COLORS.green;
   const text = status === 'exceeded' 
     ? (lang === 'fr' ? 'Dépassé' : 'Exceeded')
