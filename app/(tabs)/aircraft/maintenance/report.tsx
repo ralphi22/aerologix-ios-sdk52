@@ -294,9 +294,10 @@ export default function ReportScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Global Regulatory Banner - Only for Avionics and ELT when ≥100% */}
+        {/* Global Regulatory Banner - Only for ELT when ≥100% */}
+        {/* Note: Avionics alert is displayed locally on the chart only */}
         <GlobalRegulatoryBanner 
-          avionicsPercent={avioniqueProgress.percent} 
+          avionicsPercent={0}
           eltPercent={eltProgress.percent} 
         />
 
