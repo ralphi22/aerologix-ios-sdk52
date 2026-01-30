@@ -181,18 +181,6 @@ export default function PartsScreen() {
     return COMPONENT_ICONS[type.toLowerCase()] || COMPONENT_ICONS.default;
   };
 
-  // Get status badge style
-  const getStatusStyle = (status: string) => {
-    switch (status) {
-      case 'critical':
-        return { bg: COLORS.redBg, color: COLORS.red, text: lang === 'fr' ? 'Critique' : 'Critical' };
-      case 'warning':
-        return { bg: COLORS.orangeBg, color: COLORS.orange, text: lang === 'fr' ? 'Attention' : 'Warning' };
-      default:
-        return { bg: COLORS.greenBg, color: COLORS.green, text: 'OK' };
-    }
-  };
-
   // Render critical mention card (no compliance status)
   const renderCriticalMention = (mention: CriticalMention) => {
     return (
