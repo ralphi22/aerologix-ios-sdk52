@@ -505,6 +505,11 @@ export default function AdSbTcScreen() {
     const isImported = item.origin === 'USER_IMPORTED_REFERENCE';
     const isTcBaseline = item.origin === 'TC_BASELINE';
     
+    // Permission flags - Use backend flags if available, otherwise infer from IDs
+    // This ensures buttons show for ALL items with valid IDs
+    const canOpenPdf = item.can_open_pdf === true || (tcPdfId !== undefined && tcPdfId !== null && tcPdfId !== '');
+    const canDelete = item.can_delete === true || (tcRefId !== undefined && tcRefId !== null && tcRefId !== '');
+    
     const displayTitle = item.title || item.identifier || texts.fallbackTitle;
     const displayIdentifier = item.identifier || item.ref;
     
