@@ -230,82 +230,57 @@ export default function PartsScreen() {
     }
   };
 
-  // Render critical component card
-  const renderCriticalComponent = (component: CriticalComponent) => {
-    const statusStyle = getStatusStyle(component.status);
-    
+  // Render critical mention card (no compliance status)
+  const renderCriticalMention = (mention: CriticalMention) => {
     return (
-      <View key={component.id} style={styles.criticalCard}>
+      <View key={mention.id} style={styles.criticalCard}>
         {/* Header */}
         <View style={styles.criticalHeader}>
           <View style={styles.criticalIconContainer}>
             <Text style={styles.criticalIcon}>
-              {getComponentIcon(component.component_type)}
+              {getComponentIcon(mention.component_type)}
             </Text>
           </View>
           <View style={styles.criticalInfo}>
-            <Text style={styles.criticalName}>{component.name}</Text>
-            {component.part_number && (
-              <Text style={styles.criticalPn}>P/N: {component.part_number}</Text>
+            <Text style={styles.criticalName}>{mention.name}</Text>
+            {mention.part_number && (
+              <Text style={styles.criticalPn}>P/N: {mention.part_number}</Text>
             )}
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-            <Text style={[styles.statusText, { color: statusStyle.color }]}>
-              {statusStyle.text}
-            </Text>
-          </View>
         </View>
 
-        {/* Progress bar */}
-        <View style={styles.progressSection}>
-          <Text style={styles.progressLabel}>
-            {lang === 'fr' ? 'Temps depuis installation' : 'Time Since Install'}
-          </Text>
-          <ProgressBar 
-            value={component.time_since_install} 
-            max={component.tbo} 
-            status={component.status}
-          />
-        </View>
-
-        {/* Stats grid */}
+        {/* Reference info - dates only, no status */}
         <View style={styles.statsGrid}>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>
-              {lang === 'fr' ? 'Installé à' : 'Installed at'}
-            </Text>
-            <Text style={styles.statValue}>{component.installed_at_hours.toFixed(1)}h</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>
-              {lang === 'fr' ? 'Cellule actuelle' : 'Current Airframe'}
-            </Text>
-            <Text style={styles.statValue}>{component.current_airframe_hours.toFixed(1)}h</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>
-              {lang === 'fr' ? 'Temps en service' : 'Time in Service'}
-            </Text>
-            <Text style={[styles.statValue, styles.statHighlight]}>
-              {component.time_since_install.toFixed(1)}h
-            </Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>TBO</Text>
-            <Text style={styles.statValue}>{component.tbo}h</Text>
-          </View>
-          <View style={[styles.statItem, styles.statItemFull]}>
-            <Text style={styles.statLabel}>
-              {lang === 'fr' ? 'Restant' : 'Remaining'}
-            </Text>
-            <Text style={[
-              styles.statValue, 
-              styles.statLarge,
-              { color: statusStyle.color }
-            ]}>
-              {component.remaining.toFixed(1)}h
-            </Text>
-          </View>
+          {mention.reference_date && (
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>
+                {lang === 'fr' ? 'Date de référence' : 'Reference Date'}
+              </Text>
+              <Text style={styles.statValue}>{mention.reference_date}</Text>
+            </View>
+          )}
+          {mention.installed_at_hours !== undefined && (
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>
+                {lang === 'fr' ? 'Installé à' : 'Installed at'}
+              </Text>
+              <Text style={styles.statValue}>{mention.installed_at_hours.toFixed(1)}h</Text>
+            </View>
+          )}
+          {mention.tbo !== undefined && (
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>TBO</Text>
+              <Text style={styles.statValue}>{mention.tbo}h</Text>
+            </View>
+          )}
+          {mention.source_document && (
+            <View style={[styles.statItem, styles.statItemFull]}>
+              <Text style={styles.statLabel}>
+                {lang === 'fr' ? 'Source' : 'Source'}
+              </Text>
+              <Text style={styles.statValue}>{mention.source_document}</Text>
+            </View>
+          )}
         </View>
       </View>
     );
