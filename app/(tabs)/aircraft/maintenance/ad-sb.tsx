@@ -665,6 +665,20 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   
+  // Occurrence info (for count > 1)
+  occurrenceContainer: {
+    backgroundColor: COLORS.background,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  occurrenceText: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    lineHeight: 20,
+  },
+  
   // Actions
   cardActions: { flexDirection: 'row', gap: 12 },
   deleteButton: { 
