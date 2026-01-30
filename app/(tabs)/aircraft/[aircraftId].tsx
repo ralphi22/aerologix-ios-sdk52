@@ -3,7 +3,7 @@
  * Shows full aircraft information, modules, tools, and sharing options
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { t, getLanguage } from '@/i18n';
 import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
 import { useElt } from '@/stores/eltStore';
+import { useReportSettings } from '@/stores/reportSettingsStore';
 
 const COLORS = {
   primary: '#0033A0',
