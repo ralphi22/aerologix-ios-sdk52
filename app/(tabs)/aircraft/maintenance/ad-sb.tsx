@@ -1,12 +1,12 @@
 /**
  * AD/SB Screen - Visual storage for Airworthiness Directives & Service Bulletins
  * TC-SAFE: Information only, no compliance decisions
- * Now syncs with backend and shows aggregated counts
  * 
  * SOURCE: User's scanned documents (OCR) - NOT official TC data
+ * ENDPOINT: GET /api/adsb/ocr-scan/{aircraft_id} (aggregated data)
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,10 +18,11 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
-import { useMaintenanceData } from '@/stores/maintenanceDataStore';
+import api from '@/services/api';
 
 // ============================================
 // BILINGUAL TEXTS
@@ -39,17 +40,13 @@ const TEXTS = {
     add: 'Add',
     numberPlaceholder: 'Number (e.g. AD 96-09-06)',
     fillAllFields: 'Please fill all fields',
-    ocrComingSoon: 'OCR function coming soon',
     deleteConfirm: 'Delete',
     infoNotice: 'Detected in scanned maintenance reports. Informational only.',
     disclaimer: 'Information only. Does not replace an AME nor an official record. All regulatory decisions remain with the owner and maintenance organization.',
-    seenInReports: 'Seen in',
-    reports: 'reports',
-    report: 'report',
-    firstDetected: 'First detected',
-    lastDetected: 'Last detected',
+    seenTimes: 'Seen {count} times',
+    lastSeen: 'Last seen: {date}',
     loading: 'Loading AD/SB...',
-    errorLoading: 'Failed to load AD/SB',
+    errorLoading: 'Failed to load',
     retry: 'Retry',
   },
   fr: {
@@ -64,15 +61,11 @@ const TEXTS = {
     add: 'Ajouter',
     numberPlaceholder: 'Numéro (ex: AD 96-09-06)',
     fillAllFields: 'Veuillez remplir tous les champs',
-    ocrComingSoon: 'Fonction OCR bientôt disponible',
     deleteConfirm: 'Supprimer',
     infoNotice: 'Détecté dans les rapports de maintenance scannés. Informatif uniquement.',
     disclaimer: "Information seulement. Ne remplace pas un TEA/AME ni un registre officiel. Toute décision réglementaire appartient au propriétaire et à l'atelier.",
-    seenInReports: 'Vu dans',
-    reports: 'rapports',
-    report: 'rapport',
-    firstDetected: 'Première détection',
-    lastDetected: 'Dernière détection',
+    seenTimes: 'Vu {count} fois',
+    lastSeen: 'Dernière détection: {date}',
     loading: 'Chargement AD/SB...',
     errorLoading: 'Échec du chargement',
     retry: 'Réessayer',
@@ -97,15 +90,28 @@ const COLORS = {
   grey: '#9E9E9E',
 };
 
-// Aggregated AD/SB type with count
-interface AggregatedAdSb {
-  number: string;
+// ============================================
+// TYPES - Backend OCR Aggregated Response
+// ============================================
+interface OcrAdSbItem {
+  id?: string;
+  _id?: string;
+  reference: string;           // AD/SB reference number
   type: 'AD' | 'SB';
-  description: string;
-  count: number;
-  firstDate: string;
-  lastDate: string;
-  ids: string[]; // All IDs for this reference (for deletion)
+  description?: string;
+  occurrence_count: number;    // From backend aggregation
+  last_seen?: string;          // From backend aggregation
+  first_seen?: string;
+  aircraft_id: string;
+}
+
+interface OcrAdSbResponse {
+  items: OcrAdSbItem[];
+  count: {
+    ad: number;
+    sb: number;
+    total: number;
+  };
 }
 
 export default function AdSbScreen() {
@@ -113,89 +119,73 @@ export default function AdSbScreen() {
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage() as 'en' | 'fr';
   const texts = TEXTS[lang];
-  const { adSbs, addAdSb, deleteAdSb, getAdSbsByAircraft, syncWithBackend, isLoading } = useMaintenanceData();
 
+  // State
+  const [items, setItems] = useState<OcrAdSbItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  
+  // Add modal state
   const [showAddModal, setShowAddModal] = useState(false);
   const [newType, setNewType] = useState<'AD' | 'SB'>('AD');
   const [newNumber, setNewNumber] = useState('');
   const [newDescription, setNewDescription] = useState('');
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [localLoading, setLocalLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Sync with backend on mount
-  useEffect(() => {
-    const loadData = async () => {
-      if (aircraftId) {
-        setLocalLoading(true);
-        setError(null);
-        try {
-          await syncWithBackend(aircraftId);
-        } catch (err: any) {
-          setError(err?.message || texts.errorLoading);
-        } finally {
-          setLocalLoading(false);
-        }
-      }
-    };
-    loadData();
-  }, [aircraftId]);
+  // ============================================
+  // FETCH DATA - Using OCR aggregated endpoint
+  // ============================================
+  const fetchData = useCallback(async (showRefreshing = false) => {
+    if (!aircraftId) return;
 
-  const aircraftAdSbs = getAdSbsByAircraft(aircraftId || '');
+    if (showRefreshing) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+    setError(null);
 
-  // Aggregate AD/SB by reference number (deduplicate with count)
-  const aggregatedData = useMemo(() => {
-    const map = new Map<string, AggregatedAdSb>();
-    
-    aircraftAdSbs.forEach(item => {
-      const key = `${item.type}-${item.number.toUpperCase().trim()}`;
+    try {
+      // ✅ CORRECT ENDPOINT: OCR aggregated data
+      const response = await api.get(`/api/adsb/ocr-scan/${aircraftId}`);
+      const data = response.data as OcrAdSbResponse;
       
-      if (map.has(key)) {
-        const existing = map.get(key)!;
-        existing.count += 1;
-        existing.ids.push(item.id);
-        // Update description if current one is longer/better
-        if (item.description && item.description.length > existing.description.length) {
-          existing.description = item.description;
+      console.log('[AD/SB OCR] Data received:', data);
+      
+      // Handle both response formats (items array or direct array)
+      const itemsList = data.items || (Array.isArray(data) ? data : []);
+      
+      // Sort: AD first, then by reference
+      const sortedItems = itemsList.sort((a, b) => {
+        if (a.type !== b.type) {
+          return a.type === 'AD' ? -1 : 1;
         }
-        // Track first and last dates
-        if (item.dateAdded < existing.firstDate) {
-          existing.firstDate = item.dateAdded;
-        }
-        if (item.dateAdded > existing.lastDate) {
-          existing.lastDate = item.dateAdded;
-        }
-      } else {
-        map.set(key, {
-          number: item.number.toUpperCase().trim(),
-          type: item.type,
-          description: item.description || '',
-          count: 1,
-          firstDate: item.dateAdded || '',
-          lastDate: item.dateAdded || '',
-          ids: [item.id],
-        });
-      }
-    });
-    
-    // Convert to array and sort: AD first, then by number
-    return Array.from(map.values()).sort((a, b) => {
-      if (a.type !== b.type) {
-        return a.type === 'AD' ? -1 : 1;
-      }
-      return a.number.localeCompare(b.number);
-    });
-  }, [aircraftAdSbs]);
+        return a.reference.localeCompare(b.reference);
+      });
+      
+      setItems(sortedItems);
+    } catch (err: any) {
+      console.warn('[AD/SB OCR] Error:', err?.message);
+      setError(err?.response?.data?.detail || err?.message || texts.errorLoading);
+      setItems([]);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [aircraftId, texts.errorLoading]);
 
-  // Separate AD and SB counts
-  const adItems = aggregatedData.filter(item => item.type === 'AD');
-  const sbItems = aggregatedData.filter(item => item.type === 'SB');
-  const uniqueAdCount = adItems.length;
-  const uniqueSbCount = sbItems.length;
-  const totalAdDetections = adItems.reduce((sum, item) => sum + item.count, 0);
-  const totalSbDetections = sbItems.reduce((sum, item) => sum + item.count, 0);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-  // Navigate to TC AD/SB screen
+  const handleRefresh = useCallback(() => {
+    fetchData(true);
+  }, [fetchData]);
+
+  // ============================================
+  // ACTIONS
+  // ============================================
   const handleNavigateToTC = () => {
     router.push({
       pathname: '/(tabs)/aircraft/maintenance/adsb-tc',
@@ -203,82 +193,83 @@ export default function AdSbScreen() {
     });
   };
 
-  const handleDelete = (aggregated: AggregatedAdSb) => {
-    const message = aggregated.count > 1 
-      ? lang === 'fr' 
-        ? `Supprimer toutes les ${aggregated.count} occurrences de "${aggregated.number}" ?`
-        : `Delete all ${aggregated.count} occurrences of "${aggregated.number}"?`
-      : `${texts.deleteConfirm} "${aggregated.number}" ?`;
-    
+  const handleDelete = (item: OcrAdSbItem) => {
+    const itemId = item.id || item._id;
+    if (!itemId) {
+      Alert.alert('Error', 'Cannot delete - no ID');
+      return;
+    }
+
     Alert.alert(
       texts.delete,
-      message,
+      `${texts.deleteConfirm} "${item.reference}" ?`,
       [
         { text: texts.cancel, style: 'cancel' },
         { 
           text: texts.delete, 
           style: 'destructive', 
           onPress: async () => {
-            setDeletingId(aggregated.ids[0]);
-            // Delete all occurrences
-            for (const id of aggregated.ids) {
-              await deleteAdSb(id);
+            setDeletingId(itemId);
+            try {
+              await api.delete(`/api/adsb/${itemId}`);
+              // Refresh data after deletion
+              fetchData(true);
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Failed to delete');
+            } finally {
+              setDeletingId(null);
             }
-            setDeletingId(null);
           }
         },
       ]
     );
   };
 
-  const handleRetry = async () => {
-    setLocalLoading(true);
-    setError(null);
-    try {
-      await syncWithBackend(aircraftId || '');
-    } catch (err: any) {
-      setError(err?.message || texts.errorLoading);
-    } finally {
-      setLocalLoading(false);
-    }
-  };
-
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!newNumber.trim() || !newDescription.trim()) {
       Alert.alert('Error', texts.fillAllFields);
       return;
     }
-    addAdSb({
-      type: newType,
-      number: newNumber.toUpperCase(),
-      description: newDescription,
-      dateAdded: new Date().toISOString().split('T')[0],
-      aircraftId: aircraftId || '',
-    });
-    setShowAddModal(false);
-    setNewNumber('');
-    setNewDescription('');
+    
+    try {
+      await api.post('/api/adsb', {
+        aircraft_id: aircraftId,
+        adsb_type: newType,
+        reference_number: newNumber.toUpperCase(),
+        description: newDescription,
+      });
+      
+      setShowAddModal(false);
+      setNewNumber('');
+      setNewDescription('');
+      fetchData(true);
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to add');
+    }
   };
 
-  // Render count badge
+  // ============================================
+  // RENDER HELPERS
+  // ============================================
+  
+  // Count badge (only if > 1)
   const renderCountBadge = (count: number) => {
     if (count <= 1) return null;
     return (
       <View style={styles.detectionBadge}>
-        <Text style={styles.detectionBadgeText}>
-          {count}×
-        </Text>
+        <Text style={styles.detectionBadgeText}>{count}×</Text>
       </View>
     );
   };
 
-  // Render a single aggregated card
-  const renderAggregatedCard = (item: AggregatedAdSb) => {
-    const isDeleting = deletingId && item.ids.includes(deletingId);
-    const showOccurrenceInfo = item.count > 1;
+  // Render single card
+  const renderCard = (item: OcrAdSbItem) => {
+    const itemId = item.id || item._id || item.reference;
+    const isDeleting = deletingId === itemId;
+    const showOccurrenceInfo = item.occurrence_count > 1;
     
     return (
-      <View key={`${item.type}-${item.number}`} style={[styles.card, isDeleting && styles.cardDeleting]}>
+      <View key={itemId} style={[styles.card, isDeleting && styles.cardDeleting]}>
         <View style={styles.cardHeader}>
           <View style={[styles.typeBadge, item.type === 'AD' ? styles.adBadge : styles.sbBadge]}>
             <Text style={[styles.typeBadgeText, item.type === 'AD' ? styles.adText : styles.sbText]}>
@@ -287,12 +278,12 @@ export default function AdSbScreen() {
           </View>
           <View style={styles.cardInfo}>
             <View style={styles.cardNumberRow}>
-              <Text style={styles.cardNumber}>{item.number}</Text>
-              {renderCountBadge(item.count)}
+              <Text style={styles.cardNumber}>{item.reference}</Text>
+              {renderCountBadge(item.occurrence_count)}
             </View>
-            {/* Show date only if single occurrence */}
-            {!showOccurrenceInfo && (
-              <Text style={styles.cardDate}>{item.firstDate}</Text>
+            {/* Show first_seen date only if single occurrence */}
+            {!showOccurrenceInfo && item.first_seen && (
+              <Text style={styles.cardDate}>{item.first_seen}</Text>
             )}
           </View>
           {isDeleting && (
@@ -308,11 +299,13 @@ export default function AdSbScreen() {
         {showOccurrenceInfo && (
           <View style={styles.occurrenceContainer}>
             <Text style={styles.occurrenceText}>
-              {lang === 'fr' ? `Vu ${item.count} fois` : `Seen ${item.count} times`}
+              {texts.seenTimes.replace('{count}', String(item.occurrence_count))}
             </Text>
-            <Text style={styles.occurrenceText}>
-              {lang === 'fr' ? `Dernière détection: ${item.lastDate}` : `Last seen: ${item.lastDate}`}
-            </Text>
+            {item.last_seen && (
+              <Text style={styles.occurrenceText}>
+                {texts.lastSeen.replace('{date}', item.last_seen)}
+              </Text>
+            )}
           </View>
         )}
         
@@ -320,7 +313,7 @@ export default function AdSbScreen() {
           <TouchableOpacity 
             style={styles.deleteButton} 
             onPress={() => handleDelete(item)}
-            disabled={!!isDeleting}
+            disabled={isDeleting}
           >
             <Text style={styles.deleteButtonText}>{texts.delete}</Text>
           </TouchableOpacity>
@@ -328,6 +321,10 @@ export default function AdSbScreen() {
       </View>
     );
   };
+
+  // Separate AD and SB
+  const adItems = items.filter(item => item.type === 'AD');
+  const sbItems = items.filter(item => item.type === 'SB');
 
   return (
     <View style={styles.container}>
@@ -358,16 +355,11 @@ export default function AdSbScreen() {
       {/* Count Badges */}
       <View style={styles.countContainer}>
         <View style={[styles.countBadge, { backgroundColor: '#FFEBEE' }]}>
-          <Text style={[styles.countText, { color: COLORS.red }]}>
-            AD: {uniqueAdCount} {totalAdDetections > uniqueAdCount ? `(${totalAdDetections}×)` : ''}
-          </Text>
+          <Text style={[styles.countText, { color: COLORS.red }]}>AD: {adItems.length}</Text>
         </View>
         <View style={[styles.countBadge, { backgroundColor: COLORS.orange }]}>
-          <Text style={[styles.countText, { color: '#E65100' }]}>
-            SB: {uniqueSbCount} {totalSbDetections > uniqueSbCount ? `(${totalSbDetections}×)` : ''}
-          </Text>
+          <Text style={[styles.countText, { color: '#E65100' }]}>SB: {sbItems.length}</Text>
         </View>
-        {/* TC AD/SB Button */}
         <TouchableOpacity 
           style={[styles.countBadge, styles.tcBadge]} 
           onPress={handleNavigateToTC}
@@ -376,9 +368,19 @@ export default function AdSbScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={isRefreshing} 
+            onRefresh={handleRefresh} 
+            colors={[COLORS.primary]} 
+          />
+        }
+      >
         {/* Loading State */}
-        {(localLoading || isLoading) && !error && (
+        {isLoading && !isRefreshing && (
           <View style={styles.loadingState}>
             <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={styles.loadingText}>{texts.loading}</Text>
@@ -386,18 +388,18 @@ export default function AdSbScreen() {
         )}
 
         {/* Error State */}
-        {error && !localLoading && (
+        {error && !isLoading && (
           <View style={styles.errorState}>
             <Text style={styles.errorIcon}>⚠️</Text>
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+            <TouchableOpacity style={styles.retryButton} onPress={() => fetchData()}>
               <Text style={styles.retryButtonText}>{texts.retry}</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {/* Empty State */}
-        {!localLoading && !isLoading && !error && aggregatedData.length === 0 && (
+        {!isLoading && !error && items.length === 0 && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>📋</Text>
             <Text style={styles.emptyText}>{texts.noRecords}</Text>
@@ -406,16 +408,16 @@ export default function AdSbScreen() {
         )}
 
         {/* Data Display */}
-        {!localLoading && !isLoading && !error && aggregatedData.length > 0 && (
+        {!isLoading && !error && items.length > 0 && (
           <View style={styles.cardsContainer}>
             {/* AD Section */}
             {adItems.length > 0 && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>Airworthiness Directives</Text>
-                  <Text style={styles.sectionCount}>{uniqueAdCount}</Text>
+                  <Text style={styles.sectionCount}>{adItems.length}</Text>
                 </View>
-                {adItems.map(renderAggregatedCard)}
+                {adItems.map(renderCard)}
               </View>
             )}
 
@@ -424,9 +426,9 @@ export default function AdSbScreen() {
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>Service Bulletins</Text>
-                  <Text style={styles.sectionCount}>{uniqueSbCount}</Text>
+                  <Text style={styles.sectionCount}>{sbItems.length}</Text>
                 </View>
-                {sbItems.map(renderAggregatedCard)}
+                {sbItems.map(renderCard)}
               </View>
             )}
           </View>
@@ -650,19 +652,6 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 12,
     fontWeight: 'bold',
-  },
-  
-  // Date range
-  dateRangeContainer: {
-    backgroundColor: COLORS.background,
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  dateRangeText: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    marginBottom: 2,
   },
   
   // Occurrence info (for count > 1)
