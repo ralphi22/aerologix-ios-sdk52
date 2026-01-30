@@ -1,23 +1,22 @@
 /**
- * TC AD/SB Page 2 - User Imported PDF References ONLY
+ * TC AD/SB Page - Official Transport Canada References
  * 
- * DISPLAYS ONLY:
- * - Items with origin === 'USER_IMPORTED_REFERENCE'
+ * DISPLAYS:
+ * - TC_BASELINE items (official TC references)
+ * - USER_IMPORTED_REFERENCE items (imported PDFs)
  * 
- * ❌ NEVER display TC_BASELINE here
- * ❌ NO OCR logic (count_seen)
+ * FEATURES:
+ * - Badge "Seen" / "Not Seen" based on count_seen from backend
+ * - Visual indication if AD/SB was found in scanned documents
+ * 
  * ❌ NO compliance wording
+ * ❌ NO regulatory interpretation
  * 
  * ENDPOINTS:
  * - GET /api/adsb/baseline/{aircraft_id} - Fetch data
  * - GET /api/adsb/tc/pdf/{pdf_id} - Download PDF (authenticated)
  * - DELETE /api/adsb/tc/reference/{tc_reference_id} - Remove reference
  * - POST /api/adsb/tc/import-pdf/{aircraft_id} - Import new PDF
- * 
- * PDF APPROACH (iOS TestFlight compatible):
- * 1. Download PDF bytes with Bearer token
- * 2. Write to FileSystem.cacheDirectory
- * 3. Open with expo-sharing (shareAsync)
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -32,6 +31,7 @@ import {
   Alert,
   Linking,
   Modal,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -65,6 +65,11 @@ const COLORS = {
   disclaimerYellowBorder: '#FFE082',
   pdfBlue: '#2196F3',
   pdfBlueBg: '#E3F2FD',
+  // Seen/Not Seen colors
+  seenGreen: '#4CAF50',
+  seenGreenBg: '#E8F5E9',
+  notSeenOrange: '#FF9800',
+  notSeenOrangeBg: '#FFF3E0',
 };
 
 // ============================================================
@@ -73,12 +78,12 @@ const COLORS = {
 const TEXTS = {
   en: {
     screenTitle: 'TC AD/SB',
-    screenSubtitle: 'Imported References',
-    sectionTitle: 'Your Imported PDF References',
+    screenSubtitle: 'Transport Canada References',
+    sectionTitle: 'Official TC References',
     adSection: 'Airworthiness Directives (AD)',
     sbSection: 'Service Bulletins (SB)',
-    noImportedReferences: 'No imported PDF references yet.',
-    noImportedHint: 'Use the button below to import Transport Canada PDF documents.',
+    noReferences: 'No TC references available.',
+    noReferencesHint: 'Import Transport Canada PDF documents or check your aircraft model.',
     disclaimer: 'Informational only. This tool does not determine airworthiness or compliance. Verification with official Transport Canada records and a licensed AME is required.',
     loading: 'Loading references...',
     error: 'Unable to retrieve data at this time.',
@@ -102,19 +107,26 @@ const TEXTS = {
     pdfError: 'Unable to open PDF.',
     pdfEmpty: 'PDF file is empty.',
     pdfDownloading: 'Downloading...',
-    // Card fixed message
-    cardMessage: 'Imported reference for document review. This does not indicate compliance or airworthiness status.',
+    // Seen/Not Seen badges
+    seenBadge: 'Seen',
+    notSeenBadge: 'Not Seen',
+    seenInDocs: 'in documents',
+    // Explanatory text for Seen/Not Seen
+    seenExplanation: 'This indicates whether the AD/SB reference was found in scanned documents. Verification must be done manually using aircraft manuals and official records.',
     // Fallback title
-    fallbackTitle: 'Imported TC reference',
+    fallbackTitle: 'TC reference',
+    // Origins
+    originTcBaseline: 'TC Official',
+    originImported: 'Imported PDF',
   },
   fr: {
     screenTitle: 'TC AD/SB',
-    screenSubtitle: 'Références importées',
-    sectionTitle: 'Vos références PDF importées',
+    screenSubtitle: 'Références Transport Canada',
+    sectionTitle: 'Références TC officielles',
     adSection: 'Consignes de navigabilité (AD)',
     sbSection: 'Bulletins de service (SB)',
-    noImportedReferences: 'Aucune référence PDF importée.',
-    noImportedHint: 'Utilisez le bouton ci-dessous pour importer des documents PDF Transport Canada.',
+    noReferences: 'Aucune référence TC disponible.',
+    noReferencesHint: 'Importez des documents PDF Transport Canada ou vérifiez le modèle de votre aéronef.',
     disclaimer: 'Informatif seulement. Cet outil ne détermine pas la navigabilité ou la conformité. Vérification avec les registres officiels de Transport Canada et un TEA agréé requise.',
     loading: 'Chargement des références...',
     error: 'Impossible de récupérer les données.',
@@ -138,10 +150,17 @@ const TEXTS = {
     pdfError: 'Impossible d\'ouvrir le PDF.',
     pdfEmpty: 'Le fichier PDF est vide.',
     pdfDownloading: 'Téléchargement du PDF...',
-    // Card fixed message
-    cardMessage: 'Référence importée pour révision documentaire. Ceci n\'indique pas un statut de conformité ou de navigabilité.',
+    // Seen/Not Seen badges
+    seenBadge: 'Vu',
+    notSeenBadge: 'Non vu',
+    seenInDocs: 'dans les documents',
+    // Explanatory text for Seen/Not Seen
+    seenExplanation: 'Ceci indique si la référence AD/SB a été trouvée dans les documents scannés. La vérification doit être effectuée manuellement avec les manuels de l\'aéronef et les registres officiels.',
     // Fallback title
-    fallbackTitle: 'Référence TC importée',
+    fallbackTitle: 'Référence TC',
+    // Origins
+    originTcBaseline: 'TC Officiel',
+    originImported: 'PDF importé',
   },
 };
 
@@ -149,40 +168,26 @@ const TEXTS = {
 // TYPES - BACKEND BASELINE CONTRACT
 // ============================================================
 
-/**
- * Single AD or SB item from backend baseline
- * 
- * For USER_IMPORTED_REFERENCE items:
- * - origin = 'USER_IMPORTED_REFERENCE'
- * - tc_reference_id = ID for DELETE operation
- * - tc_pdf_id = ID for PDF download
- */
 interface ADSBBaselineItem {
   ref: string;
   type: 'AD' | 'SB';
   title?: string;
-  identifier?: string; // AD number (e.g., "CF-2024-01")
+  identifier?: string;
   recurrence?: string;
-  count_seen?: number; // Optional - not used in TC page
-  origin?: string; // 'USER_IMPORTED_REFERENCE' | 'TC_BASELINE' | etc.
+  count_seen?: number; // Number of times seen in scanned documents
+  seen_in_documents?: boolean; // Computed from count_seen > 0
+  origin?: string; // 'USER_IMPORTED_REFERENCE' | 'TC_BASELINE'
   pdf_available?: boolean;
-  // IDs for API operations - EXACT backend field names
-  tc_reference_id?: string; // Used for DELETE /api/adsb/tc/reference-by-id/{tc_reference_id}
-  tc_pdf_id?: string; // Used for GET /api/adsb/tc/pdf/{tc_pdf_id}
+  tc_reference_id?: string;
+  tc_pdf_id?: string;
 }
 
-/**
- * Response from GET /api/adsb/baseline/{aircraft_id}
- * Pre-computed MongoDB data - NO live lookup
- */
 interface ADSBBaselineResponse {
   aircraft: {
     manufacturer: string;
     model: string;
   };
-  // Legacy format
   items?: ADSBBaselineItem[];
-  // New format with separate lists
   ad_list?: ADSBBaselineItem[];
   sb_list?: ADSBBaselineItem[];
   count: {
@@ -210,39 +215,43 @@ export default function AdSbTcScreen() {
   const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ADSBBaselineResponse | null>(null);
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
+  const [deletingRefId, setDeletingRefId] = useState<string | null>(null);
 
-  /**
-   * Phase 1: Import TC PDF
-   * - Opens iOS document picker (PDF only, multi-select)
-   * - Sends each file to backend via POST /api/adsb/tc/import-pdf/{aircraftId}
-   * - NO parsing, NO logic, just network orchestration
-   * - Refreshes baseline data after success
-   */
+  // Debug logs (temporary)
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [showDebug, setShowDebug] = useState(false);
+
+  const debugLog = (msg: string) => {
+    const timestamp = new Date().toISOString().slice(11, 19);
+    const logMsg = `[${timestamp}] ${msg}`;
+    console.log(logMsg);
+    setDebugLogs((prev) => [...prev.slice(-50), logMsg]);
+  };
+
+  // ============================================================
+  // PDF IMPORT
+  // ============================================================
   const handleImportPdf = async () => {
     if (!aircraftId) return;
 
     try {
-      // Open document picker - PDF only, allow multiple
       const result = await DocumentPicker.getDocumentAsync({
         type: 'application/pdf',
         multiple: true,
         copyToCacheDirectory: true,
       });
 
-      // User cancelled - exit silently
       if (result.canceled || !result.assets || result.assets.length === 0) {
         return;
       }
 
       setIsImporting(true);
-
-      // Upload each selected PDF
       let successCount = 0;
       let errorCount = 0;
 
       for (const asset of result.assets) {
         try {
-          // Build FormData for multipart upload
           const formData = new FormData();
           formData.append('file', {
             uri: asset.uri,
@@ -250,48 +259,33 @@ export default function AdSbTcScreen() {
             name: asset.name || 'tc_document.pdf',
           } as any);
 
-          // POST to backend - no parsing on frontend
           await api.post(`/api/adsb/tc/import-pdf/${aircraftId}`, formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-            },
+            headers: { 'Content-Type': 'multipart/form-data' },
           });
 
           successCount++;
-          console.log(`[TC Import] Uploaded: ${asset.name}`);
         } catch (uploadErr) {
           errorCount++;
-          console.warn(`[TC Import] Failed to upload: ${asset.name}`, uploadErr);
         }
       }
 
       setIsImporting(false);
 
-      // Show result
       if (successCount > 0) {
         Alert.alert('', texts.importPdfSuccess);
-        // Refresh baseline data from backend
         fetchBaseline(true);
       } else if (errorCount > 0) {
         Alert.alert('', texts.importPdfError);
       }
     } catch (err) {
-      console.error('[TC Import] Error:', err);
       setIsImporting(false);
       Alert.alert('', texts.importPdfError);
     }
   };
 
-  /**
-   * Fetch AD/SB baseline from MongoDB
-   * ENDPOINT: /api/adsb/baseline/{aircraft_id}
-   * 
-   * Called:
-   * - 1x on mount
-   * - 1x on manual refresh
-   * 
-   * NO live lookup, NO loop
-   */
+  // ============================================================
+  // FETCH BASELINE
+  // ============================================================
   const fetchBaseline = useCallback(async (showRefreshing = false) => {
     if (!aircraftId) {
       setError(texts.error);
@@ -307,15 +301,9 @@ export default function AdSbTcScreen() {
     setError(null);
 
     try {
-      // BASELINE ENDPOINT - MongoDB pre-computed data
       const response = await api.get(`/api/adsb/baseline/${aircraftId}`);
-      
-      // DEV LOG
       console.log('[AD/SB BASELINE]', response.data);
-      
-      // Store response as-is - NO transformation, NO logic
       setData(response.data as ADSBBaselineResponse);
-      
     } catch (err: unknown) {
       console.warn('[AD/SB BASELINE] Error:', err);
       setError(texts.error);
@@ -325,106 +313,38 @@ export default function AdSbTcScreen() {
     }
   }, [aircraftId, texts.error]);
 
-  // Single call on mount
   useEffect(() => {
     fetchBaseline();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleRefresh = useCallback(() => {
     fetchBaseline(true);
   }, [fetchBaseline]);
 
-  // State for PDF download and delete operations
-  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
-  const [deletingRefId, setDeletingRefId] = useState<string | null>(null);
-
   // ============================================================
-  // DEBUG LOGS IN-APP (TEMPORAIRE)
+  // PDF DIRECTORY UTILITY
   // ============================================================
-  const [debugLogs, setDebugLogs] = useState<string[]>([]);
-  const [showDebug, setShowDebug] = useState(false);
-
-  const debugLog = (msg: string) => {
-    const timestamp = new Date().toISOString().slice(11, 19);
-    const logMsg = `[${timestamp}] ${msg}`;
-    console.log(logMsg);
-    setDebugLogs((prev) => [...prev.slice(-50), logMsg]);
-  };
-
-  // ============================================================
-  // SAFE DIRECTORY UTILITY
-  // ============================================================
-
-  /**
-   * Get a safe, verified directory for PDF storage.
-   * Creates /tc_pdfs/ subfolder if needed.
-   * Throws if no valid directory available.
-   */
   const getSafePdfDirectory = async (): Promise<string> => {
-    // Step A: Determine base directory
     let baseDir: string | null = null;
     
-    // Try documentDirectory first
     if (FileSystem.documentDirectory && FileSystem.documentDirectory.length > 0) {
       baseDir = FileSystem.documentDirectory;
-      debugLog(`[DIR] Using documentDirectory: ${baseDir}`);
-    }
-    // Fallback to cacheDirectory
-    else if (FileSystem.cacheDirectory && FileSystem.cacheDirectory.length > 0) {
+    } else if (FileSystem.cacheDirectory && FileSystem.cacheDirectory.length > 0) {
       baseDir = FileSystem.cacheDirectory;
-      debugLog(`[DIR] Fallback to cacheDirectory: ${baseDir}`);
-    }
-    
-    // If still no directory, try to get it dynamically
-    if (!baseDir) {
-      debugLog('[DIR] Static dirs empty, checking dynamically...');
-      try {
-        const docInfo = await FileSystem.getInfoAsync(FileSystem.documentDirectory || '');
-        if (docInfo.exists) {
-          baseDir = FileSystem.documentDirectory;
-          debugLog(`[DIR] Dynamic documentDirectory found: ${baseDir}`);
-        }
-      } catch (e) {
-        debugLog(`[DIR] documentDirectory check failed: ${e}`);
-      }
     }
     
     if (!baseDir) {
-      try {
-        const cacheInfo = await FileSystem.getInfoAsync(FileSystem.cacheDirectory || '');
-        if (cacheInfo.exists) {
-          baseDir = FileSystem.cacheDirectory;
-          debugLog(`[DIR] Dynamic cacheDirectory found: ${baseDir}`);
-        }
-      } catch (e) {
-        debugLog(`[DIR] cacheDirectory check failed: ${e}`);
-      }
-    }
-    
-    // Final check
-    if (!baseDir) {
-      debugLog('[DIR] FATAL: No valid directory available');
       throw new Error('No valid directory available for PDF storage');
     }
     
-    // Step B: Create /tc_pdfs/ subfolder
     const tcPdfDir = `${baseDir}tc_pdfs/`;
-    debugLog(`[DIR] Target subfolder: ${tcPdfDir}`);
     
     try {
       const dirInfo = await FileSystem.getInfoAsync(tcPdfDir);
-      debugLog(`[DIR] Subfolder exists: ${dirInfo.exists}`);
-      
       if (!dirInfo.exists) {
-        debugLog('[DIR] Creating subfolder...');
         await FileSystem.makeDirectoryAsync(tcPdfDir, { intermediates: true });
-        debugLog('[DIR] Subfolder created successfully');
       }
     } catch (mkdirErr: any) {
-      debugLog(`[DIR] makeDirectoryAsync error: ${mkdirErr?.message}`);
-      // If mkdir fails, try using base directory directly
-      debugLog('[DIR] Falling back to base directory');
       return baseDir;
     }
     
@@ -432,152 +352,66 @@ export default function AdSbTcScreen() {
   };
 
   // ============================================================
-  // PDF HANDLER - openTcPdf(tc_pdf_id)
+  // PDF HANDLER
   // ============================================================
-
-  /**
-   * Open PDF using Axios + expo-file-system + expo-sharing
-   * iOS TestFlight / React Native compatible.
-   */
   const openTcPdf = async (tcPdfId: string | undefined, refName: string) => {
-    debugLog('[PDF] openTcPdf CALLED');
-    
-    // Guard: tc_pdf_id required
     if (!tcPdfId) {
-      debugLog('[PDF] ERROR: No tc_pdf_id provided');
       Alert.alert('', texts.pdfError);
       return;
     }
 
-    debugLog(`[PDF] tc_pdf_id=${tcPdfId}`);
     setDownloadingPdfId(tcPdfId);
 
     try {
-      // Step 1: Download PDF via Axios with arraybuffer
-      debugLog(`[PDF] Step 1: Fetching /api/adsb/tc/pdf/${tcPdfId}`);
-      
       const response = await api.get(`/api/adsb/tc/pdf/${tcPdfId}`, {
         responseType: 'arraybuffer',
-        headers: {
-          'Accept': 'application/pdf',
-        },
+        headers: { 'Accept': 'application/pdf' },
       });
 
-      debugLog(`[PDF] Step 1 DONE: status=${response.status}`);
-
-      // Step 2: Validate ArrayBuffer
-      debugLog('[PDF] Step 2: Validating ArrayBuffer');
       const arrayBuffer = response.data as ArrayBuffer;
       
-      if (!arrayBuffer) {
-        debugLog('[PDF] ERROR: No data received from server');
-        Alert.alert('', texts.pdfError);
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+        Alert.alert('', texts.pdfEmpty);
         return;
       }
 
-      const byteLength = arrayBuffer.byteLength;
-      debugLog(`[PDF] Step 2 DONE: ArrayBuffer size=${byteLength} bytes`);
-
-      if (byteLength === 0) {
-        debugLog('[PDF] ERROR: PDF file is empty (byteLength === 0)');
-        Alert.alert('', texts.pdfEmpty || 'PDF file is empty');
-        return;
-      }
-
-      // Step 3: Convert ArrayBuffer to base64
-      debugLog('[PDF] Step 3: Converting to base64');
       const base64Data = encode(arrayBuffer);
-      debugLog(`[PDF] Step 3 DONE: Base64 length=${base64Data.length}`);
-
-      if (!base64Data || base64Data.length === 0) {
-        debugLog('[PDF] ERROR: Base64 conversion failed');
-        Alert.alert('', texts.pdfError);
-        return;
-      }
-
-      // Step 4: Get safe directory and write file
-      debugLog('[PDF] Step 4: Getting safe directory...');
       const safeDir = await getSafePdfDirectory();
-      debugLog(`[PDF] Step 4: safeDir=${safeDir}`);
-      
       const fileName = `tc_${tcPdfId}.pdf`;
       const fileUri = `${safeDir}${fileName}`;
-      debugLog(`[PDF] Step 4: Writing to ${fileUri}`);
       
       await FileSystem.writeAsStringAsync(fileUri, base64Data, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      debugLog('[PDF] Step 4 DONE: File written');
 
-      // Step 5: MANDATORY CHECK - Verify file exists and size
-      debugLog('[PDF] Step 5: Checking file info');
       const fileInfo = await FileSystem.getInfoAsync(fileUri);
-      debugLog(`[PDF FILE CHECK] exists=${fileInfo.exists} size=${fileInfo.exists ? fileInfo.size : 0}`);
-      
-      if (!fileInfo.exists) {
-        debugLog('[PDF] ERROR: File does not exist after write');
+      if (!fileInfo.exists || (fileInfo.size && fileInfo.size <= 1000)) {
         Alert.alert('', texts.pdfError);
         return;
       }
-      
-      if (fileInfo.size && fileInfo.size <= 1000) {
-        debugLog(`[PDF] ERROR: File too small (${fileInfo.size} bytes)`);
-        Alert.alert('', texts.pdfError);
-        return;
-      }
-      debugLog('[PDF] Step 5 DONE: File valid');
 
-      // Step 6: MANDATORY CHECK - Verify sharing available
-      debugLog('[PDF] Step 6: Checking Sharing availability');
       const sharingAvailable = await Sharing.isAvailableAsync();
-      debugLog(`[PDF SHARE AVAILABLE] ${sharingAvailable}`);
-      
       if (!sharingAvailable) {
-        debugLog('[PDF] ERROR: Sharing not available on this device');
         Alert.alert('', texts.pdfError);
         return;
       }
-      debugLog('[PDF] Step 6 DONE: Sharing available');
 
-      // Step 7: Open PDF via iOS share sheet
-      debugLog('[PDF] Step 7: Calling Sharing.shareAsync...');
       await Sharing.shareAsync(fileUri, {
         mimeType: 'application/pdf',
         UTI: 'com.adobe.pdf',
       });
-
-      debugLog('[PDF] Step 7 DONE: Share sheet opened successfully');
     } catch (err: any) {
-      debugLog(`[PDF] CATCH ERROR: ${err?.message || err}`);
-      if (err?.response?.status === 401) {
-        debugLog('[PDF] Auth failed (401)');
-      } else if (err?.response?.status === 404) {
-        debugLog('[PDF] Not found (404)');
-      }
       Alert.alert('', texts.pdfError);
     } finally {
-      debugLog('[PDF] FINALLY: Resetting downloadingPdfId');
       setDownloadingPdfId(null);
     }
   };
 
   // ============================================================
-  // DELETE HANDLER - handleRemove(tc_reference_id, identifier)
+  // DELETE HANDLER
   // ============================================================
-
-  /**
-   * Delete a reference from workspace
-   * Uses tc_reference_id (ObjectId string) via the correct endpoint
-   * DELETE /api/adsb/tc/reference-by-id/{tc_reference_id}
-   * After success → refetch baseline
-   * 
-   * @param tcReferenceId - The tc_reference_id ObjectId from baseline item (REQUIRED)
-   * @param identifier - The identifier (CF-xxxx-xx) for logging
-   */
   const handleRemove = (tcReferenceId: string | undefined, identifier: string) => {
-    // Validation
     if (!tcReferenceId) {
-      console.error('[Delete] No tc_reference_id provided');
       Alert.alert('', texts.deleteError);
       return;
     }
@@ -593,19 +427,10 @@ export default function AdSbTcScreen() {
           onPress: async () => {
             setDeletingRefId(tcReferenceId);
             try {
-              // Log before DELETE
-              console.log(`[Delete] tc_reference_id=${tcReferenceId}, identifier=${identifier}`);
-              console.log(`[Delete] DELETE /api/adsb/tc/reference-by-id/${tcReferenceId}`);
-              
               await api.delete(`/api/adsb/tc/reference-by-id/${tcReferenceId}`);
-              
-              console.log('[Delete] Success');
               Alert.alert('', texts.deleteSuccess);
-              
-              // Mandatory: refetch baseline (source of truth)
               fetchBaseline(true);
             } catch (err: any) {
-              console.error('[Delete] Error:', err?.response?.status, err?.message);
               Alert.alert('', texts.deleteError);
             } finally {
               setDeletingRefId(null);
@@ -616,59 +441,81 @@ export default function AdSbTcScreen() {
     );
   };
 
-  /**
-   * Open Transport Canada AD search page
-   */
   const handleSearchTcAds = () => {
     Linking.openURL(TC_AD_SEARCH_URL);
   };
 
   // ============================================================
-  // FILTER: ONLY USER_IMPORTED_REFERENCE
-  // ❌ Never display TC_BASELINE here
-  // ❌ No OCR logic (count_seen)
+  // PROCESS DATA - Combine and sort all items
   // ============================================================
-  
-  // Filter ad_list for USER_IMPORTED_REFERENCE only
-  const importedAdItems = (data?.ad_list ?? []).filter(
-    item => item.origin === 'USER_IMPORTED_REFERENCE'
-  );
+  const allAdItems = data?.ad_list ?? [];
+  const allSbItems = data?.sb_list ?? [];
+  const hasData = allAdItems.length > 0 || allSbItems.length > 0;
 
-  // Filter sb_list for USER_IMPORTED_REFERENCE only
-  const importedSbItems = (data?.sb_list ?? []).filter(
-    item => item.origin === 'USER_IMPORTED_REFERENCE'
-  );
-
-  // Check if we have imported data to display
-  const hasImportedData = importedAdItems.length > 0 || importedSbItems.length > 0;
+  // Calculate seen/not seen counts
+  const adSeenCount = allAdItems.filter(item => (item.count_seen || 0) > 0).length;
+  const adNotSeenCount = allAdItems.length - adSeenCount;
+  const sbSeenCount = allSbItems.filter(item => (item.count_seen || 0) > 0).length;
+  const sbNotSeenCount = allSbItems.length - sbSeenCount;
 
   // ============================================================
-  // RENDER SINGLE IMPORTED CARD
-  // Uses tc_pdf_id for PDF, tc_reference_id for DELETE
-  // ❌ No OCR logic (count_seen)
-  // ❌ No TC button per card (moved to header)
+  // RENDER SEEN/NOT SEEN BADGE
   // ============================================================
-  const renderImportedCard = (item: ADSBBaselineItem, index: number) => {
+  const renderSeenBadge = (item: ADSBBaselineItem) => {
+    const countSeen = item.count_seen || 0;
+    const isSeen = countSeen > 0;
+    
+    return (
+      <View style={[
+        styles.seenBadge,
+        { backgroundColor: isSeen ? COLORS.seenGreenBg : COLORS.notSeenOrangeBg }
+      ]}>
+        <Ionicons 
+          name={isSeen ? "checkmark-circle" : "alert-circle"} 
+          size={14} 
+          color={isSeen ? COLORS.seenGreen : COLORS.notSeenOrange} 
+        />
+        <Text style={[
+          styles.seenBadgeText,
+          { color: isSeen ? COLORS.seenGreen : COLORS.notSeenOrange }
+        ]}>
+          {isSeen ? texts.seenBadge : texts.notSeenBadge}
+        </Text>
+        {isSeen && countSeen > 1 && (
+          <Text style={[styles.seenCountText, { color: COLORS.seenGreen }]}>
+            ({countSeen}×)
+          </Text>
+        )}
+      </View>
+    );
+  };
+
+  // ============================================================
+  // RENDER SINGLE CARD
+  // ============================================================
+  const renderCard = (item: ADSBBaselineItem, index: number) => {
     const isAD = item.type === 'AD';
-    // Use EXACT backend field names
     const tcPdfId = item.tc_pdf_id;
     const tcRefId = item.tc_reference_id;
     const isDownloading = downloadingPdfId === tcPdfId;
     const isDeleting = deletingRefId === tcRefId;
+    const isImported = item.origin === 'USER_IMPORTED_REFERENCE';
+    const isTcBaseline = item.origin === 'TC_BASELINE';
     
-    // Display logic:
-    // - Main title: item.title if present, otherwise item.identifier, fallback to generic
-    // - Subtitle badge: item.identifier (AD number like "CF-2024-01")
     const displayTitle = item.title || item.identifier || texts.fallbackTitle;
     const displayIdentifier = item.identifier || item.ref;
     
     return (
       <View 
         key={`${item.type}-${item.ref}-${index}`}
-        style={styles.importedCard}
+        style={[
+          styles.card,
+          { borderLeftColor: isAD ? COLORS.adRed : COLORS.sbBlue }
+        ]}
       >
-        {/* Header Row: Type Badge + Identifier Badge + PDF Badge */}
+        {/* Header Row */}
         <View style={styles.cardHeader}>
+          {/* Type Badge */}
           <View style={[
             styles.typeBadge,
             { backgroundColor: isAD ? COLORS.adRedBg : COLORS.sbBlueBg }
@@ -681,63 +528,78 @@ export default function AdSbTcScreen() {
             </Text>
           </View>
           
-          {/* Identifier Badge (AD number) */}
+          {/* Identifier Badge */}
           <View style={styles.identifierBadge}>
             <Text style={styles.identifierBadgeText}>{displayIdentifier}</Text>
           </View>
           
-          {/* PDF Badge */}
-          <View style={styles.pdfBadge}>
-            <Ionicons name="document" size={12} color={COLORS.pdfBlue} />
-            <Text style={styles.pdfBadgeText}>PDF</Text>
+          {/* Origin Badge */}
+          {isImported && (
+            <View style={styles.originBadge}>
+              <Ionicons name="document" size={10} color={COLORS.pdfBlue} />
+              <Text style={styles.originBadgeText}>{texts.originImported}</Text>
+            </View>
+          )}
+          {isTcBaseline && (
+            <View style={[styles.originBadge, { backgroundColor: COLORS.primary + '15' }]}>
+              <Text style={[styles.originBadgeText, { color: COLORS.primary }]}>{texts.originTcBaseline}</Text>
+            </View>
+          )}
+          
+          {/* Seen/Not Seen Badge */}
+          {renderSeenBadge(item)}
+        </View>
+
+        {/* Title */}
+        <Text style={styles.cardTitle} numberOfLines={2}>{displayTitle}</Text>
+
+        {/* Recurrence if available */}
+        {item.recurrence && (
+          <View style={styles.recurrenceRow}>
+            <Ionicons name="repeat" size={12} color={COLORS.textMuted} />
+            <Text style={styles.recurrenceText}>{item.recurrence}</Text>
           </View>
-        </View>
+        )}
 
-        {/* Title / Description */}
-        <Text style={styles.cardTitle}>{displayTitle}</Text>
+        {/* Action Buttons - Only for imported PDFs */}
+        {isImported && tcPdfId && (
+          <View style={styles.cardActions}>
+            <TouchableOpacity 
+              style={[styles.viewPdfButton, isDownloading && styles.buttonDisabled]}
+              onPress={() => openTcPdf(tcPdfId, displayIdentifier)}
+              activeOpacity={0.7}
+              disabled={isDownloading}
+            >
+              {isDownloading ? (
+                <>
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                  <Text style={styles.viewPdfButtonText}>{texts.pdfDownloading}</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="document-text-outline" size={16} color={COLORS.white} />
+                  <Text style={styles.viewPdfButtonText}>{texts.viewPdf}</Text>
+                </>
+              )}
+            </TouchableOpacity>
 
-        {/* Fixed message - TC-SAFE (gray italic) */}
-        <Text style={styles.cardMessage}>{texts.cardMessage}</Text>
-
-        {/* Action Buttons - ONLY View PDF and Remove */}
-        <View style={styles.cardActions}>
-          {/* View PDF Button - uses tc_pdf_id */}
-          <TouchableOpacity 
-            style={[styles.viewPdfButton, isDownloading && styles.buttonDisabled]}
-            onPress={() => openTcPdf(tcPdfId, displayIdentifier)}
-            activeOpacity={0.7}
-            disabled={isDownloading || !tcPdfId}
-          >
-            {isDownloading ? (
-              <>
-                <ActivityIndicator size="small" color={COLORS.white} />
-                <Text style={styles.viewPdfButtonText}>{texts.pdfDownloading}</Text>
-              </>
-            ) : (
-              <>
-                <Ionicons name="document-text-outline" size={18} color={COLORS.white} />
-                <Text style={styles.viewPdfButtonText}>{texts.viewPdf}</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          {/* Remove Button - uses tc_reference_id - DO NOT MODIFY */}
-          <TouchableOpacity 
-            style={[styles.removeButton, isDeleting && styles.buttonDisabled]}
-            onPress={() => handleRemove(tcRefId, displayIdentifier)}
-            activeOpacity={0.7}
-            disabled={isDeleting || !tcRefId}
-          >
-            {isDeleting ? (
-              <ActivityIndicator size="small" color={COLORS.dangerRed} />
-            ) : (
-              <>
-                <Ionicons name="trash-outline" size={18} color={COLORS.dangerRed} />
-                <Text style={styles.removeButtonText}>{texts.remove}</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity 
+              style={[styles.removeButton, isDeleting && styles.buttonDisabled]}
+              onPress={() => handleRemove(tcRefId, displayIdentifier)}
+              activeOpacity={0.7}
+              disabled={isDeleting || !tcRefId}
+            >
+              {isDeleting ? (
+                <ActivityIndicator size="small" color={COLORS.dangerRed} />
+              ) : (
+                <>
+                  <Ionicons name="trash-outline" size={16} color={COLORS.dangerRed} />
+                  <Text style={styles.removeButtonText}>{texts.remove}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   };
@@ -767,58 +629,6 @@ export default function AdSbTcScreen() {
       );
     }
 
-    // EMPTY STATE: No imported PDF references
-    if (!hasImportedData) {
-      return (
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} colors={[COLORS.primary]} />
-          }
-        >
-          <View style={styles.disclaimer}>
-            <Ionicons name="information-circle" size={20} color="#5D4037" />
-            <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
-          </View>
-
-          {/* 🔝 TC Search Button - AT THE TOP */}
-          <TouchableOpacity style={styles.tcSearchButton} onPress={handleSearchTcAds} activeOpacity={0.7}>
-            <Ionicons name="search" size={18} color={COLORS.white} />
-            <Text style={styles.tcSearchButtonText}>{texts.searchTcAds}</Text>
-          </TouchableOpacity>
-
-          {/* Import PDF Button */}
-          <TouchableOpacity 
-            style={[styles.importButton, isImporting && styles.importButtonDisabled]} 
-            onPress={handleImportPdf} 
-            activeOpacity={0.7}
-            disabled={isImporting}
-          >
-            {isImporting ? (
-              <>
-                <ActivityIndicator size="small" color={COLORS.primary} />
-                <Text style={styles.importButtonText}>{texts.importPdfUploading}</Text>
-              </>
-            ) : (
-              <>
-                <Ionicons name="document-attach-outline" size={20} color={COLORS.primary} />
-                <Text style={styles.importButtonText}>{texts.importPdfButton}</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          {/* Empty state */}
-          <View style={styles.emptyContainer}>
-            <Ionicons name="document-text-outline" size={56} color={COLORS.textMuted} />
-            <Text style={styles.emptyTitle}>{texts.noImportedReferences}</Text>
-            <Text style={styles.emptySubtitle}>{texts.noImportedHint}</Text>
-          </View>
-        </ScrollView>
-      );
-    }
-
-    // SUCCESS STATE: Show imported PDF references
     return (
       <ScrollView
         style={styles.scrollView}
@@ -828,12 +638,19 @@ export default function AdSbTcScreen() {
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} colors={[COLORS.primary]} />
         }
       >
+        {/* Disclaimer */}
         <View style={styles.disclaimer}>
           <Ionicons name="information-circle" size={20} color="#5D4037" />
           <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
         </View>
 
-        {/* 🔝 TC Search Button - AT THE TOP */}
+        {/* Seen/Not Seen Explanation - TC-SAFE */}
+        <View style={styles.explanationBox}>
+          <Ionicons name="eye-outline" size={18} color={COLORS.primary} />
+          <Text style={styles.explanationText}>{texts.seenExplanation}</Text>
+        </View>
+
+        {/* TC Search Button */}
         <TouchableOpacity style={styles.tcSearchButton} onPress={handleSearchTcAds} activeOpacity={0.7}>
           <Ionicons name="search" size={18} color={COLORS.white} />
           <Text style={styles.tcSearchButtonText}>{texts.searchTcAds}</Text>
@@ -859,48 +676,73 @@ export default function AdSbTcScreen() {
           )}
         </TouchableOpacity>
 
-        {/* Counters */}
-        <View style={styles.countersContainer}>
-          <View style={[styles.counterBadge, { backgroundColor: COLORS.pdfBlueBg }]}>
-            <Ionicons name="document" size={14} color={COLORS.pdfBlue} />
-            <Text style={[styles.counterText, { color: COLORS.pdfBlue, marginLeft: 4 }]}>
-              {importedAdItems.length + importedSbItems.length} PDF
-            </Text>
+        {/* Summary Counters */}
+        {hasData && (
+          <View style={styles.countersContainer}>
+            <View style={[styles.counterBadge, { backgroundColor: COLORS.seenGreenBg }]}>
+              <Ionicons name="checkmark-circle" size={14} color={COLORS.seenGreen} />
+              <Text style={[styles.counterText, { color: COLORS.seenGreen }]}>
+                {texts.seenBadge}: {adSeenCount + sbSeenCount}
+              </Text>
+            </View>
+            <View style={[styles.counterBadge, { backgroundColor: COLORS.notSeenOrangeBg }]}>
+              <Ionicons name="alert-circle" size={14} color={COLORS.notSeenOrange} />
+              <Text style={[styles.counterText, { color: COLORS.notSeenOrange }]}>
+                {texts.notSeenBadge}: {adNotSeenCount + sbNotSeenCount}
+              </Text>
+            </View>
           </View>
-          <View style={[styles.counterBadge, { backgroundColor: COLORS.adRedBg }]}>
-            <Text style={[styles.counterText, { color: COLORS.adRed }]}>AD: {importedAdItems.length}</Text>
+        )}
+
+        {/* Empty State */}
+        {!hasData && (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="document-text-outline" size={56} color={COLORS.textMuted} />
+            <Text style={styles.emptyTitle}>{texts.noReferences}</Text>
+            <Text style={styles.emptySubtitle}>{texts.noReferencesHint}</Text>
           </View>
-          <View style={[styles.counterBadge, { backgroundColor: COLORS.sbBlueBg }]}>
-            <Text style={[styles.counterText, { color: COLORS.sbBlue }]}>SB: {importedSbItems.length}</Text>
-          </View>
-        </View>
+        )}
 
         {/* AD Section */}
-        {importedAdItems.length > 0 && (
+        {allAdItems.length > 0 && (
           <View style={styles.section}>
             <View style={[styles.sectionHeader, { backgroundColor: COLORS.adRedBg }]}>
               <Text style={[styles.sectionTitle, { color: COLORS.adRed }]}>{texts.adSection}</Text>
-              <View style={[styles.sectionCountBadge, { backgroundColor: COLORS.white }]}>
-                <Text style={[styles.sectionCountText, { color: COLORS.adRed }]}>{importedAdItems.length}</Text>
+              <View style={styles.sectionBadges}>
+                <View style={[styles.sectionCountBadge, { backgroundColor: COLORS.seenGreenBg }]}>
+                  <Ionicons name="checkmark-circle" size={12} color={COLORS.seenGreen} />
+                  <Text style={[styles.sectionCountText, { color: COLORS.seenGreen }]}>{adSeenCount}</Text>
+                </View>
+                <View style={[styles.sectionCountBadge, { backgroundColor: COLORS.notSeenOrangeBg }]}>
+                  <Ionicons name="alert-circle" size={12} color={COLORS.notSeenOrange} />
+                  <Text style={[styles.sectionCountText, { color: COLORS.notSeenOrange }]}>{adNotSeenCount}</Text>
+                </View>
               </View>
             </View>
             <View style={styles.cardsList}>
-              {importedAdItems.map((item, index) => renderImportedCard(item, index))}
+              {allAdItems.map((item, index) => renderCard(item, index))}
             </View>
           </View>
         )}
 
         {/* SB Section */}
-        {importedSbItems.length > 0 && (
+        {allSbItems.length > 0 && (
           <View style={styles.section}>
             <View style={[styles.sectionHeader, { backgroundColor: COLORS.sbBlueBg }]}>
               <Text style={[styles.sectionTitle, { color: COLORS.sbBlue }]}>{texts.sbSection}</Text>
-              <View style={[styles.sectionCountBadge, { backgroundColor: COLORS.white }]}>
-                <Text style={[styles.sectionCountText, { color: COLORS.sbBlue }]}>{importedSbItems.length}</Text>
+              <View style={styles.sectionBadges}>
+                <View style={[styles.sectionCountBadge, { backgroundColor: COLORS.seenGreenBg }]}>
+                  <Ionicons name="checkmark-circle" size={12} color={COLORS.seenGreen} />
+                  <Text style={[styles.sectionCountText, { color: COLORS.seenGreen }]}>{sbSeenCount}</Text>
+                </View>
+                <View style={[styles.sectionCountBadge, { backgroundColor: COLORS.notSeenOrangeBg }]}>
+                  <Ionicons name="alert-circle" size={12} color={COLORS.notSeenOrange} />
+                  <Text style={[styles.sectionCountText, { color: COLORS.notSeenOrange }]}>{sbNotSeenCount}</Text>
+                </View>
               </View>
             </View>
             <View style={styles.cardsList}>
-              {importedSbItems.map((item, index) => renderImportedCard(item, index))}
+              {allSbItems.map((item, index) => renderCard(item, index))}
             </View>
           </View>
         )}
@@ -932,15 +774,15 @@ export default function AdSbTcScreen() {
 
       {renderContent()}
 
-      {/* DEBUG PDF BUTTON (TEMPORAIRE) */}
+      {/* DEBUG BUTTON (temporary) */}
       <TouchableOpacity 
         onPress={() => setShowDebug(true)} 
         style={styles.debugButton}
       >
-        <Text style={styles.debugButtonText}>DEBUG PDF LOGS ({debugLogs.length})</Text>
+        <Text style={styles.debugButtonText}>DEBUG ({debugLogs.length})</Text>
       </TouchableOpacity>
 
-      {/* DEBUG LOGS MODAL */}
+      {/* DEBUG MODAL */}
       <Modal
         visible={showDebug}
         animationType="slide"
@@ -949,7 +791,7 @@ export default function AdSbTcScreen() {
       >
         <View style={styles.debugModal}>
           <View style={styles.debugHeader}>
-            <Text style={styles.debugTitle}>PDF Debug Logs</Text>
+            <Text style={styles.debugTitle}>Debug Logs</Text>
             <TouchableOpacity onPress={() => setShowDebug(false)} style={styles.debugCloseBtn}>
               <Text style={styles.debugCloseBtnText}>CLOSE</Text>
             </TouchableOpacity>
@@ -959,7 +801,7 @@ export default function AdSbTcScreen() {
           </TouchableOpacity>
           <ScrollView style={styles.debugScrollView} contentContainerStyle={styles.debugScrollContent}>
             {debugLogs.length === 0 ? (
-              <Text style={styles.debugEmpty}>No logs yet. Tap "View PDF" to start.</Text>
+              <Text style={styles.debugEmpty}>No logs yet.</Text>
             ) : (
               debugLogs.map((log, index) => (
                 <Text key={index} style={styles.debugLogLine}>{log}</Text>
@@ -977,13 +819,27 @@ export default function AdSbTcScreen() {
 // ============================================================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.primary, paddingTop: 50, paddingBottom: 16, paddingHorizontal: 16 },
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    backgroundColor: COLORS.primary, 
+    paddingTop: Platform.OS === 'ios' ? 50 : 40, 
+    paddingBottom: 16, 
+    paddingHorizontal: 16 
+  },
   headerBack: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
   headerCenter: { alignItems: 'center', flex: 1 },
   headerTitle: { color: COLORS.white, fontSize: 18, fontWeight: '600' },
   headerSubtitle: { color: COLORS.white, fontSize: 14, opacity: 0.8, marginTop: 2 },
   headerRight: { width: 44 },
-  pageTitleContainer: { backgroundColor: COLORS.white, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  pageTitleContainer: { 
+    backgroundColor: COLORS.white, 
+    paddingVertical: 14, 
+    paddingHorizontal: 16, 
+    borderBottomWidth: 1, 
+    borderBottomColor: COLORS.border 
+  },
   pageTitle: { fontSize: 15, fontWeight: '600', color: COLORS.textDark, textAlign: 'center' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   loadingText: { marginTop: 16, fontSize: 16, color: COLORS.textMuted },
@@ -995,74 +851,161 @@ const styles = StyleSheet.create({
   emptySubtitle: { marginTop: 8, fontSize: 14, color: COLORS.textMuted, textAlign: 'center', maxWidth: 300, lineHeight: 20 },
   scrollView: { flex: 1 },
   scrollContent: { padding: 16 },
-  disclaimer: { flexDirection: 'row', backgroundColor: COLORS.disclaimerYellow, borderWidth: 1, borderColor: COLORS.disclaimerYellowBorder, borderRadius: 12, padding: 14, marginBottom: 16, alignItems: 'flex-start' },
+  disclaimer: { 
+    flexDirection: 'row', 
+    backgroundColor: COLORS.disclaimerYellow, 
+    borderWidth: 1, 
+    borderColor: COLORS.disclaimerYellowBorder, 
+    borderRadius: 12, 
+    padding: 14, 
+    marginBottom: 12, 
+    alignItems: 'flex-start' 
+  },
   disclaimerText: { flex: 1, marginLeft: 10, fontSize: 12, color: '#5D4037', lineHeight: 18 },
-  aircraftInfo: { backgroundColor: COLORS.white, borderRadius: 12, padding: 14, marginBottom: 12, flexDirection: 'row', alignItems: 'center' },
-  aircraftLabel: { fontSize: 14, color: COLORS.textMuted, marginRight: 8 },
-  aircraftText: { fontSize: 15, fontWeight: '600', color: COLORS.textDark },
+  // Explanation box for Seen/Not Seen
+  explanationBox: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.sbBlueBg,
+    borderWidth: 1,
+    borderColor: COLORS.sbBlue + '40',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    alignItems: 'flex-start',
+  },
+  explanationText: { 
+    flex: 1, 
+    marginLeft: 10, 
+    fontSize: 12, 
+    color: COLORS.primary, 
+    lineHeight: 18,
+    fontStyle: 'italic',
+  },
   countersContainer: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 16 },
-  counterBadge: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20 },
-  counterText: { fontSize: 14, fontWeight: '700' },
+  counterBadge: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingVertical: 8, 
+    paddingHorizontal: 16, 
+    borderRadius: 20,
+    gap: 6,
+  },
+  counterText: { fontSize: 14, fontWeight: '600' },
   section: { marginBottom: 20 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, marginBottom: 12 },
+  sectionHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    paddingHorizontal: 16, 
+    paddingVertical: 12, 
+    borderRadius: 12, 
+    marginBottom: 12 
+  },
   sectionTitle: { fontSize: 14, fontWeight: '700', flex: 1 },
   sectionBadges: { flexDirection: 'row', gap: 8 },
-  sectionCountBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  sectionCountBadge: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingHorizontal: 10, 
+    paddingVertical: 4, 
+    borderRadius: 10,
+    gap: 4,
+  },
   sectionCountText: { fontSize: 13, fontWeight: '700' },
-  emptySection: { backgroundColor: COLORS.white, borderRadius: 12, padding: 20, alignItems: 'center' },
-  emptySectionText: { fontSize: 14, color: COLORS.textMuted },
-  itemsList: { gap: 10 },
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: COLORS.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border },
-  itemRowWarning: { borderColor: COLORS.warningOrange, borderWidth: 2, backgroundColor: COLORS.warningOrangeBg },
-  itemLeft: { flexDirection: 'row', flex: 1 },
-  typeBadge: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, marginRight: 12, alignSelf: 'flex-start' },
-  typeBadgeText: { fontSize: 11, fontWeight: '700' },
-  itemContent: { flex: 1 },
-  itemRefRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  itemRef: { fontSize: 15, fontWeight: '700', color: COLORS.textDark },
-  importedBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary + '15', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 },
-  importedBadgeText: { fontSize: 9, fontWeight: '600', color: COLORS.primary, marginLeft: 2 },
-  itemTitle: { fontSize: 13, color: COLORS.textMuted, lineHeight: 18, marginBottom: 4 },
-  recurrenceRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  recurrenceText: { fontSize: 12, color: COLORS.textMuted, marginLeft: 4 },
-  itemRight: { alignItems: 'center', justifyContent: 'center', marginLeft: 12, minWidth: 80 },
-  countBadge: { backgroundColor: COLORS.successGreenBg, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, minWidth: 40, alignItems: 'center' },
-  countNumber: { fontSize: 18, fontWeight: '700', color: COLORS.successGreen },
-  countLabel: { fontSize: 10, color: COLORS.textMuted, marginTop: 4, textAlign: 'center' },
-  warningBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.warningOrangeBg, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, gap: 4 },
-  warningCountText: { fontSize: 16, fontWeight: '700', color: COLORS.warningOrange },
-  notFoundText: { fontSize: 9, color: COLORS.warningOrange, marginTop: 4, textAlign: 'center', maxWidth: 90, lineHeight: 12 },
-  notFoundMicrocopy: { fontSize: 8, color: COLORS.textMuted, marginTop: 2, textAlign: 'center', maxWidth: 90, lineHeight: 10, fontStyle: 'italic' },
-  importButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 20, marginBottom: 16 },
-  importButtonDisabled: { opacity: 0.6 },
-  importButtonText: { fontSize: 15, fontWeight: '600', color: COLORS.primary, marginLeft: 8 },
-  // TC Search Button - Primary action at top
-  tcSearchButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 20, marginBottom: 12 },
-  tcSearchButtonText: { fontSize: 15, fontWeight: '600', color: COLORS.white, marginLeft: 8 },
-  // Imported Card Styles
   cardsList: { gap: 12 },
-  importedCard: { backgroundColor: COLORS.white, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: COLORS.pdfBlue, borderLeftWidth: 4 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 },
-  cardRef: { flex: 1, fontSize: 16, fontWeight: '700', color: COLORS.textDark, marginLeft: 10 },
-  // Identifier Badge (AD number)
-  identifierBadge: { backgroundColor: COLORS.primary + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginLeft: 8 },
-  identifierBadgeText: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
-  // Card title (description)
-  cardTitle: { fontSize: 15, fontWeight: '600', color: COLORS.textDark, marginBottom: 8, lineHeight: 20 },
-  // PDF Badge
-  pdfBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.pdfBlueBg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  pdfBadgeText: { fontSize: 10, fontWeight: '700', color: COLORS.pdfBlue, marginLeft: 4 },
-  // Card message (TC-SAFE)
-  cardMessage: { fontSize: 12, color: COLORS.textMuted, lineHeight: 18, marginBottom: 14, fontStyle: 'italic' },
-  // Card action buttons
-  cardActions: { flexDirection: 'row', gap: 10 },
-  viewPdfButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, flex: 1, justifyContent: 'center' },
-  viewPdfButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.white, marginLeft: 6 },
-  removeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.dangerRedBg, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: COLORS.dangerRed, justifyContent: 'center' },
-  removeButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.dangerRed, marginLeft: 6 },
+  card: { 
+    backgroundColor: COLORS.white, 
+    borderRadius: 12, 
+    padding: 16, 
+    borderWidth: 1, 
+    borderColor: COLORS.border,
+    borderLeftWidth: 4,
+  },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 },
+  typeBadge: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6 },
+  typeBadgeText: { fontSize: 11, fontWeight: '700' },
+  identifierBadge: { backgroundColor: COLORS.primary + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  identifierBadgeText: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
+  originBadge: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: COLORS.pdfBlueBg, 
+    paddingHorizontal: 8, 
+    paddingVertical: 3, 
+    borderRadius: 6,
+    gap: 4,
+  },
+  originBadgeText: { fontSize: 10, fontWeight: '600', color: COLORS.pdfBlue },
+  // Seen/Not Seen Badge
+  seenBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  seenBadgeText: { fontSize: 11, fontWeight: '700' },
+  seenCountText: { fontSize: 10, fontWeight: '600' },
+  cardTitle: { fontSize: 14, fontWeight: '600', color: COLORS.textDark, marginBottom: 8, lineHeight: 20 },
+  recurrenceRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  recurrenceText: { fontSize: 12, color: COLORS.textMuted, marginLeft: 6 },
+  cardActions: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  viewPdfButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: COLORS.primary, 
+    paddingVertical: 10, 
+    paddingHorizontal: 14, 
+    borderRadius: 8, 
+    flex: 1, 
+    justifyContent: 'center',
+    gap: 6,
+  },
+  viewPdfButtonText: { fontSize: 13, fontWeight: '600', color: COLORS.white },
+  removeButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: COLORS.dangerRedBg, 
+    paddingVertical: 10, 
+    paddingHorizontal: 14, 
+    borderRadius: 8, 
+    borderWidth: 1, 
+    borderColor: COLORS.dangerRed, 
+    justifyContent: 'center',
+    gap: 6,
+  },
+  removeButtonText: { fontSize: 13, fontWeight: '600', color: COLORS.dangerRed },
   buttonDisabled: { opacity: 0.6 },
+  tcSearchButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    backgroundColor: COLORS.primary, 
+    borderRadius: 10, 
+    paddingVertical: 14, 
+    paddingHorizontal: 20, 
+    marginBottom: 12,
+    gap: 8,
+  },
+  tcSearchButtonText: { fontSize: 15, fontWeight: '600', color: COLORS.white },
+  importButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    backgroundColor: COLORS.white, 
+    borderWidth: 1, 
+    borderColor: COLORS.primary, 
+    borderRadius: 10, 
+    paddingVertical: 12, 
+    paddingHorizontal: 20, 
+    marginBottom: 16,
+    gap: 8,
+  },
+  importButtonDisabled: { opacity: 0.6 },
+  importButtonText: { fontSize: 15, fontWeight: '600', color: COLORS.primary },
   bottomSpacer: { height: 40 },
-  // DEBUG STYLES (TEMPORAIRE)
+  // DEBUG STYLES
   debugButton: { position: 'absolute', bottom: 20, right: 20, backgroundColor: '#FF0000', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6 },
   debugButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
   debugModal: { flex: 1, backgroundColor: '#1a1a1a', paddingTop: 50 },
