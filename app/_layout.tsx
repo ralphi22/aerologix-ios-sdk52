@@ -10,6 +10,7 @@ import { MaintenanceDataProvider } from '@/stores/maintenanceDataStore';
 import { EltProvider } from '@/stores/eltStore';
 import { OcrProvider } from '@/stores/ocrStore';
 import { ReportSettingsProvider } from '@/stores/reportSettingsStore';
+import { AlertsProvider } from '@/stores/alertsStore';
 import { useAuthStore } from '@/stores/authStore';
 
 export default function RootLayout() {
@@ -26,7 +27,9 @@ export default function RootLayout() {
         <EltProvider>
           <OcrProvider>
             <ReportSettingsProvider>
-              <Slot />
+              <AlertsProvider>
+                <Slot />
+              </AlertsProvider>
             </ReportSettingsProvider>
           </OcrProvider>
         </EltProvider>

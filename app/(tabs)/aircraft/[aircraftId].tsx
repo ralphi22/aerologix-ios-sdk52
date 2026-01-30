@@ -3,7 +3,7 @@
  * Shows full aircraft information, modules, tools, and sharing options
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,8 @@ import { t, getLanguage } from '@/i18n';
 import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
 import { useElt } from '@/stores/eltStore';
 import { useReportSettings } from '@/stores/reportSettingsStore';
+import { useAlerts } from '@/stores/alertsStore';
+import { AlertBanner } from '@/components/TcAlerts';
 
 const COLORS = {
   primary: '#0033A0',
@@ -44,10 +46,16 @@ export default function AircraftDetailScreen() {
   const { getAircraftById } = useAircraftLocalStore();
   const { getEltStatus, getTestProgress, getBatteryProgress } = useElt();
   const { settings, limits } = useReportSettings();
+  const { fetchAlerts } = useAlerts();
   const lang = getLanguage();
 
   const aircraft = getAircraftById(aircraftId || '');
   const eltStatus = getEltStatus();
+  
+  // Fetch alerts on mount
+  useEffect(() => {
+    fetchAlerts();
+  }, []);
 
   // Local state for description
   const [description, setDescription] = useState('');
@@ -255,6 +263,12 @@ export default function AircraftDetailScreen() {
             numberOfLines={4}
           />
         </View>
+
+        {/* TC AD/SB Alerts Banner */}
+        <AlertBanner 
+          aircraftId={aircraftId || ''} 
+          aircraftRegistration={aircraft?.registration}
+        />
 
         {/* Modules Section */}
         <View style={styles.section}>
