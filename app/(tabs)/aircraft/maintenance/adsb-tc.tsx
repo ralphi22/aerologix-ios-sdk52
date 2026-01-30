@@ -180,6 +180,9 @@ interface ADSBBaselineItem {
   pdf_available?: boolean;
   tc_reference_id?: string;
   tc_pdf_id?: string;
+  // Backend permission flags (use these if available)
+  can_delete?: boolean;
+  can_open_pdf?: boolean;
 }
 
 interface ADSBBaselineResponse {
