@@ -124,8 +124,8 @@ export default function PartsScreen() {
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('critical');
   
-  // Critical components state
-  const [criticalComponents, setCriticalComponents] = useState<CriticalComponent[]>([]);
+  // Critical mentions state
+  const [criticalMentions, setCriticalMentions] = useState<CriticalMention[]>([]);
   const [criticalLoading, setCriticalLoading] = useState(true);
   const [criticalError, setCriticalError] = useState<string | null>(null);
 
