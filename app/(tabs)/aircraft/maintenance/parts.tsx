@@ -137,9 +137,9 @@ export default function PartsScreen() {
   const [newPartDate, setNewPartDate] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   
-  // Fetch critical components from backend
+  // Fetch critical mentions from backend
   useEffect(() => {
-    const fetchCriticalComponents = async () => {
+    const fetchCriticalMentions = async () => {
       if (!aircraftId) return;
       
       setCriticalLoading(true);
@@ -147,16 +147,16 @@ export default function PartsScreen() {
       
       try {
         const response = await api.get(`/api/components/critical/${aircraftId}`);
-        setCriticalComponents(response.data.components || response.data || []);
+        setCriticalMentions(response.data.components || response.data || []);
       } catch (err: any) {
-        console.error('Critical components fetch error:', err);
+        console.error('Critical mentions fetch error:', err);
         setCriticalError(err?.response?.data?.detail || err?.message || 'Failed to load');
       } finally {
         setCriticalLoading(false);
       }
     };
 
-    fetchCriticalComponents();
+    fetchCriticalMentions();
   }, [aircraftId]);
 
   // Sync service parts with backend on mount
