@@ -569,43 +569,49 @@ export default function AdSbTcScreen() {
           </View>
         )}
 
-        {/* Action Buttons - Only for imported PDFs */}
-        {isImported && tcPdfId && (
+        {/* Action Buttons - Show based on backend permissions or presence of IDs */}
+        {(canOpenPdf || canDelete) && (
           <View style={styles.cardActions}>
-            <TouchableOpacity 
-              style={[styles.viewPdfButton, isDownloading && styles.buttonDisabled]}
-              onPress={() => openTcPdf(tcPdfId, displayIdentifier)}
-              activeOpacity={0.7}
-              disabled={isDownloading}
-            >
-              {isDownloading ? (
-                <>
-                  <ActivityIndicator size="small" color={COLORS.white} />
-                  <Text style={styles.viewPdfButtonText}>{texts.pdfDownloading}</Text>
-                </>
-              ) : (
-                <>
-                  <Ionicons name="document-text-outline" size={16} color={COLORS.white} />
-                  <Text style={styles.viewPdfButtonText}>{texts.viewPdf}</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {/* View PDF Button - only if canOpenPdf */}
+            {canOpenPdf && tcPdfId && (
+              <TouchableOpacity 
+                style={[styles.viewPdfButton, isDownloading && styles.buttonDisabled]}
+                onPress={() => openTcPdf(tcPdfId, displayIdentifier)}
+                activeOpacity={0.7}
+                disabled={isDownloading}
+              >
+                {isDownloading ? (
+                  <>
+                    <ActivityIndicator size="small" color={COLORS.white} />
+                    <Text style={styles.viewPdfButtonText}>{texts.pdfDownloading}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="document-text-outline" size={16} color={COLORS.white} />
+                    <Text style={styles.viewPdfButtonText}>{texts.viewPdf}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity 
-              style={[styles.removeButton, isDeleting && styles.buttonDisabled]}
-              onPress={() => handleRemove(tcRefId, displayIdentifier)}
-              activeOpacity={0.7}
-              disabled={isDeleting || !tcRefId}
-            >
-              {isDeleting ? (
-                <ActivityIndicator size="small" color={COLORS.dangerRed} />
-              ) : (
-                <>
-                  <Ionicons name="trash-outline" size={16} color={COLORS.dangerRed} />
-                  <Text style={styles.removeButtonText}>{texts.remove}</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {/* Remove Button - only if canDelete */}
+            {canDelete && tcRefId && (
+              <TouchableOpacity 
+                style={[styles.removeButton, isDeleting && styles.buttonDisabled]}
+                onPress={() => handleRemove(tcRefId, displayIdentifier)}
+                activeOpacity={0.7}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator size="small" color={COLORS.dangerRed} />
+                ) : (
+                  <>
+                    <Ionicons name="trash-outline" size={16} color={COLORS.dangerRed} />
+                    <Text style={styles.removeButtonText}>{texts.remove}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </View>
