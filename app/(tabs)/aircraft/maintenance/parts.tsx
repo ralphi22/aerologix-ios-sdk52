@@ -48,19 +48,20 @@ const COLORS = {
   redBg: '#FFEBEE',
 };
 
-// Critical component type from backend
-interface CriticalComponent {
+// Critical mention type from backend
+interface CriticalMention {
   id: string;
   name: string;
   component_type: string; // engine, propeller, magneto, vacuum_pump, etc.
   part_number?: string;
   serial_number?: string;
-  installed_at_hours: number;
-  current_airframe_hours: number;
-  time_since_install: number;
-  tbo: number;
-  remaining: number;
-  status: 'ok' | 'warning' | 'critical';
+  reference_date?: string;
+  source_document?: string;
+  installed_at_hours?: number;
+  current_airframe_hours?: number;
+  time_since_install?: number;
+  tbo?: number;
+  remaining?: number;
 }
 
 // Tab type
