@@ -413,19 +413,19 @@ export default function PartsScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-            ) : criticalComponents.length === 0 ? (
+            ) : criticalMentions.length === 0 ? (
               <View style={styles.emptyStateContainer}>
                 <View style={styles.emptyStateCard}>
-                  <Text style={styles.emptyStateIcon}>🔧</Text>
+                  <Text style={styles.emptyStateIcon}>📋</Text>
                   <Text style={styles.emptyStateTitle}>
                     {lang === 'fr' 
-                      ? 'Aucun composant critique détecté' 
-                      : 'No critical components detected'}
+                      ? 'Aucune mention critique détectée' 
+                      : 'No critical mentions detected'}
                   </Text>
                   <Text style={styles.emptyStateText}>
                     {lang === 'fr' 
-                      ? 'Scannez et appliquez un rapport de maintenance pour alimenter cette liste.'
-                      : 'Scan and apply a maintenance report to populate this list.'}
+                      ? 'Les mentions critiques sont extraites des rapports de maintenance appliqués.'
+                      : 'Critical mentions are detected from applied maintenance reports.'}
                   </Text>
                   
                   {/* Flow explanation */}
@@ -440,7 +440,7 @@ export default function PartsScreen() {
                       2. {lang === 'fr' ? 'Appliquez les données à l\'aéronef' : 'Apply data to aircraft'}
                     </Text>
                     <Text style={styles.flowBoxStep}>
-                      3. {lang === 'fr' ? 'Les composants critiques apparaissent ici' : 'Critical components appear here'}
+                      3. {lang === 'fr' ? 'Les mentions critiques apparaissent ici' : 'Critical mentions appear here'}
                     </Text>
                   </View>
                   
@@ -463,8 +463,8 @@ export default function PartsScreen() {
                   <Text style={styles.emptyDisclaimerIcon}>ℹ️</Text>
                   <Text style={styles.emptyDisclaimerText}>
                     {lang === 'fr'
-                      ? 'Les composants critiques (moteur, hélice, magnétos, etc.) sont détectés automatiquement lors de l\'application d\'un rapport de maintenance. Le frontend affiche uniquement ce que le backend produit.'
-                      : 'Critical components (engine, propeller, magnetos, etc.) are automatically detected when applying a maintenance report. The frontend only displays what the backend produces.'}
+                      ? 'Les mentions critiques (moteur, hélice, magnétos, etc.) sont extraites automatiquement lors de l\'application d\'un rapport de maintenance. Ce module affiche les dates de référence sans statut de conformité.'
+                      : 'Critical mentions (engine, propeller, magnetos, etc.) are automatically extracted when applying a maintenance report. This module displays reference dates without compliance status.'}
                   </Text>
                 </View>
               </View>
