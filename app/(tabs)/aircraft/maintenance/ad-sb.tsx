@@ -275,6 +275,7 @@ export default function AdSbScreen() {
   // Render a single aggregated card
   const renderAggregatedCard = (item: AggregatedAdSb) => {
     const isDeleting = deletingId && item.ids.includes(deletingId);
+    const showOccurrenceInfo = item.count > 1;
     
     return (
       <View key={`${item.type}-${item.number}`} style={[styles.card, isDeleting && styles.cardDeleting]}>
@@ -289,11 +290,8 @@ export default function AdSbScreen() {
               <Text style={styles.cardNumber}>{item.number}</Text>
               {renderCountBadge(item.count)}
             </View>
-            {item.count > 1 ? (
-              <Text style={styles.cardDate}>
-                {texts.seenInReports} {item.count} {item.count > 1 ? texts.reports : texts.report}
-              </Text>
-            ) : (
+            {/* Show date only if single occurrence */}
+            {!showOccurrenceInfo && (
               <Text style={styles.cardDate}>{item.firstDate}</Text>
             )}
           </View>
@@ -306,14 +304,14 @@ export default function AdSbScreen() {
           <Text style={styles.cardDescription} numberOfLines={3}>{item.description}</Text>
         ) : null}
         
-        {/* Date range for multiple detections */}
-        {item.count > 1 && item.firstDate !== item.lastDate && (
-          <View style={styles.dateRangeContainer}>
-            <Text style={styles.dateRangeText}>
-              {texts.firstDetected}: {item.firstDate}
+        {/* Occurrence info - Only shown if count > 1 */}
+        {showOccurrenceInfo && (
+          <View style={styles.occurrenceContainer}>
+            <Text style={styles.occurrenceText}>
+              {lang === 'fr' ? `Vu ${item.count} fois` : `Seen ${item.count} times`}
             </Text>
-            <Text style={styles.dateRangeText}>
-              {texts.lastDetected}: {item.lastDate}
+            <Text style={styles.occurrenceText}>
+              {lang === 'fr' ? `Dernière détection: ${item.lastDate}` : `Last seen: ${item.lastDate}`}
             </Text>
           </View>
         )}
