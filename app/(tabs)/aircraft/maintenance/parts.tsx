@@ -450,12 +450,12 @@ export default function PartsScreen() {
                   <Text style={styles.infoIcon}>ℹ️</Text>
                   <Text style={styles.infoText}>
                     {lang === 'fr'
-                      ? 'Les compteurs sont basés sur: heures cellule actuelles - heures à l\'installation'
-                      : 'Counters are based on: current airframe hours - installed at hours'}
+                      ? 'Ces mentions sont extraites des rapports de maintenance. Dates de référence uniquement, sans décision de conformité.'
+                      : 'These mentions are extracted from maintenance reports. Reference dates only, no compliance decision.'}
                   </Text>
                 </View>
                 
-                {criticalComponents.map(renderCriticalComponent)}
+                {criticalMentions.map(renderCriticalMention)}
               </View>
             )}
           </>
