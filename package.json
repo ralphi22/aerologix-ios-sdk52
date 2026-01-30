@@ -51,6 +51,7 @@
   "devDependencies": {
     "@expo/cli": "^54.0.0",
     "@react-native-community/cli": "latest",
+    "@react-native/metro-config": "^0.83.1",
     "@types/react": "~19.1.10",
     "eslint-config-expo": "~10.0.0"
   }
