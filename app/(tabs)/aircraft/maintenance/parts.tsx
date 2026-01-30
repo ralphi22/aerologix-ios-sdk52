@@ -78,43 +78,6 @@ const COMPONENT_ICONS: Record<string, string> = {
   default: '🔩',
 };
 
-// Progress bar component
-function ProgressBar({ 
-  value, 
-  max, 
-  status 
-}: { 
-  value: number; 
-  max: number; 
-  status: 'ok' | 'warning' | 'critical' 
-}) {
-  const percentage = Math.min((value / max) * 100, 100);
-  
-  const getBarColor = () => {
-    switch (status) {
-      case 'critical': return COLORS.red;
-      case 'warning': return COLORS.orange;
-      default: return COLORS.green;
-    }
-  };
-
-  return (
-    <View style={styles.progressContainer}>
-      <View style={styles.progressBackground}>
-        <View 
-          style={[
-            styles.progressFill, 
-            { width: `${percentage}%`, backgroundColor: getBarColor() }
-          ]} 
-        />
-      </View>
-      <Text style={[styles.progressText, { color: getBarColor() }]}>
-        {percentage.toFixed(0)}%
-      </Text>
-    </View>
-  );
-}
-
 export default function PartsScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
