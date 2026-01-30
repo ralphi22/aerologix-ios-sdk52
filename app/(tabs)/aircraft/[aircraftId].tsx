@@ -882,4 +882,23 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '600',
   },
+  // Alert Badge for Maintenance
+  alertBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: COLORS.orange,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  },
+  alertBadgeText: {
+    color: COLORS.white,
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
 });
