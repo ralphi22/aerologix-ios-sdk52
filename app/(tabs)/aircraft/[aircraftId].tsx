@@ -264,6 +264,12 @@ export default function AircraftDetailScreen() {
           />
         </View>
 
+        {/* TC AD/SB Alerts Banner */}
+        <AlertBanner 
+          aircraftId={aircraftId || ''} 
+          aircraftRegistration={aircraft?.registration}
+        />
+
         {/* Modules Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Modules</Text>
