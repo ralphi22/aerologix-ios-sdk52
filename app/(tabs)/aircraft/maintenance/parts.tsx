@@ -1,10 +1,10 @@
 /**
- * Parts Screen - Critical Components & Service Parts
+ * Parts Screen - Critical Mentions & Service Parts
  * TC-SAFE: Information only, no regulatory decisions
  * Features:
- * - Two tabs: Critical Components (with TBO) and Service Parts
- * - Progress bars based on time_since_install (hours)
- * - Backend integration for critical components
+ * - Two tabs: Critical Mentions (from OCR reports) and Service Parts
+ * - Reference dates for critical items
+ * - Backend integration for critical mentions
  */
 
 import React, { useState, useEffect } from 'react';
