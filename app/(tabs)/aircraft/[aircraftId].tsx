@@ -282,6 +282,11 @@ export default function AircraftDetailScreen() {
             >
               <View style={styles.moduleIcon}>
                 <Text style={styles.moduleIconText}>🛠️</Text>
+                {hasAnyMaintenanceAlert && (
+                  <View style={styles.alertBadge}>
+                    <Text style={styles.alertBadgeText}>!</Text>
+                  </View>
+                )}
               </View>
               <View style={styles.moduleContent}>
                 <Text style={styles.moduleTitle}>Maintenance</Text>
