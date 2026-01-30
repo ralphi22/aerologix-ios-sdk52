@@ -403,7 +403,7 @@ export default function PartsScreen() {
                     setCriticalLoading(true);
                     setCriticalError(null);
                     api.get(`/api/components/critical/${aircraftId}`)
-                      .then(res => setCriticalComponents(res.data.components || res.data || []))
+                      .then(res => setCriticalMentions(res.data.components || res.data || []))
                       .catch(err => setCriticalError(err?.message || 'Error'))
                       .finally(() => setCriticalLoading(false));
                   }}
