@@ -42,7 +42,8 @@ export default function AircraftDetailScreen() {
   const router = useRouter();
   const { aircraftId } = useLocalSearchParams<{ aircraftId: string }>();
   const { getAircraftById } = useAircraftLocalStore();
-  const { getEltStatus } = useElt();
+  const { getEltStatus, getTestProgress, getBatteryProgress } = useElt();
+  const { settings, limits } = useReportSettings();
   const lang = getLanguage();
 
   const aircraft = getAircraftById(aircraftId || '');
@@ -55,6 +56,58 @@ export default function AircraftDetailScreen() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareEmail, setShareEmail] = useState('');
   const [shareRole, setShareRole] = useState<'TEA' | 'AMO'>('TEA');
+
+  // Calculate if any maintenance chart has an alert (≥80% threshold)
+  const hasAnyMaintenanceAlert = useMemo(() => {
+    if (!aircraft) return false;
+    
+    const engineHours = aircraft.engineHours || 0;
+    const now = new Date();
+    
+    // Helper to calculate date progress
+    const calcDateProgress = (lastDate: string, limitMonths: number): number => {
+      if (!lastDate) return 0;
+      const last = new Date(lastDate);
+      if (isNaN(last.getTime())) return 0;
+      const expiry = new Date(last);
+      expiry.setMonth(expiry.getMonth() + limitMonths);
+      const totalDays = (expiry.getTime() - last.getTime()) / (1000 * 60 * 60 * 24);
+      if (totalDays <= 0) return 100;
+      const elapsedDays = (now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24);
+      return Math.min(Math.round((elapsedDays / totalDays) * 100), 100);
+    };
+    
+    // Helper to calculate hours progress
+    const calcHoursProgress = (current: number, limit: number): number => {
+      if (limit <= 0) return 0;
+      return Math.min(Math.round((current / limit) * 100), 100);
+    };
+    
+    // Calculate all progress values
+    const motorPercent = calcHoursProgress(engineHours, settings.motorTbo);
+    const helicePercent = calcDateProgress(settings.heliceDate, limits.heliceYears * 12);
+    const cellulePercent = calcDateProgress(settings.celluleDate, limits.celluleYears * 12);
+    const avioniquePercent = calcDateProgress(settings.avioniqueDate, limits.avioniqueMonths);
+    const magnetosPercent = calcHoursProgress(settings.magnetosHoursUsed, limits.magnetosHours);
+    const pompePercent = calcHoursProgress(settings.pompeVideHoursUsed, limits.pompeVideHours);
+    
+    // ELT progress
+    const eltTestProgress = getTestProgress();
+    const eltBatteryProgress = getBatteryProgress();
+    
+    // Check if ANY chart is at warning level (≥80%)
+    const alertThreshold = 80;
+    return (
+      motorPercent >= alertThreshold ||
+      helicePercent >= alertThreshold ||
+      cellulePercent >= alertThreshold ||
+      avioniquePercent >= alertThreshold ||
+      magnetosPercent >= alertThreshold ||
+      pompePercent >= alertThreshold ||
+      eltTestProgress.percent >= alertThreshold ||
+      eltBatteryProgress.percent >= alertThreshold
+    );
+  }, [aircraft, settings, limits, getTestProgress, getBatteryProgress]);
 
   if (!aircraft) {
     return (
