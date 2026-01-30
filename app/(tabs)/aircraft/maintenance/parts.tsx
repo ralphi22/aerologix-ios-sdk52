@@ -368,7 +368,7 @@ export default function PartsScreen() {
           onPress={() => setActiveTab('critical')}
         >
           <Text style={[styles.tabText, activeTab === 'critical' && styles.tabTextActive]}>
-            {lang === 'fr' ? 'Composants critiques' : 'Critical Components'}
+            {lang === 'fr' ? 'Mentions critiques' : 'Critical Mentions'}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity 
