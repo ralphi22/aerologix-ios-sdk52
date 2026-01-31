@@ -212,7 +212,7 @@ export default function AdSbScreen() {
    * 
    * Deletion strategy:
    * - Try DELETE /api/adsb/ocr/{aircraft_id}/reference/{reference} first (deletes all occurrences)
-   * - Fallback to DELETE /api/adsb/{id} if we have a valid ID
+   * - Fallback to DELETE /api/adsb/{id} using maintenanceService
    */
   const handleDelete = (item: OcrAdSbItem) => {
     const reference = item.reference;
@@ -240,7 +240,7 @@ export default function AdSbScreen() {
             try {
               let deleteSuccess = false;
               
-              // Strategy 1: Delete by reference (removes all occurrences of this AD/SB)
+              // Strategy 1: Try to delete by reference (removes all occurrences)
               if (aircraftId && reference) {
                 try {
                   const encodedRef = encodeURIComponent(reference);
@@ -248,23 +248,32 @@ export default function AdSbScreen() {
                   deleteSuccess = true;
                   console.log('[AD/SB] Deleted by reference:', reference);
                 } catch (refErr: any) {
-                  console.log('[AD/SB] Delete by reference failed:', refErr?.response?.status);
-                  // If 404, endpoint doesn't exist - try fallback
-                  if (refErr?.response?.status !== 404) {
-                    throw refErr;
-                  }
+                  console.log('[AD/SB] Delete by reference failed:', refErr?.response?.status, refErr?.message);
+                  // Continue to fallback strategies
                 }
               }
               
-              // Strategy 2: Fallback to delete by ID
+              // Strategy 2: Delete by individual ID using maintenanceService
+              if (!deleteSuccess && itemId) {
+                try {
+                  const success = await maintenanceService.deleteADSB(itemId);
+                  if (success) {
+                    deleteSuccess = true;
+                    console.log('[AD/SB] Deleted by ID via maintenanceService:', itemId);
+                  }
+                } catch (idErr: any) {
+                  console.log('[AD/SB] Delete by ID failed:', idErr?.message);
+                }
+              }
+              
+              // Strategy 3: Direct API call as last resort
               if (!deleteSuccess && itemId) {
                 try {
                   await api.delete(`/api/adsb/${itemId}`);
                   deleteSuccess = true;
-                  console.log('[AD/SB] Deleted by ID:', itemId);
-                } catch (idErr: any) {
-                  console.log('[AD/SB] Delete by ID failed:', idErr?.response?.status);
-                  throw idErr;
+                  console.log('[AD/SB] Deleted by direct API call:', itemId);
+                } catch (directErr: any) {
+                  console.log('[AD/SB] Direct delete failed:', directErr?.response?.status, directErr?.message);
                 }
               }
               
@@ -272,7 +281,10 @@ export default function AdSbScreen() {
                 // Refresh data after successful deletion
                 fetchData(true);
               } else {
-                throw new Error('No deletion method succeeded');
+                Alert.alert(
+                  lang === 'fr' ? 'Erreur' : 'Error', 
+                  lang === 'fr' ? 'Impossible de supprimer cet élément. Veuillez réessayer.' : 'Unable to delete this item. Please try again.'
+                );
               }
             } catch (err: any) {
               console.error('[AD/SB] Delete error:', err);
