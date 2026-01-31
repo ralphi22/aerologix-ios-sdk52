@@ -138,3 +138,59 @@
 3. Section ELT: Rapport avec mention ELT
 4. Historique: Liste et compteurs
 5. Validation: Par champ et globale
+
+---
+
+## Session Date: July 2025 - Edit Aircraft Fields Fix
+
+### ✅ Corrections Effectuées
+
+| Champ | Status | Solution |
+|-------|--------|----------|
+| Purpose (Usage) | ✅ | Mappé depuis `purpose` ou `aircraft_type` du backend |
+| City/Airport (Ville/Aéroport) | ✅ | Mappé depuis `base_of_operations` ou `city` du backend, fallback local |
+
+### Fichiers Modifiés
+
+1. `/app/services/aircraftService.ts`:
+   - Interface `Aircraft` enrichie avec `purpose`, `base_of_operations`, `city`, `designator`, etc.
+   - Interface `AircraftCreate` enrichie avec `purpose`, `base_of_operations`
+
+2. `/app/stores/aircraftLocalStore.ts`:
+   - `mapApiToLocal()`: Mappe `commonName` depuis `purpose` ou `aircraft_type`
+   - `mapApiToLocal()`: Mappe `baseOperations` depuis `base_of_operations` ou `city`
+   - `extractLocalData()`: Inclut `designator`, `ownerName`, `ownerCity`, `ownerProvince`
+   - `updateAircraft()`: Envoie `base_of_operations` au backend
+   - Ajout de logs de debug pour traçabilité
+
+3. `/app/app/(tabs)/aircraft/edit.tsx`:
+   - Ajout de log de debug pour vérifier le chargement des données
+
+### Flux de données
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Backend → Frontend (Lecture)                               │
+├─────────────────────────────────────────────────────────────┤
+│  backend.purpose → commonName (Purpose)                     │
+│  backend.aircraft_type → commonName (fallback)              │
+│  backend.base_of_operations → baseOperations (City/Airport) │
+│  backend.city → baseOperations (fallback)                   │
+│  localData.baseOperations → baseOperations (fallback local) │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  Frontend → Backend (Écriture)                              │
+├─────────────────────────────────────────────────────────────┤
+│  commonName → backend.aircraft_type                         │
+│  baseOperations → backend.base_of_operations                │
+│  baseOperations → localData.baseOperations (stockage local) │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### À Tester
+
+1. Ouvrir la page Edit Aircraft
+2. Vérifier que "Purpose" affiche "Privé"
+3. Vérifier que "City / Airport" affiche "Joliette, CSG3"
+4. Modifier et sauvegarder, puis vérifier la persistance
