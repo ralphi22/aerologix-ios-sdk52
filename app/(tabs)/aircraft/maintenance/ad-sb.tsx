@@ -327,12 +327,17 @@ export default function AdSbScreen() {
 
   // Render single card
   const renderCard = (item: OcrAdSbItem) => {
-    const itemId = item.id || item._id || item.reference;
-    const isDeleting = deletingId === itemId;
+    // Use reference as the unique key since items are aggregated by reference
+    const uniqueKey = item.reference || item.id || item._id || `adsb-${Math.random()}`;
+    // Check if this item is being deleted (by reference or ID)
+    const isDeleting = deletingId === item.reference || 
+                       deletingId === item.id || 
+                       deletingId === item._id ||
+                       deletingId === item.adsb_id;
     const showOccurrenceInfo = item.occurrence_count > 1;
     
     return (
-      <View key={itemId} style={[styles.card, isDeleting && styles.cardDeleting]}>
+      <View key={uniqueKey} style={[styles.card, isDeleting && styles.cardDeleting]}>
         <View style={styles.cardHeader}>
           <View style={[styles.typeBadge, item.type === 'AD' ? styles.adBadge : styles.sbBadge]}>
             <Text style={[styles.typeBadgeText, item.type === 'AD' ? styles.adText : styles.sbText]}>
