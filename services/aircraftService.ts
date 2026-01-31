@@ -16,8 +16,9 @@ export interface Aircraft {
   description?: string;
   created_at: string;
   updated_at: string;
-  // Additional fields that may come from backend
-  purpose?: string;
+  // Additional fields from backend API response
+  purpose?: string;           // "Privé" - Usage/Purpose of aircraft
+  city_airport?: string;      // "Joliette, CSG3" - City/Airport
   base_of_operations?: string;
   city?: string;
   designator?: string;
