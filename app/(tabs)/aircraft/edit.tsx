@@ -177,6 +177,14 @@ export default function EditAircraftScreen() {
    */
   useEffect(() => {
     if (aircraft) {
+      // Debug log to verify data loading
+      console.log('[Edit Aircraft] Loading data:', {
+        id: aircraft.id,
+        registration: aircraft.registration,
+        commonName: aircraft.commonName,
+        baseOperations: aircraft.baseOperations,
+      });
+      
       // Reset form with SAVED values only
       setRegistration(aircraft.registration || '');
       setCommonName(aircraft.commonName || '');
