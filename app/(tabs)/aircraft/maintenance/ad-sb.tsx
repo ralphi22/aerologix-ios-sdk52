@@ -101,13 +101,16 @@ const COLORS = {
 interface OcrAdSbItem {
   id?: string;
   _id?: string;
-  reference: string;           // AD/SB reference number
+  adsb_id?: string;            // Individual record ID for deletion
+  reference: string;           // AD/SB reference number (unique key)
   type: 'AD' | 'SB';
   description?: string;
-  occurrence_count: number;    // From backend aggregation
+  occurrence_count: number;    // From backend aggregation - number of times captured
   last_seen?: string;          // From backend aggregation
   first_seen?: string;
   aircraft_id: string;
+  // Array of individual record IDs if backend returns them
+  record_ids?: string[];
 }
 
 interface OcrAdSbResponse {
