@@ -28,6 +28,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
 import api from '@/services/api';
+import maintenanceService from '@/services/maintenanceService';
 
 // ============================================
 // BILINGUAL TEXTS
