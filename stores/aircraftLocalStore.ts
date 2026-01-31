@@ -202,10 +202,30 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       setLocalDataMap(currentLocalData);
       
       const apiAircraft = await aircraftService.getAll();
+      
+      // Debug: Log raw API response to see available fields
+      console.log('[AircraftStore] Raw API response:', apiAircraft.map(a => ({
+        id: (a as any).id || a._id,
+        registration: a.registration,
+        aircraft_type: a.aircraft_type,
+        purpose: (a as any).purpose,
+        base_of_operations: (a as any).base_of_operations,
+        city: (a as any).city,
+      })));
+      
       // Merge API data with local data
       const localAircraft = apiAircraft.map(api => {
         const id = (api as any).id?.toString() || api._id;
-        return mapApiToLocal(api, currentLocalData[id]);
+        const mapped = mapApiToLocal(api, currentLocalData[id]);
+        
+        // Debug: Log mapped data
+        console.log(`[AircraftStore] Mapped ${api.registration}:`, {
+          commonName: mapped.commonName,
+          baseOperations: mapped.baseOperations,
+          localData: currentLocalData[id],
+        });
+        
+        return mapped;
       });
       setAircraft(localAircraft);
       
