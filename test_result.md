@@ -141,56 +141,54 @@
 
 ---
 
-## Session Date: July 2025 - Edit Aircraft Fields Fix
+## Session Date: July 2025 - Edit Aircraft Fields Fix (Update 2)
 
 ### ✅ Corrections Effectuées
 
-| Champ | Status | Solution |
-|-------|--------|----------|
-| Purpose (Usage) | ✅ | Mappé depuis `purpose` ou `aircraft_type` du backend |
-| City/Airport (Ville/Aéroport) | ✅ | Mappé depuis `base_of_operations` ou `city` du backend, fallback local |
+| Champ | Status | Nom API Backend | Nom Frontend |
+|-------|--------|-----------------|--------------|
+| Purpose (Usage) | ✅ | `purpose` ou `aircraft_type` | `commonName` |
+| City/Airport (Ville/Aéroport) | ✅ | `city_airport` ou `base_of_operations` | `baseOperations` |
+
+### Mapping API → Frontend
+
+```json
+// Réponse API attendue:
+{
+  "purpose": "Privé",
+  "city_airport": "Joliette, CSG3"
+}
+
+// Mapping dans aircraftLocalStore.ts:
+commonName = purpose || aircraft_type || ''
+baseOperations = city_airport || base_of_operations || city || localData.baseOperations || ''
+```
 
 ### Fichiers Modifiés
 
 1. `/app/services/aircraftService.ts`:
-   - Interface `Aircraft` enrichie avec `purpose`, `base_of_operations`, `city`, `designator`, etc.
-   - Interface `AircraftCreate` enrichie avec `purpose`, `base_of_operations`
-
+   - Interface `Aircraft` enrichie avec `city_airport` (nouveau champ API)
+   
 2. `/app/stores/aircraftLocalStore.ts`:
-   - `mapApiToLocal()`: Mappe `commonName` depuis `purpose` ou `aircraft_type`
-   - `mapApiToLocal()`: Mappe `baseOperations` depuis `base_of_operations` ou `city`
-   - `extractLocalData()`: Inclut `designator`, `ownerName`, `ownerCity`, `ownerProvince`
-   - `updateAircraft()`: Envoie `base_of_operations` au backend
-   - Ajout de logs de debug pour traçabilité
-
+   - `mapApiToLocal()`: Priorité `city_airport` pour le champ baseOperations
+   - Logs de debug améliorés pour traçabilité
+   
 3. `/app/app/(tabs)/aircraft/edit.tsx`:
-   - Ajout de log de debug pour vérifier le chargement des données
+   - Placeholder "Non spécifié" pour Purpose et City/Airport si vide
+   - Logs de debug pour vérifier le chargement des données
 
-### Flux de données
+### Gestion des valeurs manquantes
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Backend → Frontend (Lecture)                               │
-├─────────────────────────────────────────────────────────────┤
-│  backend.purpose → commonName (Purpose)                     │
-│  backend.aircraft_type → commonName (fallback)              │
-│  backend.base_of_operations → baseOperations (City/Airport) │
-│  backend.city → baseOperations (fallback)                   │
-│  localData.baseOperations → baseOperations (fallback local) │
-└─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│  Frontend → Backend (Écriture)                              │
-├─────────────────────────────────────────────────────────────┤
-│  commonName → backend.aircraft_type                         │
-│  baseOperations → backend.base_of_operations                │
-│  baseOperations → localData.baseOperations (stockage local) │
-└─────────────────────────────────────────────────────────────┘
+Si API retourne null/undefined pour un champ:
+→ Le champ affiche "Non spécifié" en placeholder
+→ L'utilisateur peut saisir manuellement une valeur
+→ La valeur est sauvegardée localement + envoyée au backend
 ```
 
 ### À Tester
 
-1. Ouvrir la page Edit Aircraft
-2. Vérifier que "Purpose" affiche "Privé"
-3. Vérifier que "City / Airport" affiche "Joliette, CSG3"
-4. Modifier et sauvegarder, puis vérifier la persistance
+1. Ouvrir Edit Aircraft sur un avion existant
+2. Vérifier que "Purpose" affiche "Privé" (ou "Non spécifié" si vide)
+3. Vérifier que "City / Airport" affiche "Joliette, CSG3" (ou "Non spécifié" si vide)
+4. Regarder les logs console pour voir la réponse API brute
