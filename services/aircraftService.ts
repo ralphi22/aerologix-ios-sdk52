@@ -16,6 +16,14 @@ export interface Aircraft {
   description?: string;
   created_at: string;
   updated_at: string;
+  // Additional fields that may come from backend
+  purpose?: string;
+  base_of_operations?: string;
+  city?: string;
+  designator?: string;
+  owner_name?: string;
+  owner_city?: string;
+  owner_province?: string;
 }
 
 export interface AircraftCreate {
@@ -30,6 +38,9 @@ export interface AircraftCreate {
   propeller_hours: number;
   photo_url?: string;
   description?: string;
+  // Additional fields that may be supported by backend
+  purpose?: string;
+  base_of_operations?: string;
 }
 
 class AircraftService {

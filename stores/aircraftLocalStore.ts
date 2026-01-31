@@ -64,6 +64,11 @@ interface LocalAircraftData {
   city?: string;
   country?: string;
   photoUri?: string;
+  // Additional fields for TC data persistence
+  designator?: string;
+  ownerName?: string;
+  ownerCity?: string;
+  ownerProvince?: string;
 }
 
 // Type for local storage: map of aircraft ID to local data
@@ -96,14 +101,16 @@ const saveLocalData = async (data: LocalDataMap): Promise<void> => {
 const mapApiToLocal = (apiAircraft: ApiAircraft, localData: LocalAircraftData = {}): Aircraft => ({
   id: (apiAircraft as any).id?.toString() || apiAircraft._id,
   registration: apiAircraft.registration,
-  commonName: apiAircraft.aircraft_type || '',
+  // Purpose: Try backend field 'purpose' or 'aircraft_type', fallback to local
+  commonName: (apiAircraft as any).purpose || apiAircraft.aircraft_type || '',
   model: apiAircraft.model || '',
   serialNumber: apiAircraft.serial_number || '',
-  // Fields from local storage (not in backend)
+  // Fields from local storage (not in backend) or backend if available
   category: localData.category || '',
   engineType: localData.engineType || '',
   maxWeight: localData.maxWeight || '',
-  baseOperations: localData.baseOperations || '',
+  // City/Airport: Try backend field 'base_of_operations' or 'city', fallback to local
+  baseOperations: (apiAircraft as any).base_of_operations || (apiAircraft as any).city || localData.baseOperations || '',
   countryManufacture: localData.countryManufacture || '',
   registrationType: localData.registrationType || '',
   ownerSince: localData.ownerSince || '',
@@ -135,6 +142,11 @@ const extractLocalData = (aircraft: Partial<Aircraft>): LocalAircraftData => ({
   city: aircraft.city,
   country: aircraft.country,
   photoUri: aircraft.photoUri,
+  // Additional TC fields stored locally
+  designator: (aircraft as any).designator,
+  ownerName: (aircraft as any).ownerName,
+  ownerCity: (aircraft as any).ownerCity,
+  ownerProvince: (aircraft as any).ownerProvince,
 });
 
 // Map local aircraft to API format
@@ -149,6 +161,8 @@ const mapLocalToApi = (localAircraft: Omit<Aircraft, 'id' | 'createdAt'>): Aircr
   engine_hours: localAircraft.engineHours || 0,
   propeller_hours: localAircraft.propellerHours || 0,
   photo_url: undefined, // Photo stored locally, not sent to backend
+  // Send base_of_operations to backend if supported
+  base_of_operations: localAircraft.baseOperations || undefined,
 });
 
 const AircraftContext = createContext<AircraftContextType | undefined>(undefined);
@@ -188,10 +202,30 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       setLocalDataMap(currentLocalData);
       
       const apiAircraft = await aircraftService.getAll();
+      
+      // Debug: Log raw API response to see available fields
+      console.log('[AircraftStore] Raw API response:', apiAircraft.map(a => ({
+        id: (a as any).id || a._id,
+        registration: a.registration,
+        aircraft_type: a.aircraft_type,
+        purpose: (a as any).purpose,
+        base_of_operations: (a as any).base_of_operations,
+        city: (a as any).city,
+      })));
+      
       // Merge API data with local data
       const localAircraft = apiAircraft.map(api => {
         const id = (api as any).id?.toString() || api._id;
-        return mapApiToLocal(api, currentLocalData[id]);
+        const mapped = mapApiToLocal(api, currentLocalData[id]);
+        
+        // Debug: Log mapped data
+        console.log(`[AircraftStore] Mapped ${api.registration}:`, {
+          commonName: mapped.commonName,
+          baseOperations: mapped.baseOperations,
+          localData: currentLocalData[id],
+        });
+        
+        return mapped;
       });
       setAircraft(localAircraft);
       
@@ -270,6 +304,8 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       if (aircraftData.airframeHours !== undefined) apiData.airframe_hours = aircraftData.airframeHours;
       if (aircraftData.engineHours !== undefined) apiData.engine_hours = aircraftData.engineHours;
       if (aircraftData.propellerHours !== undefined) apiData.propeller_hours = aircraftData.propellerHours;
+      // Send base_of_operations to backend if supported
+      if (aircraftData.baseOperations !== undefined) apiData.base_of_operations = aircraftData.baseOperations;
       // Note: photo_url not sent to backend, stored locally only
       
       const updated = await aircraftService.update(id, apiData);
