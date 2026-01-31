@@ -3,7 +3,12 @@
  * TC-SAFE: Information only, no compliance decisions
  * 
  * SOURCE: User's scanned documents (OCR) - NOT official TC data
- * ENDPOINT: GET /api/adsb/ocr-scan/{aircraft_id} (aggregated data)
+ * ENDPOINT: GET /api/adsb/ocr-scan/{aircraft_id} (aggregated data with counters)
+ * 
+ * FEATURES:
+ * - Counter management: Shows occurrence_count for each unique AD/SB reference
+ * - No visual duplicates: Each reference appears once with count badge
+ * - Delete: Removes all occurrences of a reference via dedicated endpoint
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -23,6 +28,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
 import api from '@/services/api';
+import maintenanceService from '@/services/maintenanceService';
 
 // ============================================
 // BILINGUAL TEXTS
@@ -96,13 +102,16 @@ const COLORS = {
 interface OcrAdSbItem {
   id?: string;
   _id?: string;
-  reference: string;           // AD/SB reference number
+  adsb_id?: string;            // Individual record ID for deletion
+  reference: string;           // AD/SB reference number (unique key)
   type: 'AD' | 'SB';
   description?: string;
-  occurrence_count: number;    // From backend aggregation
+  occurrence_count: number;    // From backend aggregation - number of times captured
   last_seen?: string;          // From backend aggregation
   first_seen?: string;
   aircraft_id: string;
+  // Array of individual record IDs if backend returns them
+  record_ids?: string[];
 }
 
 interface OcrAdSbResponse {
@@ -193,29 +202,96 @@ export default function AdSbScreen() {
     });
   };
 
+  /**
+   * Delete AD/SB - Handles both aggregated and individual records
+   * 
+   * The OCR aggregated endpoint may return items with different ID structures:
+   * 1. adsb_id - Direct reference to individual ADSB record
+   * 2. id or _id - Could be aggregation ID or individual record ID
+   * 3. reference - Used for deletion by reference when no ID available
+   * 
+   * Deletion strategy:
+   * - Try DELETE /api/adsb/ocr/{aircraft_id}/reference/{reference} first (deletes all occurrences)
+   * - Fallback to DELETE /api/adsb/{id} using maintenanceService
+   */
   const handleDelete = (item: OcrAdSbItem) => {
-    const itemId = item.id || item._id;
-    if (!itemId) {
-      Alert.alert('Error', 'Cannot delete - no ID');
+    const reference = item.reference;
+    const itemId = item.adsb_id || item.id || item._id;
+    
+    if (!reference && !itemId) {
+      Alert.alert('Error', 'Cannot delete - no reference or ID');
       return;
     }
 
+    const deleteMessage = item.occurrence_count > 1 
+      ? `${texts.deleteConfirm} "${reference}" ? (${item.occurrence_count} ${lang === 'fr' ? 'occurrences' : 'occurrences'})`
+      : `${texts.deleteConfirm} "${reference}" ?`;
+
     Alert.alert(
       texts.delete,
-      `${texts.deleteConfirm} "${item.reference}" ?`,
+      deleteMessage,
       [
         { text: texts.cancel, style: 'cancel' },
         { 
           text: texts.delete, 
           style: 'destructive', 
           onPress: async () => {
-            setDeletingId(itemId);
+            setDeletingId(reference || itemId || '');
             try {
-              await api.delete(`/api/adsb/${itemId}`);
-              // Refresh data after deletion
-              fetchData(true);
+              let deleteSuccess = false;
+              
+              // Strategy 1: Try to delete by reference (removes all occurrences)
+              if (aircraftId && reference) {
+                try {
+                  const encodedRef = encodeURIComponent(reference);
+                  await api.delete(`/api/adsb/ocr/${aircraftId}/reference/${encodedRef}`);
+                  deleteSuccess = true;
+                  console.log('[AD/SB] Deleted by reference:', reference);
+                } catch (refErr: any) {
+                  console.log('[AD/SB] Delete by reference failed:', refErr?.response?.status, refErr?.message);
+                  // Continue to fallback strategies
+                }
+              }
+              
+              // Strategy 2: Delete by individual ID using maintenanceService
+              if (!deleteSuccess && itemId) {
+                try {
+                  const success = await maintenanceService.deleteADSB(itemId);
+                  if (success) {
+                    deleteSuccess = true;
+                    console.log('[AD/SB] Deleted by ID via maintenanceService:', itemId);
+                  }
+                } catch (idErr: any) {
+                  console.log('[AD/SB] Delete by ID failed:', idErr?.message);
+                }
+              }
+              
+              // Strategy 3: Direct API call as last resort
+              if (!deleteSuccess && itemId) {
+                try {
+                  await api.delete(`/api/adsb/${itemId}`);
+                  deleteSuccess = true;
+                  console.log('[AD/SB] Deleted by direct API call:', itemId);
+                } catch (directErr: any) {
+                  console.log('[AD/SB] Direct delete failed:', directErr?.response?.status, directErr?.message);
+                }
+              }
+              
+              if (deleteSuccess) {
+                // Refresh data after successful deletion
+                fetchData(true);
+              } else {
+                Alert.alert(
+                  lang === 'fr' ? 'Erreur' : 'Error', 
+                  lang === 'fr' ? 'Impossible de supprimer cet élément. Veuillez réessayer.' : 'Unable to delete this item. Please try again.'
+                );
+              }
             } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Failed to delete');
+              console.error('[AD/SB] Delete error:', err);
+              Alert.alert(
+                'Error', 
+                err?.response?.data?.detail || err?.message || 'Failed to delete'
+              );
             } finally {
               setDeletingId(null);
             }
@@ -264,12 +340,17 @@ export default function AdSbScreen() {
 
   // Render single card
   const renderCard = (item: OcrAdSbItem) => {
-    const itemId = item.id || item._id || item.reference;
-    const isDeleting = deletingId === itemId;
+    // Use reference as the unique key since items are aggregated by reference
+    const uniqueKey = item.reference || item.id || item._id || `adsb-${Math.random()}`;
+    // Check if this item is being deleted (by reference or ID)
+    const isDeleting = deletingId === item.reference || 
+                       deletingId === item.id || 
+                       deletingId === item._id ||
+                       deletingId === item.adsb_id;
     const showOccurrenceInfo = item.occurrence_count > 1;
     
     return (
-      <View key={itemId} style={[styles.card, isDeleting && styles.cardDeleting]}>
+      <View key={uniqueKey} style={[styles.card, isDeleting && styles.cardDeleting]}>
         <View style={styles.cardHeader}>
           <View style={[styles.typeBadge, item.type === 'AD' ? styles.adBadge : styles.sbBadge]}>
             <Text style={[styles.typeBadgeText, item.type === 'AD' ? styles.adText : styles.sbText]}>
