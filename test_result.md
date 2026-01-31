@@ -2,6 +2,54 @@
 
 ## Session Date: December 2025
 
+---
+
+## Session Date: July 2025 - AD/SB Module Update
+
+### ✅ Corrections Effectuées
+
+| Problème | Status | Solution |
+|----------|--------|----------|
+| Compteurs AD/SB | ✅ | `occurrence_count` affiché via badge (X×) |
+| Doublons visuels | ✅ | Items agrégés par référence, clé unique par `reference` |
+| Suppression régression | ✅ | Stratégie multi-fallback (reference → ID → direct API) |
+| TC-SAFE préservé | ✅ | Page TC AD/SB non modifiée |
+
+### Fichiers Modifiés
+
+1. `/app/app/(tabs)/aircraft/maintenance/ad-sb.tsx`:
+   - Import `maintenanceService` pour suppression robuste
+   - Interface `OcrAdSbItem` enrichie avec `adsb_id` et `record_ids`
+   - `handleDelete()` avec 3 stratégies de suppression:
+     1. DELETE `/api/adsb/ocr/{aircraft_id}/reference/{reference}` (toutes occurrences)
+     2. `maintenanceService.deleteADSB(id)` via service centralisé
+     3. DELETE `/api/adsb/{id}` direct comme fallback
+   - `renderCard()` avec clé unique basée sur `reference`
+   - Message de suppression adapté au nombre d'occurrences
+
+### Logique de Comptage
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  OCR Capture Flow                                          │
+├────────────────────────────────────────────────────────────┤
+│  1. Scan document → Backend détecte AD/SB                  │
+│  2. Backend agrège par référence (ex: "AD 96-09-06")       │
+│  3. Frontend reçoit: { reference, occurrence_count, ... }  │
+│  4. Affichage: 1 carte par référence + badge compteur      │
+│  5. Suppression: Retire TOUTES les occurrences             │
+└────────────────────────────────────────────────────────────┘
+```
+
+### À Tester
+
+1. ✅ Compteurs: Vérifier que le badge "X×" apparaît si occurrence_count > 1
+2. ✅ Pas de doublons: Chaque référence AD/SB n'apparaît qu'une seule fois
+3. ✅ Suppression: Cliquer "Supprimer" et confirmer que l'item disparaît
+4. ✅ TC AD/SB: Page non impactée (imports utilisateur préservés)
+
+---
+
 ## RAPPORT DE CONFORMITÉ - PROMPT OCR
 
 ### ✅ CONFORME
