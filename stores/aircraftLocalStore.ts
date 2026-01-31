@@ -161,6 +161,8 @@ const mapLocalToApi = (localAircraft: Omit<Aircraft, 'id' | 'createdAt'>): Aircr
   engine_hours: localAircraft.engineHours || 0,
   propeller_hours: localAircraft.propellerHours || 0,
   photo_url: undefined, // Photo stored locally, not sent to backend
+  // Send base_of_operations to backend if supported
+  base_of_operations: localAircraft.baseOperations || undefined,
 });
 
 const AircraftContext = createContext<AircraftContextType | undefined>(undefined);
