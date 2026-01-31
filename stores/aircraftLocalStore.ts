@@ -64,6 +64,11 @@ interface LocalAircraftData {
   city?: string;
   country?: string;
   photoUri?: string;
+  // Additional fields for TC data persistence
+  designator?: string;
+  ownerName?: string;
+  ownerCity?: string;
+  ownerProvince?: string;
 }
 
 // Type for local storage: map of aircraft ID to local data
