@@ -101,14 +101,16 @@ const saveLocalData = async (data: LocalDataMap): Promise<void> => {
 const mapApiToLocal = (apiAircraft: ApiAircraft, localData: LocalAircraftData = {}): Aircraft => ({
   id: (apiAircraft as any).id?.toString() || apiAircraft._id,
   registration: apiAircraft.registration,
-  commonName: apiAircraft.aircraft_type || '',
+  // Purpose: Try backend field 'purpose' or 'aircraft_type', fallback to local
+  commonName: (apiAircraft as any).purpose || apiAircraft.aircraft_type || '',
   model: apiAircraft.model || '',
   serialNumber: apiAircraft.serial_number || '',
-  // Fields from local storage (not in backend)
+  // Fields from local storage (not in backend) or backend if available
   category: localData.category || '',
   engineType: localData.engineType || '',
   maxWeight: localData.maxWeight || '',
-  baseOperations: localData.baseOperations || '',
+  // City/Airport: Try backend field 'base_of_operations' or 'city', fallback to local
+  baseOperations: (apiAircraft as any).base_of_operations || (apiAircraft as any).city || localData.baseOperations || '',
   countryManufacture: localData.countryManufacture || '',
   registrationType: localData.registrationType || '',
   ownerSince: localData.ownerSince || '',
