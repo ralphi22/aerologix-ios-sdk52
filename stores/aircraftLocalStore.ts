@@ -142,6 +142,11 @@ const extractLocalData = (aircraft: Partial<Aircraft>): LocalAircraftData => ({
   city: aircraft.city,
   country: aircraft.country,
   photoUri: aircraft.photoUri,
+  // Additional TC fields stored locally
+  designator: (aircraft as any).designator,
+  ownerName: (aircraft as any).ownerName,
+  ownerCity: (aircraft as any).ownerCity,
+  ownerProvince: (aircraft as any).ownerProvince,
 });
 
 // Map local aircraft to API format
