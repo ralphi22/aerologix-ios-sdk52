@@ -201,29 +201,84 @@ export default function AdSbScreen() {
     });
   };
 
+  /**
+   * Delete AD/SB - Handles both aggregated and individual records
+   * 
+   * The OCR aggregated endpoint may return items with different ID structures:
+   * 1. adsb_id - Direct reference to individual ADSB record
+   * 2. id or _id - Could be aggregation ID or individual record ID
+   * 3. reference - Used for deletion by reference when no ID available
+   * 
+   * Deletion strategy:
+   * - Try DELETE /api/adsb/ocr/{aircraft_id}/reference/{reference} first (deletes all occurrences)
+   * - Fallback to DELETE /api/adsb/{id} if we have a valid ID
+   */
   const handleDelete = (item: OcrAdSbItem) => {
-    const itemId = item.id || item._id;
-    if (!itemId) {
-      Alert.alert('Error', 'Cannot delete - no ID');
+    const reference = item.reference;
+    const itemId = item.adsb_id || item.id || item._id;
+    
+    if (!reference && !itemId) {
+      Alert.alert('Error', 'Cannot delete - no reference or ID');
       return;
     }
 
+    const deleteMessage = item.occurrence_count > 1 
+      ? `${texts.deleteConfirm} "${reference}" ? (${item.occurrence_count} ${lang === 'fr' ? 'occurrences' : 'occurrences'})`
+      : `${texts.deleteConfirm} "${reference}" ?`;
+
     Alert.alert(
       texts.delete,
-      `${texts.deleteConfirm} "${item.reference}" ?`,
+      deleteMessage,
       [
         { text: texts.cancel, style: 'cancel' },
         { 
           text: texts.delete, 
           style: 'destructive', 
           onPress: async () => {
-            setDeletingId(itemId);
+            setDeletingId(reference || itemId || '');
             try {
-              await api.delete(`/api/adsb/${itemId}`);
-              // Refresh data after deletion
-              fetchData(true);
+              let deleteSuccess = false;
+              
+              // Strategy 1: Delete by reference (removes all occurrences of this AD/SB)
+              if (aircraftId && reference) {
+                try {
+                  const encodedRef = encodeURIComponent(reference);
+                  await api.delete(`/api/adsb/ocr/${aircraftId}/reference/${encodedRef}`);
+                  deleteSuccess = true;
+                  console.log('[AD/SB] Deleted by reference:', reference);
+                } catch (refErr: any) {
+                  console.log('[AD/SB] Delete by reference failed:', refErr?.response?.status);
+                  // If 404, endpoint doesn't exist - try fallback
+                  if (refErr?.response?.status !== 404) {
+                    throw refErr;
+                  }
+                }
+              }
+              
+              // Strategy 2: Fallback to delete by ID
+              if (!deleteSuccess && itemId) {
+                try {
+                  await api.delete(`/api/adsb/${itemId}`);
+                  deleteSuccess = true;
+                  console.log('[AD/SB] Deleted by ID:', itemId);
+                } catch (idErr: any) {
+                  console.log('[AD/SB] Delete by ID failed:', idErr?.response?.status);
+                  throw idErr;
+                }
+              }
+              
+              if (deleteSuccess) {
+                // Refresh data after successful deletion
+                fetchData(true);
+              } else {
+                throw new Error('No deletion method succeeded');
+              }
             } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Failed to delete');
+              console.error('[AD/SB] Delete error:', err);
+              Alert.alert(
+                'Error', 
+                err?.response?.data?.detail || err?.message || 'Failed to delete'
+              );
             } finally {
               setDeletingId(null);
             }
