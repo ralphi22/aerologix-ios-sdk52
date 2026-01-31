@@ -209,6 +209,7 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
         registration: a.registration,
         aircraft_type: a.aircraft_type,
         purpose: (a as any).purpose,
+        city_airport: (a as any).city_airport,
         base_of_operations: (a as any).base_of_operations,
         city: (a as any).city,
       })));
