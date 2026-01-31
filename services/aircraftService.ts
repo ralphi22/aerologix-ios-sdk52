@@ -38,6 +38,9 @@ export interface AircraftCreate {
   propeller_hours: number;
   photo_url?: string;
   description?: string;
+  // Additional fields that may be supported by backend
+  purpose?: string;
+  base_of_operations?: string;
 }
 
 class AircraftService {
