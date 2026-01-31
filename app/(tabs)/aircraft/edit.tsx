@@ -584,7 +584,7 @@ export default function EditAircraftScreen() {
           <SectionHeader title={t('section_weight')} />
           <View style={styles.section}>
             <FormField label={t('max_weight')} value={maxWeight} onChangeText={setMaxWeight} placeholder="—" tcFilled={tcFilledFields.has('maxWeight')} />
-            <FormField label={t('base_operations')} value={baseOperations} onChangeText={setBaseOperations} placeholder="—" tcFilled={tcFilledFields.has('baseOperations')} />
+            <FormField label={t('base_operations')} value={baseOperations} onChangeText={setBaseOperations} placeholder={lang === 'fr' ? 'Non spécifié' : 'Not specified'} tcFilled={tcFilledFields.has('baseOperations')} />
           </View>
 
           {/* Construction */}
