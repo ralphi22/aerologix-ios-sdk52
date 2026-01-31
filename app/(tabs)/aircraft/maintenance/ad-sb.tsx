@@ -3,7 +3,12 @@
  * TC-SAFE: Information only, no compliance decisions
  * 
  * SOURCE: User's scanned documents (OCR) - NOT official TC data
- * ENDPOINT: GET /api/adsb/ocr-scan/{aircraft_id} (aggregated data)
+ * ENDPOINT: GET /api/adsb/ocr-scan/{aircraft_id} (aggregated data with counters)
+ * 
+ * FEATURES:
+ * - Counter management: Shows occurrence_count for each unique AD/SB reference
+ * - No visual duplicates: Each reference appears once with count badge
+ * - Delete: Removes all occurrences of a reference via dedicated endpoint
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
