@@ -356,9 +356,11 @@ export default function PartsScreen() {
   const renderCriticalItem = (item: CriticalMention, index: number, category: keyof typeof CATEGORY_CONFIG) => {
     const config = CATEGORY_CONFIG[category];
     const confidencePercent = Math.round((item.confidence || 0) * 100);
+    const mentionId = item.id || item._id;
+    const isDeleting = deletingMentionId === mentionId;
     
     return (
-      <View key={`${category}-${index}`} style={styles.mentionItem}>
+      <View key={`${category}-${index}-${mentionId}`} style={[styles.mentionItem, isDeleting && styles.mentionItemDeleting]}>
         <Text style={styles.mentionText}>• {item.text}</Text>
         <View style={styles.mentionMeta}>
           <Text style={styles.mentionMetaText}>
@@ -367,6 +369,11 @@ export default function PartsScreen() {
           {item.report_date && (
             <Text style={styles.mentionMetaText}>
               {texts.date}: {item.report_date}
+            </Text>
+          )}
+          {item.source && (
+            <Text style={styles.mentionMetaText}>
+              {texts.source}: {item.source}
             </Text>
           )}
         </View>
@@ -378,6 +385,21 @@ export default function PartsScreen() {
               </View>
             ))}
           </View>
+        )}
+        
+        {/* Delete button - only if can_delete is true */}
+        {item.can_delete && (
+          <TouchableOpacity 
+            style={styles.mentionDeleteButton}
+            onPress={() => handleDeleteMention(item)}
+            disabled={isDeleting}
+          >
+            {isDeleting ? (
+              <ActivityIndicator size="small" color={COLORS.red} />
+            ) : (
+              <Text style={styles.mentionDeleteText}>🗑️ {texts.delete}</Text>
+            )}
+          </TouchableOpacity>
         )}
       </View>
     );
