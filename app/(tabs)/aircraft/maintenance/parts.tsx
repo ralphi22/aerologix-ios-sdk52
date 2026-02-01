@@ -316,6 +316,41 @@ export default function PartsScreen() {
   };
 
   // ============================================
+  // DELETE CRITICAL MENTION
+  // ============================================
+  const handleDeleteMention = (item: CriticalMention) => {
+    const mentionId = item.id || item._id;
+    if (!mentionId || !item.can_delete) return;
+
+    Alert.alert(
+      texts.delete,
+      texts.deleteConfirm,
+      [
+        { text: texts.cancel, style: 'cancel' },
+        {
+          text: texts.delete,
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingMentionId(mentionId);
+            try {
+              // DELETE /api/limitations/{aircraft_id}/{item.id}
+              await api.delete(`/api/limitations/${aircraftId}/${mentionId}`);
+              console.log('[Critical Mentions] Deleted:', mentionId);
+              // Rafraîchir la liste
+              fetchCriticalMentions(true);
+            } catch (err: any) {
+              console.error('[Critical Mentions] Delete error:', err);
+              Alert.alert(texts.deleteError, err?.message || 'Failed to delete');
+            } finally {
+              setDeletingMentionId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // ============================================
   // RENDER CRITICAL MENTION ITEM
   // ============================================
   const renderCriticalItem = (item: CriticalMention, index: number, category: keyof typeof CATEGORY_CONFIG) => {
