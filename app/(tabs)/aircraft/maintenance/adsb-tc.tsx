@@ -238,10 +238,16 @@ export default function AdSbTcScreen() {
       
       // Handle response format - backend returns { references: [...] }
       const data = response.data as TcReferencesResponse;
-      const items = data?.references || response.data?.items || response.data || [];
-      console.log('[TC AD/SB] Extracted items count:', Array.isArray(items) ? items.length : 'not array');
+      console.log('[TC AD/SB] Full response data:', JSON.stringify(response.data));
+      console.log('[TC AD/SB] data.references:', data?.references);
+      console.log('[TC AD/SB] data.total_count:', data?.total_count);
+      
+      // Extract references array - backend returns { references: [...] }
+      const items = data?.references || [];
+      console.log('[TC AD/SB] Extracted items:', items?.length, 'items');
       
       const refList = Array.isArray(items) ? items : [];
+      console.log('[TC AD/SB] Final refList:', refList.length, 'items');
       setReferences(refList);
       
       // Calculate summary stats (from backend or compute locally)
@@ -252,6 +258,8 @@ export default function AdSbTcScreen() {
         seen: totalSeen,
         notSeen: totalNotSeen,
       });
+      
+      console.log('[TC AD/SB] State updated - references:', refList.length, 'summaryStats:', { total: data?.total_count || refList.length, seen: totalSeen, notSeen: totalNotSeen });
     } catch (err: any) {
       console.warn('[TC AD/SB] Error:', err?.message);
       // If 404 or empty, just set empty array (not an error for user)
