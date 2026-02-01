@@ -237,10 +237,21 @@ export default function AdSbTcScreen() {
       console.log('[TC AD/SB] Raw API response:', JSON.stringify(response.data));
       
       // Handle response format - backend returns { references: [...] }
-      const items = response.data?.references || response.data?.items || response.data || [];
+      const data = response.data as TcReferencesResponse;
+      const items = data?.references || response.data?.items || response.data || [];
       console.log('[TC AD/SB] Extracted items count:', Array.isArray(items) ? items.length : 'not array');
       
-      setReferences(Array.isArray(items) ? items : []);
+      const refList = Array.isArray(items) ? items : [];
+      setReferences(refList);
+      
+      // Calculate summary stats (from backend or compute locally)
+      const totalSeen = data?.total_seen ?? refList.filter(r => r.seen_in_scans === true).length;
+      const totalNotSeen = data?.total_not_seen ?? refList.filter(r => r.seen_in_scans !== true).length;
+      setSummaryStats({
+        total: data?.total_count || refList.length,
+        seen: totalSeen,
+        notSeen: totalNotSeen,
+      });
     } catch (err: any) {
       console.warn('[TC AD/SB] Error:', err?.message);
       // If 404 or empty, just set empty array (not an error for user)
