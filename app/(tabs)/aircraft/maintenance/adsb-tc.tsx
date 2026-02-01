@@ -383,7 +383,7 @@ export default function AdSbTcScreen() {
   const hasData = references.length > 0;
 
   // ============================================================
-  // RENDER CARD
+  // RENDER CARD - Updated to match new backend structure
   // ============================================================
   const renderCard = (item: TcReference, index: number) => {
     const isAD = item.type === 'AD';
@@ -392,15 +392,26 @@ export default function AdSbTcScreen() {
     const isDownloading = downloadingPdfId === tcPdfId;
     const isDeleting = deletingRefId === tcRefId;
     
-    const displayTitle = item.title || item.identifier || item.ref || texts.fallbackTitle;
+    // Display logic per prompt:
+    // - identifier: item.identifier (ex: "CF-2000-20R2")
+    // - title: item.title or fallback to "AD " + identifier
     const displayIdentifier = item.identifier || item.ref;
+    const displayTitle = item.title || `${texts.adPrefix} ${displayIdentifier}`;
+    
+    // Date formatting
+    const importDate = item.created_at || item.imported_at;
+    const formattedDate = importDate ? formatDate(importDate) : null;
+    
+    // Check permissions from backend
+    const canOpenPdf = item.can_open_pdf !== false && tcPdfId;
+    const canDelete = item.can_delete !== false;
     
     return (
       <View 
         key={`${item.type}-${tcRefId}-${index}`}
         style={[styles.card, { borderLeftColor: isAD ? COLORS.adRed : COLORS.sbBlue }]}
       >
-        {/* Header */}
+        {/* Header with Type Badge and Identifier */}
         <View style={styles.cardHeader}>
           <View style={[styles.typeBadge, { backgroundColor: isAD ? COLORS.adRedBg : COLORS.sbBlueBg }]}>
             <Text style={[styles.typeBadgeText, { color: isAD ? COLORS.adRed : COLORS.sbBlue }]}>
@@ -412,20 +423,28 @@ export default function AdSbTcScreen() {
           </View>
         </View>
 
-        {/* Title */}
-        <Text style={styles.cardTitle} numberOfLines={2}>{displayTitle}</Text>
+        {/* Title/Description */}
+        <Text style={styles.cardTitle} numberOfLines={3}>{displayTitle}</Text>
+
+        {/* Filename */}
+        {item.filename && (
+          <View style={styles.filenameRow}>
+            <Ionicons name="document-outline" size={14} color={COLORS.textMuted} />
+            <Text style={styles.filenameText}>{item.filename}</Text>
+          </View>
+        )}
 
         {/* Import date */}
-        {item.imported_at && (
+        {formattedDate && (
           <Text style={styles.importDate}>
-            {lang === 'fr' ? 'Importé le' : 'Imported on'}: {item.imported_at}
+            {texts.importedOn}: {formattedDate}
           </Text>
         )}
 
-        {/* Action Buttons - Always show for user imports */}
+        {/* Action Buttons */}
         <View style={styles.cardActions}>
-          {/* View PDF Button */}
-          {tcPdfId && (
+          {/* Open PDF Button - Only if can_open_pdf is true */}
+          {canOpenPdf && (
             <TouchableOpacity 
               style={[styles.viewPdfButton, isDownloading && styles.buttonDisabled]}
               onPress={() => openTcPdf(tcPdfId)}
@@ -439,30 +458,46 @@ export default function AdSbTcScreen() {
               ) : (
                 <>
                   <Ionicons name="document-text-outline" size={16} color={COLORS.white} />
-                  <Text style={styles.viewPdfButtonText}>{texts.viewPdf}</Text>
+                  <Text style={styles.viewPdfButtonText}>{texts.openPdf}</Text>
                 </>
               )}
             </TouchableOpacity>
           )}
 
-          {/* Remove Button */}
-          <TouchableOpacity 
-            style={[styles.removeButton, isDeleting && styles.buttonDisabled]}
-            onPress={() => handleRemove(tcRefId, displayIdentifier)}
-            disabled={isDeleting}
-          >
-            {isDeleting ? (
-              <ActivityIndicator size="small" color={COLORS.dangerRed} />
-            ) : (
-              <>
-                <Ionicons name="trash-outline" size={16} color={COLORS.dangerRed} />
-                <Text style={styles.removeButtonText}>{texts.remove}</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          {/* Delete Button - Only if can_delete is true */}
+          {canDelete && (
+            <TouchableOpacity 
+              style={[styles.removeButton, isDeleting && styles.buttonDisabled]}
+              onPress={() => handleRemove(tcRefId, displayIdentifier)}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <ActivityIndicator size="small" color={COLORS.dangerRed} />
+              ) : (
+                <>
+                  <Ionicons name="trash-outline" size={16} color={COLORS.dangerRed} />
+                  <Text style={styles.removeButtonText}>{texts.remove}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
+  };
+  
+  // Helper function to format date
+  const formatDate = (dateStr: string): string => {
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+    } catch {
+      return dateStr;
+    }
   };
 
   // ============================================================
