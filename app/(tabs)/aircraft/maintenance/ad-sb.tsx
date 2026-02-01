@@ -548,21 +548,40 @@ export default function AdSbScreen() {
         <Text style={styles.explainerText}>📄 {texts.headerExplainer}</Text>
       </View>
 
-      {/* Count Badges */}
+      {/* Global Count Badges */}
       <View style={styles.countContainer}>
+        {/* Total References */}
+        <View style={[styles.countBadge, { backgroundColor: '#F5F5F5' }]}>
+          <Text style={[styles.countText, { color: COLORS.textDark }]}>
+            {texts.totalReferences}: {globalCounts.totalReferences}
+          </Text>
+        </View>
+        {/* AD Count */}
         <View style={[styles.countBadge, { backgroundColor: '#FFEBEE' }]}>
-          <Text style={[styles.countText, { color: COLORS.red }]}>AD: {adItems.length}</Text>
+          <Text style={[styles.countText, { color: COLORS.red }]}>AD: {globalCounts.totalAd}</Text>
         </View>
+        {/* SB Count */}
         <View style={[styles.countBadge, { backgroundColor: COLORS.orange }]}>
-          <Text style={[styles.countText, { color: '#E65100' }]}>SB: {sbItems.length}</Text>
+          <Text style={[styles.countText, { color: '#E65100' }]}>SB: {globalCounts.totalSb}</Text>
         </View>
-        <TouchableOpacity 
-          style={[styles.countBadge, styles.tcBadge]} 
-          onPress={handleNavigateToTC}
-        >
-          <Text style={styles.tcBadgeText}>TC AD/SB</Text>
-        </TouchableOpacity>
+        {/* Recurring Count */}
+        {globalCounts.totalRecurring > 0 && (
+          <View style={[styles.countBadge, { backgroundColor: '#E3F2FD' }]}>
+            <Text style={[styles.countText, { color: COLORS.primary }]}>
+              📅 {texts.totalRecurring}: {globalCounts.totalRecurring}
+            </Text>
+          </View>
+        )}
       </View>
+      
+      {/* TC AD/SB Navigation Button */}
+      <TouchableOpacity 
+        style={styles.tcNavigationButton} 
+        onPress={handleNavigateToTC}
+      >
+        <Text style={styles.tcNavigationText}>📋 {texts.tcAdSb}</Text>
+        <Text style={styles.tcNavigationHint}>{texts.tcAdSbHint}</Text>
+      </TouchableOpacity>
 
       <ScrollView 
         style={styles.scrollView} 
