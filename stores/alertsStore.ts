@@ -24,13 +24,18 @@ export interface TcAlert {
   id: string;
   type: AlertType;
   aircraft_id?: string;
+  aircraft_type_key?: string;  // e.g., "CESSNA::172M"
+  manufacturer?: string;
+  model?: string;
   aircraft_model?: string;
   aircraft_registration?: string;
-  reference?: string;      // AD/SB reference number
+  reference?: string;          // AD/SB reference number
+  reference_type?: string;     // "AD" or "SB"
   title?: string;
   message?: string;
+  status?: 'UNREAD' | 'READ' | 'DISMISSED';  // Backend status
   created_at: string;
-  is_read?: boolean;       // Computed locally
+  is_read?: boolean;           // Computed locally or from status
 }
 
 interface AlertsContextType {
@@ -93,21 +98,26 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
       const readIds = await loadReadAlerts();
       setReadAlertIds(readIds);
 
-      // Fetch from backend
+      // Fetch from backend - correct endpoint is /api/alerts
       const response = await api.get('/api/alerts');
-      const allAlerts: TcAlert[] = response.data || [];
+      const data = response.data;
+      
+      // Handle response format - backend may return { alerts: [...] } or direct array
+      const allAlerts: TcAlert[] = data?.alerts || data || [];
+      console.log('[Alerts] Raw response:', data);
 
       // Filter for NEW_AD_SB type and mark read state
       const filteredAlerts = allAlerts
         .filter(alert => alert.type === 'NEW_AD_SB' || alert.type === 'NEW_TC_REFERENCE')
         .map(alert => ({
           ...alert,
-          is_read: readIds.has(alert.id),
+          // Use backend status if available, otherwise check local storage
+          is_read: alert.status === 'READ' || readIds.has(alert.id),
         }))
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setAlerts(filteredAlerts);
-      console.log('[Alerts] Fetched', filteredAlerts.length, 'alerts');
+      console.log('[Alerts] Fetched', filteredAlerts.length, 'alerts, unread:', filteredAlerts.filter(a => !a.is_read).length);
     } catch (err: any) {
       console.warn('[Alerts] Fetch error:', err?.message);
       // Don't show error to user - alerts are optional
@@ -117,8 +127,17 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Mark single alert as read
+  // Mark single alert as read - sync with backend
   const markAsRead = useCallback(async (alertId: string) => {
+    try {
+      // Try to sync with backend first
+      await api.put(`/api/alerts/${alertId}/read`);
+      console.log('[Alerts] Marked as read on backend:', alertId);
+    } catch (err: any) {
+      console.log('[Alerts] Backend mark read failed, using local storage:', err?.message);
+    }
+    
+    // Always update local state
     const newReadIds = new Set(readAlertIds);
     newReadIds.add(alertId);
     setReadAlertIds(newReadIds);
@@ -132,8 +151,17 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     );
   }, [readAlertIds]);
 
-  // Mark all alerts as read
+  // Mark all alerts as read - sync with backend
   const markAllAsRead = useCallback(async () => {
+    try {
+      // Try to sync with backend first
+      await api.put('/api/alerts/read-all');
+      console.log('[Alerts] Marked all as read on backend');
+    } catch (err: any) {
+      console.log('[Alerts] Backend mark all read failed, using local storage:', err?.message);
+    }
+    
+    // Always update local state
     const newReadIds = new Set(readAlertIds);
     alerts.forEach(alert => newReadIds.add(alert.id));
     setReadAlertIds(newReadIds);
