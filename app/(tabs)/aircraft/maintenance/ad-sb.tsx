@@ -112,6 +112,13 @@ interface OcrAdSbItem {
   aircraft_id: string;
   // Array of individual record IDs if backend returns them
   record_ids?: string[];
+  // Recurrence fields
+  is_recurring?: boolean;
+  recurrence_display?: string; // "Annuel", "100h", etc.
+  days_until_due?: number | null;
+  next_due_date?: string | null;
+  // TC matching
+  tc_matched?: boolean;
 }
 
 interface OcrAdSbResponse {
@@ -121,6 +128,19 @@ interface OcrAdSbResponse {
     sb: number;
     total: number;
   };
+  // Global counters
+  total_unique_references?: number;
+  total_ad?: number;
+  total_sb?: number;
+  total_recurring?: number;
+}
+
+// Response state for global counters
+interface GlobalCounts {
+  totalReferences: number;
+  totalAd: number;
+  totalSb: number;
+  totalRecurring: number;
 }
 
 export default function AdSbScreen() {
