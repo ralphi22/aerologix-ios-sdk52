@@ -132,11 +132,15 @@ interface TcReference {
   tc_pdf_id?: string;
   ref: string;
   type: 'AD' | 'SB';
-  title?: string;
-  identifier?: string;
+  title?: string;             // Subject extracted from PDF (e.g., "Cessna 150/152 — Rudder Stop")
+  identifier?: string;        // AD/SB number (e.g., "CF-2000-20R2")
   description?: string;
-  imported_at?: string;
+  filename?: string;          // Original PDF filename
+  imported_at?: string;       // Legacy field
+  created_at?: string;        // New field from backend
   aircraft_id: string;
+  can_open_pdf?: boolean;     // True if PDF can be opened
+  can_delete?: boolean;       // True if reference can be deleted
 }
 
 // ============================================================
