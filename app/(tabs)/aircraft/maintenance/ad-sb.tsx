@@ -967,4 +967,92 @@ const styles = StyleSheet.create({
     alignItems: 'center' 
   },
   modalSaveText: { fontSize: 16, color: COLORS.white, fontWeight: '600' },
+  
+  // TC Navigation Button
+  tcNavigationButton: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: COLORS.blue,
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: COLORS.blueBorder,
+  },
+  tcNavigationText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  tcNavigationHint: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    flex: 1,
+    textAlign: 'right',
+    marginLeft: 8,
+  },
+  
+  // TC Matched Badge
+  tcMatchedBadge: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A5D6A7',
+  },
+  tcMatchedText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.green,
+  },
+  
+  // Recurring Container and Badges
+  recurringContainer: {
+    backgroundColor: '#F3E5F5',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#CE93D8',
+  },
+  recurringBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  recurringIcon: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  recurringText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#7B1FA2',
+  },
+  recurrenceDisplay: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#7B1FA2',
+    marginBottom: 6,
+  },
+  
+  // Due Status Badge
+  dueStatusBadge: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  dueStatusText: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  nextDueText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
 });
