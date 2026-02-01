@@ -79,8 +79,9 @@ const TEXTS = {
     importPdfUploading: 'Importing...',
     importPdfSuccess: 'PDF imported successfully.',
     importPdfError: 'Unable to import PDF. Please try again.',
-    viewPdf: 'View PDF',
-    remove: 'Remove',
+    viewPdf: 'Open PDF',
+    openPdf: 'Open',
+    remove: 'Delete',
     deleteConfirmTitle: 'Remove Reference',
     deleteConfirmMessage: 'This removes the reference from your workspace. The original TC document is not affected.',
     deleteConfirmCancel: 'Cancel',
@@ -91,6 +92,10 @@ const TEXTS = {
     pdfEmpty: 'PDF file is empty.',
     pdfDownloading: 'Downloading...',
     fallbackTitle: 'TC Reference',
+    // New texts
+    importedOn: 'Imported on',
+    file: 'File',
+    adPrefix: 'AD',
   },
   fr: {
     screenTitle: 'TC AD/SB',
@@ -107,7 +112,8 @@ const TEXTS = {
     importPdfUploading: 'Importation...',
     importPdfSuccess: 'PDF importé avec succès.',
     importPdfError: 'Impossible d\'importer le PDF. Veuillez réessayer.',
-    viewPdf: 'Voir PDF',
+    viewPdf: 'Ouvrir PDF',
+    openPdf: 'Ouvrir',
     remove: 'Supprimer',
     deleteConfirmTitle: 'Supprimer la référence',
     deleteConfirmMessage: 'Ceci supprime la référence de votre espace de travail. Le document TC original n\'est pas affecté.',
@@ -119,6 +125,10 @@ const TEXTS = {
     pdfEmpty: 'Le fichier PDF est vide.',
     pdfDownloading: 'Téléchargement...',
     fallbackTitle: 'Référence TC',
+    // New texts
+    importedOn: 'Importé le',
+    file: 'Fichier',
+    adPrefix: 'AD',
   },
 };
 
