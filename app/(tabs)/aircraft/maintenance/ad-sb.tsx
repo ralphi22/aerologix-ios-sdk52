@@ -54,6 +54,17 @@ const TEXTS = {
     loading: 'Loading AD/SB...',
     errorLoading: 'Failed to load',
     retry: 'Retry',
+    tcAdSb: 'TC AD/SB',
+    tcAdSbHint: 'View official AD/SB from Transport Canada',
+    // New recurrence texts
+    recurring: 'Recurring',
+    dueSoon: 'Due soon',
+    overdue: 'Overdue',
+    nextDue: 'Next: {date}',
+    tcMatched: 'TC',
+    // Global counters
+    totalReferences: 'References',
+    totalRecurring: 'Recurring',
   },
   fr: {
     screenTitle: 'AD / SB',
@@ -75,6 +86,17 @@ const TEXTS = {
     loading: 'Chargement AD/SB...',
     errorLoading: 'Échec du chargement',
     retry: 'Réessayer',
+    tcAdSb: 'TC AD/SB',
+    tcAdSbHint: 'Voir les AD/SB officiels de Transport Canada',
+    // New recurrence texts
+    recurring: 'Récurrent',
+    dueSoon: 'Échéance proche',
+    overdue: 'Échu',
+    nextDue: 'Prochaine: {date}',
+    tcMatched: 'TC',
+    // Global counters
+    totalReferences: 'Références',
+    totalRecurring: 'Récurrents',
   },
 };
 
