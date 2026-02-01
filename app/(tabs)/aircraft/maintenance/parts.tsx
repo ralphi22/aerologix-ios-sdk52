@@ -728,13 +728,32 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
+  mentionItemDeleting: {
+    opacity: 0.5,
+  },
   mentionText: { fontSize: 14, color: COLORS.textDark, lineHeight: 20 },
   mentionMeta: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     marginTop: 8,
     gap: 16,
   },
   mentionMetaText: { fontSize: 12, color: COLORS.textMuted },
+  mentionDeleteButton: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.redBg,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.red,
+  },
+  mentionDeleteText: {
+    color: COLORS.red,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   keywordsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -747,6 +766,23 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   keywordText: { fontSize: 11, fontWeight: '600' },
+  
+  // Deduplication banner
+  deduplicationBanner: {
+    backgroundColor: COLORS.greenBg,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.green,
+  },
+  deduplicationText: {
+    color: COLORS.green,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   
   // Service part card
   partCard: {
