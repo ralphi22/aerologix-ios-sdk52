@@ -93,21 +93,26 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
       const readIds = await loadReadAlerts();
       setReadAlertIds(readIds);
 
-      // Fetch from backend
+      // Fetch from backend - correct endpoint is /api/alerts
       const response = await api.get('/api/alerts');
-      const allAlerts: TcAlert[] = response.data || [];
+      const data = response.data;
+      
+      // Handle response format - backend may return { alerts: [...] } or direct array
+      const allAlerts: TcAlert[] = data?.alerts || data || [];
+      console.log('[Alerts] Raw response:', data);
 
       // Filter for NEW_AD_SB type and mark read state
       const filteredAlerts = allAlerts
         .filter(alert => alert.type === 'NEW_AD_SB' || alert.type === 'NEW_TC_REFERENCE')
         .map(alert => ({
           ...alert,
-          is_read: readIds.has(alert.id),
+          // Use backend status if available, otherwise check local storage
+          is_read: alert.status === 'READ' || readIds.has(alert.id),
         }))
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setAlerts(filteredAlerts);
-      console.log('[Alerts] Fetched', filteredAlerts.length, 'alerts');
+      console.log('[Alerts] Fetched', filteredAlerts.length, 'alerts, unread:', filteredAlerts.filter(a => !a.is_read).length);
     } catch (err: any) {
       console.warn('[Alerts] Fetch error:', err?.message);
       // Don't show error to user - alerts are optional
