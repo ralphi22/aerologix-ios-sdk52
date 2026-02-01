@@ -79,8 +79,9 @@ const TEXTS = {
     importPdfUploading: 'Importing...',
     importPdfSuccess: 'PDF imported successfully.',
     importPdfError: 'Unable to import PDF. Please try again.',
-    viewPdf: 'View PDF',
-    remove: 'Remove',
+    viewPdf: 'Open PDF',
+    openPdf: 'Open',
+    remove: 'Delete',
     deleteConfirmTitle: 'Remove Reference',
     deleteConfirmMessage: 'This removes the reference from your workspace. The original TC document is not affected.',
     deleteConfirmCancel: 'Cancel',
@@ -91,6 +92,10 @@ const TEXTS = {
     pdfEmpty: 'PDF file is empty.',
     pdfDownloading: 'Downloading...',
     fallbackTitle: 'TC Reference',
+    // New texts
+    importedOn: 'Imported on',
+    file: 'File',
+    adPrefix: 'AD',
   },
   fr: {
     screenTitle: 'TC AD/SB',
@@ -107,7 +112,8 @@ const TEXTS = {
     importPdfUploading: 'Importation...',
     importPdfSuccess: 'PDF importé avec succès.',
     importPdfError: 'Impossible d\'importer le PDF. Veuillez réessayer.',
-    viewPdf: 'Voir PDF',
+    viewPdf: 'Ouvrir PDF',
+    openPdf: 'Ouvrir',
     remove: 'Supprimer',
     deleteConfirmTitle: 'Supprimer la référence',
     deleteConfirmMessage: 'Ceci supprime la référence de votre espace de travail. Le document TC original n\'est pas affecté.',
@@ -119,6 +125,10 @@ const TEXTS = {
     pdfEmpty: 'Le fichier PDF est vide.',
     pdfDownloading: 'Téléchargement...',
     fallbackTitle: 'Référence TC',
+    // New texts
+    importedOn: 'Importé le',
+    file: 'Fichier',
+    adPrefix: 'AD',
   },
 };
 
@@ -132,11 +142,15 @@ interface TcReference {
   tc_pdf_id?: string;
   ref: string;
   type: 'AD' | 'SB';
-  title?: string;
-  identifier?: string;
+  title?: string;             // Subject extracted from PDF (e.g., "Cessna 150/152 — Rudder Stop")
+  identifier?: string;        // AD/SB number (e.g., "CF-2000-20R2")
   description?: string;
-  imported_at?: string;
+  filename?: string;          // Original PDF filename
+  imported_at?: string;       // Legacy field
+  created_at?: string;        // New field from backend
   aircraft_id: string;
+  can_open_pdf?: boolean;     // True if PDF can be opened
+  can_delete?: boolean;       // True if reference can be deleted
 }
 
 // ============================================================
@@ -369,7 +383,7 @@ export default function AdSbTcScreen() {
   const hasData = references.length > 0;
 
   // ============================================================
-  // RENDER CARD
+  // RENDER CARD - Updated to match new backend structure
   // ============================================================
   const renderCard = (item: TcReference, index: number) => {
     const isAD = item.type === 'AD';
@@ -378,15 +392,26 @@ export default function AdSbTcScreen() {
     const isDownloading = downloadingPdfId === tcPdfId;
     const isDeleting = deletingRefId === tcRefId;
     
-    const displayTitle = item.title || item.identifier || item.ref || texts.fallbackTitle;
+    // Display logic per prompt:
+    // - identifier: item.identifier (ex: "CF-2000-20R2")
+    // - title: item.title or fallback to "AD " + identifier
     const displayIdentifier = item.identifier || item.ref;
+    const displayTitle = item.title || `${texts.adPrefix} ${displayIdentifier}`;
+    
+    // Date formatting
+    const importDate = item.created_at || item.imported_at;
+    const formattedDate = importDate ? formatDate(importDate) : null;
+    
+    // Check permissions from backend
+    const canOpenPdf = item.can_open_pdf !== false && tcPdfId;
+    const canDelete = item.can_delete !== false;
     
     return (
       <View 
         key={`${item.type}-${tcRefId}-${index}`}
         style={[styles.card, { borderLeftColor: isAD ? COLORS.adRed : COLORS.sbBlue }]}
       >
-        {/* Header */}
+        {/* Header with Type Badge and Identifier */}
         <View style={styles.cardHeader}>
           <View style={[styles.typeBadge, { backgroundColor: isAD ? COLORS.adRedBg : COLORS.sbBlueBg }]}>
             <Text style={[styles.typeBadgeText, { color: isAD ? COLORS.adRed : COLORS.sbBlue }]}>
@@ -398,20 +423,28 @@ export default function AdSbTcScreen() {
           </View>
         </View>
 
-        {/* Title */}
-        <Text style={styles.cardTitle} numberOfLines={2}>{displayTitle}</Text>
+        {/* Title/Description */}
+        <Text style={styles.cardTitle} numberOfLines={3}>{displayTitle}</Text>
+
+        {/* Filename */}
+        {item.filename && (
+          <View style={styles.filenameRow}>
+            <Ionicons name="document-outline" size={14} color={COLORS.textMuted} />
+            <Text style={styles.filenameText}>{item.filename}</Text>
+          </View>
+        )}
 
         {/* Import date */}
-        {item.imported_at && (
+        {formattedDate && (
           <Text style={styles.importDate}>
-            {lang === 'fr' ? 'Importé le' : 'Imported on'}: {item.imported_at}
+            {texts.importedOn}: {formattedDate}
           </Text>
         )}
 
-        {/* Action Buttons - Always show for user imports */}
+        {/* Action Buttons */}
         <View style={styles.cardActions}>
-          {/* View PDF Button */}
-          {tcPdfId && (
+          {/* Open PDF Button - Only if can_open_pdf is true */}
+          {canOpenPdf && (
             <TouchableOpacity 
               style={[styles.viewPdfButton, isDownloading && styles.buttonDisabled]}
               onPress={() => openTcPdf(tcPdfId)}
@@ -425,30 +458,46 @@ export default function AdSbTcScreen() {
               ) : (
                 <>
                   <Ionicons name="document-text-outline" size={16} color={COLORS.white} />
-                  <Text style={styles.viewPdfButtonText}>{texts.viewPdf}</Text>
+                  <Text style={styles.viewPdfButtonText}>{texts.openPdf}</Text>
                 </>
               )}
             </TouchableOpacity>
           )}
 
-          {/* Remove Button */}
-          <TouchableOpacity 
-            style={[styles.removeButton, isDeleting && styles.buttonDisabled]}
-            onPress={() => handleRemove(tcRefId, displayIdentifier)}
-            disabled={isDeleting}
-          >
-            {isDeleting ? (
-              <ActivityIndicator size="small" color={COLORS.dangerRed} />
-            ) : (
-              <>
-                <Ionicons name="trash-outline" size={16} color={COLORS.dangerRed} />
-                <Text style={styles.removeButtonText}>{texts.remove}</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          {/* Delete Button - Only if can_delete is true */}
+          {canDelete && (
+            <TouchableOpacity 
+              style={[styles.removeButton, isDeleting && styles.buttonDisabled]}
+              onPress={() => handleRemove(tcRefId, displayIdentifier)}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <ActivityIndicator size="small" color={COLORS.dangerRed} />
+              ) : (
+                <>
+                  <Ionicons name="trash-outline" size={16} color={COLORS.dangerRed} />
+                  <Text style={styles.removeButtonText}>{texts.remove}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
+  };
+  
+  // Helper function to format date
+  const formatDate = (dateStr: string): string => {
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+    } catch {
+      return dateStr;
+    }
   };
 
   // ============================================================
@@ -680,6 +729,21 @@ const styles = StyleSheet.create({
   identifierBadge: { backgroundColor: COLORS.primary + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   identifierBadgeText: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
   cardTitle: { fontSize: 14, fontWeight: '600', color: COLORS.textDark, marginBottom: 8, lineHeight: 20 },
+  filenameRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 6, 
+    gap: 6,
+    backgroundColor: COLORS.background,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  filenameText: { 
+    fontSize: 12, 
+    color: COLORS.textMuted,
+    flex: 1,
+  },
   importDate: { fontSize: 12, color: COLORS.textMuted, marginBottom: 12 },
   cardActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   viewPdfButton: { 
