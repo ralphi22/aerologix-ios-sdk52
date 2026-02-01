@@ -729,6 +729,21 @@ const styles = StyleSheet.create({
   identifierBadge: { backgroundColor: COLORS.primary + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   identifierBadgeText: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
   cardTitle: { fontSize: 14, fontWeight: '600', color: COLORS.textDark, marginBottom: 8, lineHeight: 20 },
+  filenameRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 6, 
+    gap: 6,
+    backgroundColor: COLORS.background,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  filenameText: { 
+    fontSize: 12, 
+    color: COLORS.textMuted,
+    flex: 1,
+  },
   importDate: { fontSize: 12, color: COLORS.textMuted, marginBottom: 12 },
   cardActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   viewPdfButton: { 
