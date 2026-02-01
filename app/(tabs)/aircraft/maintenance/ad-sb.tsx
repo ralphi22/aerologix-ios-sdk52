@@ -396,6 +396,19 @@ export default function AdSbScreen() {
     );
   };
 
+  // Get due status color and text
+  const getDueStatus = (daysUntilDue: number | null | undefined) => {
+    if (daysUntilDue === null || daysUntilDue === undefined) return null;
+    
+    if (daysUntilDue <= 0) {
+      return { color: COLORS.red, text: texts.overdue, bgColor: '#FFEBEE' };
+    } else if (daysUntilDue <= 30) {
+      return { color: '#E65100', text: texts.dueSoon, bgColor: '#FFF3E0' };
+    } else {
+      return { color: COLORS.green, text: null, bgColor: '#E8F5E9' };
+    }
+  };
+
   // Render single card
   const renderCard = (item: OcrAdSbItem) => {
     // Use reference as the unique key since items are aggregated by reference
@@ -406,30 +419,73 @@ export default function AdSbScreen() {
                        deletingId === item._id ||
                        deletingId === item.adsb_id;
     const showOccurrenceInfo = item.occurrence_count > 1;
+    const dueStatus = getDueStatus(item.days_until_due);
     
     return (
       <View key={uniqueKey} style={[styles.card, isDeleting && styles.cardDeleting]}>
+        {/* Card Header with badges */}
         <View style={styles.cardHeader}>
+          {/* Type Badge (AD red, SB blue) */}
           <View style={[styles.typeBadge, item.type === 'AD' ? styles.adBadge : styles.sbBadge]}>
             <Text style={[styles.typeBadgeText, item.type === 'AD' ? styles.adText : styles.sbText]}>
               {item.type}
             </Text>
           </View>
+          
           <View style={styles.cardInfo}>
             <View style={styles.cardNumberRow}>
               <Text style={styles.cardNumber}>{item.reference}</Text>
               {renderCountBadge(item.occurrence_count)}
+              
+              {/* TC Matched Badge */}
+              {item.tc_matched && (
+                <View style={styles.tcMatchedBadge}>
+                  <Text style={styles.tcMatchedText}>✓ {texts.tcMatched}</Text>
+                </View>
+              )}
             </View>
+            
             {/* Show first_seen date only if single occurrence */}
             {!showOccurrenceInfo && item.first_seen && (
               <Text style={styles.cardDate}>{item.first_seen}</Text>
             )}
           </View>
+          
           {isDeleting && (
             <ActivityIndicator size="small" color={COLORS.red} />
           )}
         </View>
         
+        {/* Recurring indicator */}
+        {item.is_recurring && (
+          <View style={styles.recurringContainer}>
+            <View style={styles.recurringBadge}>
+              <Text style={styles.recurringIcon}>📅</Text>
+              <Text style={styles.recurringText}>{texts.recurring}</Text>
+            </View>
+            {item.recurrence_display && (
+              <Text style={styles.recurrenceDisplay}>{item.recurrence_display}</Text>
+            )}
+            
+            {/* Due status with color coding */}
+            {dueStatus && (
+              <View style={[styles.dueStatusBadge, { backgroundColor: dueStatus.bgColor }]}>
+                {dueStatus.text && (
+                  <Text style={[styles.dueStatusText, { color: dueStatus.color }]}>
+                    {dueStatus.text}
+                  </Text>
+                )}
+                {item.next_due_date && (
+                  <Text style={[styles.nextDueText, { color: dueStatus.color }]}>
+                    {texts.nextDue.replace('{date}', item.next_due_date)}
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+        
+        {/* Description */}
         {item.description ? (
           <Text style={styles.cardDescription} numberOfLines={3}>{item.description}</Text>
         ) : null}
@@ -448,6 +504,7 @@ export default function AdSbScreen() {
           </View>
         )}
         
+        {/* Delete button */}
         <View style={styles.cardActions}>
           <TouchableOpacity 
             style={styles.deleteButton} 
