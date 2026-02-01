@@ -206,6 +206,13 @@ export default function AdSbTcScreen() {
   const [references, setReferences] = useState<TcReference[]>([]);
   const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
   const [deletingRefId, setDeletingRefId] = useState<string | null>(null);
+  
+  // Summary counts state
+  const [summaryStats, setSummaryStats] = useState({
+    total: 0,
+    seen: 0,
+    notSeen: 0,
+  });
 
   // ============================================================
   // FETCH USER IMPORTED REFERENCES ONLY
