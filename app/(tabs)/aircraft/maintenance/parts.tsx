@@ -84,8 +84,6 @@ interface CriticalMentionsResponse {
     duplicates_removed?: number;  // Doublons supprimés
   };
 }
-  };
-}
 
 // Service Part from backend
 interface ServicePart {
