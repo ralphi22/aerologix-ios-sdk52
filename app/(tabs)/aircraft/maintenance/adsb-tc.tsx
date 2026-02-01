@@ -96,6 +96,16 @@ const TEXTS = {
     importedOn: 'Imported on',
     file: 'File',
     adPrefix: 'AD',
+    // Seen/Not Seen badges
+    total: 'Total',
+    seen: 'Seen',
+    notSeen: 'Not seen',
+    seenBadge: 'SEEN',
+    notSeenBadge: 'NOT SEEN',
+    seenTimes: 'Seen {count} times',
+    seenOnce: 'Seen 1 time',
+    lastSeen: 'Last',
+    verifyManually: 'Verify manually in documents',
   },
   fr: {
     screenTitle: 'TC AD/SB',
@@ -129,6 +139,16 @@ const TEXTS = {
     importedOn: 'Importé le',
     file: 'Fichier',
     adPrefix: 'AD',
+    // Seen/Not Seen badges
+    total: 'Total',
+    seen: 'Vus',
+    notSeen: 'Non vus',
+    seenBadge: 'VU',
+    notSeenBadge: 'NON VU',
+    seenTimes: 'Vu {count} fois',
+    seenOnce: 'Vu 1 fois',
+    lastSeen: 'Dernier',
+    verifyManually: 'Vérifier manuellement dans les documents',
   },
 };
 
@@ -151,6 +171,19 @@ interface TcReference {
   aircraft_id: string;
   can_open_pdf?: boolean;     // True if PDF can be opened
   can_delete?: boolean;       // True if reference can be deleted
+  // Seen in scans fields
+  seen_in_scans?: boolean;    // True if this TC ref was seen in OCR scans
+  scan_count?: number;        // Number of times seen in scans
+  last_scan_date?: string;    // Date of last scan where this was seen
+}
+
+// Response structure from backend
+interface TcReferencesResponse {
+  aircraft_id: string;
+  references: TcReference[];
+  total_count: number;
+  total_seen?: number;
+  total_not_seen?: number;
 }
 
 // ============================================================
@@ -173,6 +206,13 @@ export default function AdSbTcScreen() {
   const [references, setReferences] = useState<TcReference[]>([]);
   const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
   const [deletingRefId, setDeletingRefId] = useState<string | null>(null);
+  
+  // Summary counts state
+  const [summaryStats, setSummaryStats] = useState({
+    total: 0,
+    seen: 0,
+    notSeen: 0,
+  });
 
   // ============================================================
   // FETCH USER IMPORTED REFERENCES ONLY
@@ -197,10 +237,21 @@ export default function AdSbTcScreen() {
       console.log('[TC AD/SB] Raw API response:', JSON.stringify(response.data));
       
       // Handle response format - backend returns { references: [...] }
-      const items = response.data?.references || response.data?.items || response.data || [];
+      const data = response.data as TcReferencesResponse;
+      const items = data?.references || response.data?.items || response.data || [];
       console.log('[TC AD/SB] Extracted items count:', Array.isArray(items) ? items.length : 'not array');
       
-      setReferences(Array.isArray(items) ? items : []);
+      const refList = Array.isArray(items) ? items : [];
+      setReferences(refList);
+      
+      // Calculate summary stats (from backend or compute locally)
+      const totalSeen = data?.total_seen ?? refList.filter(r => r.seen_in_scans === true).length;
+      const totalNotSeen = data?.total_not_seen ?? refList.filter(r => r.seen_in_scans !== true).length;
+      setSummaryStats({
+        total: data?.total_count || refList.length,
+        seen: totalSeen,
+        notSeen: totalNotSeen,
+      });
     } catch (err: any) {
       console.warn('[TC AD/SB] Error:', err?.message);
       // If 404 or empty, just set empty array (not an error for user)
@@ -408,12 +459,17 @@ export default function AdSbTcScreen() {
     const canOpenPdf = item.can_open_pdf !== false && tcPdfId;
     const canDelete = item.can_delete !== false;
     
+    // Seen in scans status
+    const isSeen = item.seen_in_scans === true;
+    const scanCount = item.scan_count || 0;
+    const lastScanDate = item.last_scan_date ? formatDate(item.last_scan_date) : null;
+    
     return (
       <View 
         key={`${item.type}-${tcRefId}-${index}`}
         style={[styles.card, { borderLeftColor: isAD ? COLORS.adRed : COLORS.sbBlue }]}
       >
-        {/* Header with Type Badge and Identifier */}
+        {/* Header with Type Badge, Identifier and Seen/Not Seen Badge */}
         <View style={styles.cardHeader}>
           <View style={[styles.typeBadge, { backgroundColor: isAD ? COLORS.adRedBg : COLORS.sbBlueBg }]}>
             <Text style={[styles.typeBadgeText, { color: isAD ? COLORS.adRed : COLORS.sbBlue }]}>
@@ -423,10 +479,47 @@ export default function AdSbTcScreen() {
           <View style={styles.identifierBadge}>
             <Text style={styles.identifierBadgeText}>{displayIdentifier}</Text>
           </View>
+          
+          {/* Spacer to push seen badge to right */}
+          <View style={{ flex: 1 }} />
+          
+          {/* Seen / Not Seen Badge */}
+          <View style={[
+            styles.seenBadge,
+            isSeen ? styles.seenBadgeGreen : styles.seenBadgeRed
+          ]}>
+            <Text style={[
+              styles.seenBadgeText,
+              isSeen ? styles.seenBadgeTextGreen : styles.seenBadgeTextRed
+            ]}>
+              {isSeen ? `${texts.seenBadge} ✓` : `${texts.notSeenBadge} ✗`}
+            </Text>
+          </View>
         </View>
 
         {/* Title/Description */}
         <Text style={styles.cardTitle} numberOfLines={3}>{displayTitle}</Text>
+
+        {/* Scan info or warning based on seen status */}
+        {isSeen ? (
+          <View style={styles.scanInfoContainer}>
+            <Text style={styles.scanInfoText}>
+              {scanCount === 1 
+                ? texts.seenOnce 
+                : texts.seenTimes.replace('{count}', String(scanCount))}
+            </Text>
+            {lastScanDate && (
+              <Text style={styles.scanInfoText}>
+                {` | ${texts.lastSeen}: ${lastScanDate}`}
+              </Text>
+            )}
+          </View>
+        ) : (
+          <View style={styles.warningContainer}>
+            <Ionicons name="warning-outline" size={16} color={COLORS.dangerRed} />
+            <Text style={styles.warningText}>{texts.verifyManually}</Text>
+          </View>
+        )}
 
         {/* Filename */}
         {item.filename && (
@@ -582,6 +675,27 @@ export default function AdSbTcScreen() {
               </>
             )}
           </TouchableOpacity>
+
+          {/* Summary Stats Bar - Only show if has data */}
+          {hasData && (
+            <View style={styles.summaryBar}>
+              <View style={styles.summaryBadge}>
+                <Text style={styles.summaryBadgeText}>
+                  {texts.total}: {summaryStats.total}
+                </Text>
+              </View>
+              <View style={[styles.summaryBadge, styles.summaryBadgeSeen]}>
+                <Text style={[styles.summaryBadgeText, styles.summaryBadgeTextSeen]}>
+                  {texts.seen}: {summaryStats.seen}
+                </Text>
+              </View>
+              <View style={[styles.summaryBadge, styles.summaryBadgeNotSeen]}>
+                <Text style={[styles.summaryBadgeText, styles.summaryBadgeTextNotSeen]}>
+                  {texts.notSeen}: {summaryStats.notSeen}
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* Empty State - CRITICAL: This is the default state */}
           {!hasData && (
@@ -775,4 +889,103 @@ const styles = StyleSheet.create({
   removeButtonText: { fontSize: 13, fontWeight: '600', color: COLORS.dangerRed },
   buttonDisabled: { opacity: 0.6 },
   bottomSpacer: { height: 40 },
+  
+  // Summary Bar Styles
+  summaryBar: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20,
+    paddingVertical: 12,
+    backgroundColor: COLORS.background,
+    borderRadius: 10,
+  },
+  summaryBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  summaryBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textDark,
+  },
+  summaryBadgeSeen: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#81C784',
+  },
+  summaryBadgeTextSeen: {
+    color: '#2E7D32',
+  },
+  summaryBadgeNotSeen: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#E57373',
+  },
+  summaryBadgeTextNotSeen: {
+    color: COLORS.dangerRed,
+  },
+  
+  // Seen Badge Styles
+  seenBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  seenBadgeGreen: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#81C784',
+  },
+  seenBadgeRed: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#E57373',
+  },
+  seenBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  seenBadgeTextGreen: {
+    color: '#2E7D32',
+  },
+  seenBadgeTextRed: {
+    color: COLORS.dangerRed,
+  },
+  
+  // Scan Info Container
+  scanInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    marginBottom: 10,
+  },
+  scanInfoText: {
+    fontSize: 12,
+    color: '#2E7D32',
+    fontWeight: '500',
+  },
+  
+  // Warning Container (Not Seen)
+  warningContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFEBEE',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    marginBottom: 10,
+    gap: 8,
+  },
+  warningText: {
+    fontSize: 12,
+    color: COLORS.dangerRed,
+    fontWeight: '500',
+    flex: 1,
+  },
 });
