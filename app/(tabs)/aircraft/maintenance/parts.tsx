@@ -59,7 +59,9 @@ interface CriticalMention {
   keywords?: string[];
   confidence: number;
   report_date?: string;
+  source?: string;
   category: 'elt' | 'avionics' | 'fire_extinguisher' | 'general_limitations';
+  can_delete?: boolean;  // TRUE = bouton supprimer visible
 }
 
 // Critical Mentions Response
@@ -78,6 +80,10 @@ interface CriticalMentionsResponse {
     fire_extinguisher_count: number;
     general_limitations_count: number;
     total_count: number;
+    raw_total?: number;           // Avant déduplication
+    duplicates_removed?: number;  // Doublons supprimés
+  };
+}
   };
 }
 
@@ -116,6 +122,7 @@ const TEXTS = {
     retry: 'Retry',
     confidence: 'Confidence',
     date: 'Date',
+    source: 'Source',
     noMentions: 'No critical mentions detected',
     noMentionsHint: 'Critical mentions are extracted from maintenance reports.',
     noParts: 'No service parts recorded',
@@ -123,13 +130,15 @@ const TEXTS = {
     delete: 'Delete',
     cancel: 'Cancel',
     deleteConfirm: 'Delete this item?',
+    deleteSuccess: 'Item deleted',
+    deleteError: 'Failed to delete',
     addPart: 'Add Part',
     partNumber: 'Part Number',
     description: 'Description',
     serialNumber: 'Serial Number',
-    source: 'Source',
     created: 'Created',
     disclaimer: 'Informational only — verify with logbooks and your AME.',
+    duplicatesRemoved: 'duplicates removed',
   },
   fr: {
     screenTitle: 'Pièces',
@@ -140,6 +149,7 @@ const TEXTS = {
     retry: 'Réessayer',
     confidence: 'Confiance',
     date: 'Date',
+    source: 'Source',
     noMentions: 'Aucune mention critique détectée',
     noMentionsHint: 'Les mentions critiques sont extraites des rapports de maintenance.',
     noParts: 'Aucune pièce enregistrée',
@@ -147,13 +157,15 @@ const TEXTS = {
     delete: 'Supprimer',
     cancel: 'Annuler',
     deleteConfirm: 'Supprimer cet élément ?',
+    deleteSuccess: 'Élément supprimé',
+    deleteError: 'Échec de la suppression',
     addPart: 'Ajouter une pièce',
     partNumber: 'Numéro de pièce',
     description: 'Description',
     serialNumber: 'Numéro de série',
-    source: 'Source',
     created: 'Créé',
     disclaimer: 'Informatif seulement — vérifiez avec les carnets et votre TEA.',
+    duplicatesRemoved: 'doublons supprimés',
   },
 };
 
@@ -188,6 +200,9 @@ export default function PartsScreen() {
   const [partsError, setPartsError] = useState<string | null>(null);
   const [partsRefreshing, setPartsRefreshing] = useState(false);
   const [deletingPartId, setDeletingPartId] = useState<string | null>(null);
+  
+  // Deleting mention state
+  const [deletingMentionId, setDeletingMentionId] = useState<string | null>(null);
 
   // ============================================
   // FETCH CRITICAL MENTIONS - CORRECT ENDPOINT
@@ -301,14 +316,51 @@ export default function PartsScreen() {
   };
 
   // ============================================
+  // DELETE CRITICAL MENTION
+  // ============================================
+  const handleDeleteMention = (item: CriticalMention) => {
+    const mentionId = item.id || item._id;
+    if (!mentionId || !item.can_delete) return;
+
+    Alert.alert(
+      texts.delete,
+      texts.deleteConfirm,
+      [
+        { text: texts.cancel, style: 'cancel' },
+        {
+          text: texts.delete,
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingMentionId(mentionId);
+            try {
+              // DELETE /api/limitations/{aircraft_id}/{item.id}
+              await api.delete(`/api/limitations/${aircraftId}/${mentionId}`);
+              console.log('[Critical Mentions] Deleted:', mentionId);
+              // Rafraîchir la liste
+              fetchCriticalMentions(true);
+            } catch (err: any) {
+              console.error('[Critical Mentions] Delete error:', err);
+              Alert.alert(texts.deleteError, err?.message || 'Failed to delete');
+            } finally {
+              setDeletingMentionId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // ============================================
   // RENDER CRITICAL MENTION ITEM
   // ============================================
   const renderCriticalItem = (item: CriticalMention, index: number, category: keyof typeof CATEGORY_CONFIG) => {
     const config = CATEGORY_CONFIG[category];
     const confidencePercent = Math.round((item.confidence || 0) * 100);
+    const mentionId = item.id || item._id;
+    const isDeleting = deletingMentionId === mentionId;
     
     return (
-      <View key={`${category}-${index}`} style={styles.mentionItem}>
+      <View key={`${category}-${index}-${mentionId}`} style={[styles.mentionItem, isDeleting && styles.mentionItemDeleting]}>
         <Text style={styles.mentionText}>• {item.text}</Text>
         <View style={styles.mentionMeta}>
           <Text style={styles.mentionMetaText}>
@@ -317,6 +369,11 @@ export default function PartsScreen() {
           {item.report_date && (
             <Text style={styles.mentionMetaText}>
               {texts.date}: {item.report_date}
+            </Text>
+          )}
+          {item.source && (
+            <Text style={styles.mentionMetaText}>
+              {texts.source}: {item.source}
             </Text>
           )}
         </View>
@@ -328,6 +385,21 @@ export default function PartsScreen() {
               </View>
             ))}
           </View>
+        )}
+        
+        {/* Delete button - only if can_delete is true */}
+        {item.can_delete && (
+          <TouchableOpacity 
+            style={styles.mentionDeleteButton}
+            onPress={() => handleDeleteMention(item)}
+            disabled={isDeleting}
+          >
+            {isDeleting ? (
+              <ActivityIndicator size="small" color={COLORS.red} />
+            ) : (
+              <Text style={styles.mentionDeleteText}>🗑️ {texts.delete}</Text>
+            )}
+          </TouchableOpacity>
         )}
       </View>
     );
@@ -487,6 +559,15 @@ export default function PartsScreen() {
             </View>
           ) : (
             <View style={styles.contentContainer}>
+              {/* Deduplication info header */}
+              {criticalData.summary.duplicates_removed && criticalData.summary.duplicates_removed > 0 && (
+                <View style={styles.deduplicationBanner}>
+                  <Text style={styles.deduplicationText}>
+                    ✓ {criticalData.summary.duplicates_removed} {texts.duplicatesRemoved}
+                  </Text>
+                </View>
+              )}
+              
               {renderCategorySection('elt', criticalData.critical_mentions.elt, criticalData.summary.elt_count)}
               {renderCategorySection('avionics', criticalData.critical_mentions.avionics, criticalData.summary.avionics_count)}
               {renderCategorySection('fire_extinguisher', criticalData.critical_mentions.fire_extinguisher, criticalData.summary.fire_extinguisher_count)}
@@ -647,13 +728,32 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
+  mentionItemDeleting: {
+    opacity: 0.5,
+  },
   mentionText: { fontSize: 14, color: COLORS.textDark, lineHeight: 20 },
   mentionMeta: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     marginTop: 8,
     gap: 16,
   },
   mentionMetaText: { fontSize: 12, color: COLORS.textMuted },
+  mentionDeleteButton: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.redBg,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.red,
+  },
+  mentionDeleteText: {
+    color: COLORS.red,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   keywordsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -666,6 +766,23 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   keywordText: { fontSize: 11, fontWeight: '600' },
+  
+  // Deduplication banner
+  deduplicationBanner: {
+    backgroundColor: COLORS.greenBg,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.green,
+  },
+  deduplicationText: {
+    color: COLORS.green,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   
   // Service part card
   partCard: {
