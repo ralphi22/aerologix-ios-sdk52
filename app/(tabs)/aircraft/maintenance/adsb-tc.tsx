@@ -151,6 +151,19 @@ interface TcReference {
   aircraft_id: string;
   can_open_pdf?: boolean;     // True if PDF can be opened
   can_delete?: boolean;       // True if reference can be deleted
+  // Seen in scans fields
+  seen_in_scans?: boolean;    // True if this TC ref was seen in OCR scans
+  scan_count?: number;        // Number of times seen in scans
+  last_scan_date?: string;    // Date of last scan where this was seen
+}
+
+// Response structure from backend
+interface TcReferencesResponse {
+  aircraft_id: string;
+  references: TcReference[];
+  total_count: number;
+  total_seen?: number;
+  total_not_seen?: number;
 }
 
 // ============================================================
