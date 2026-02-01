@@ -59,7 +59,9 @@ interface CriticalMention {
   keywords?: string[];
   confidence: number;
   report_date?: string;
+  source?: string;
   category: 'elt' | 'avionics' | 'fire_extinguisher' | 'general_limitations';
+  can_delete?: boolean;  // TRUE = bouton supprimer visible
 }
 
 // Critical Mentions Response
@@ -78,6 +80,10 @@ interface CriticalMentionsResponse {
     fire_extinguisher_count: number;
     general_limitations_count: number;
     total_count: number;
+    raw_total?: number;           // Avant déduplication
+    duplicates_removed?: number;  // Doublons supprimés
+  };
+}
   };
 }
 
