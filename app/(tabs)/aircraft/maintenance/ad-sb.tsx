@@ -178,6 +178,14 @@ export default function AdSbScreen() {
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   
+  // Global counters state
+  const [globalCounts, setGlobalCounts] = useState<GlobalCounts>({
+    totalReferences: 0,
+    totalAd: 0,
+    totalSb: 0,
+    totalRecurring: 0,
+  });
+  
   // Add modal state
   const [showAddModal, setShowAddModal] = useState(false);
   const [newType, setNewType] = useState<'AD' | 'SB'>('AD');
@@ -206,6 +214,14 @@ export default function AdSbScreen() {
       
       // Handle both response formats (items array or direct array)
       const itemsList = data.items || (Array.isArray(data) ? data : []);
+      
+      // Update global counters from response
+      setGlobalCounts({
+        totalReferences: data.total_unique_references || itemsList.length,
+        totalAd: data.total_ad || data.count?.ad || itemsList.filter(i => i.type === 'AD').length,
+        totalSb: data.total_sb || data.count?.sb || itemsList.filter(i => i.type === 'SB').length,
+        totalRecurring: data.total_recurring || itemsList.filter(i => i.is_recurring).length,
+      });
       
       // Sort: AD first, then by reference
       const sortedItems = itemsList.sort((a, b) => {
