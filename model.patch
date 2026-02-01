@@ -1,111 +1,257 @@
+diff --git a/app/(tabs)/aircraft/maintenance/ad-sb.tsx b/app/(tabs)/aircraft/maintenance/ad-sb.tsx
+index 5a14315..f934478 100644
+--- a/app/(tabs)/aircraft/maintenance/ad-sb.tsx
++++ b/app/(tabs)/aircraft/maintenance/ad-sb.tsx
+@@ -54,6 +54,17 @@ const TEXTS = {
+     loading: 'Loading AD/SB...',
+     errorLoading: 'Failed to load',
+     retry: 'Retry',
++    tcAdSb: 'TC AD/SB',
++    tcAdSbHint: 'View official AD/SB from Transport Canada',
++    // New recurrence texts
++    recurring: 'Recurring',
++    dueSoon: 'Due soon',
++    overdue: 'Overdue',
++    nextDue: 'Next: {date}',
++    tcMatched: 'TC',
++    // Global counters
++    totalReferences: 'References',
++    totalRecurring: 'Recurring',
+   },
+   fr: {
+     screenTitle: 'AD / SB',
+@@ -75,6 +86,17 @@ const TEXTS = {
+     loading: 'Chargement AD/SB...',
+     errorLoading: 'Échec du chargement',
+     retry: 'Réessayer',
++    tcAdSb: 'TC AD/SB',
++    tcAdSbHint: 'Voir les AD/SB officiels de Transport Canada',
++    // New recurrence texts
++    recurring: 'Récurrent',
++    dueSoon: 'Échéance proche',
++    overdue: 'Échu',
++    nextDue: 'Prochaine: {date}',
++    tcMatched: 'TC',
++    // Global counters
++    totalReferences: 'Références',
++    totalRecurring: 'Récurrents',
+   },
+ };
+ 
 diff --git a/model.patch b/model.patch
-index 9fdf3f3..e69de29 100644
+index c35f403..e69de29 100644
 --- a/model.patch
 +++ b/model.patch
-@@ -1,42 +0,0 @@
--diff --git a/app/(tabs)/aircraft/maintenance/adsb-tc.tsx b/app/(tabs)/aircraft/maintenance/adsb-tc.tsx
--index 3945031..fd70fbe 100644
----- a/app/(tabs)/aircraft/maintenance/adsb-tc.tsx
--+++ b/app/(tabs)/aircraft/maintenance/adsb-tc.tsx
--@@ -399,7 +399,7 @@ export default function AdSbTcScreen() {
--       }
-- 
--       // Step 3: Convert ArrayBuffer to base64
---      const base64Data = btoa(arrayBuffer);
--+      const base64Data = encode(arrayBuffer);
--       console.log(`[PDF] Base64 length: ${base64Data.length}`);
-- 
--       if (!base64Data || base64Data.length === 0) {
+@@ -1,212 +0,0 @@
 -diff --git a/model.patch b/model.patch
--index 257e58a..e69de29 100644
+-index a503939..e69de29 100644
 ---- a/model.patch
 -+++ b/model.patch
--@@ -1,24 +0,0 @@
---diff --git a/app/(tabs)/aircraft/maintenance/ad-sb.tsx b/app/(tabs)/aircraft/maintenance/ad-sb.tsx
---index 20f5701..c8b707d 100644
------ a/app/(tabs)/aircraft/maintenance/ad-sb.tsx
---+++ b/app/(tabs)/aircraft/maintenance/ad-sb.tsx
---@@ -319,6 +319,19 @@ const styles = StyleSheet.create({
---     backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8 
---   },
---   headerTcText: { color: COLORS.white, fontSize: 12, fontWeight: '600' },
---+  explainerBanner: {
---+    backgroundColor: COLORS.blue + '15',
---+    paddingVertical: 8,
---+    paddingHorizontal: 16,
---+    borderBottomWidth: 1,
---+    borderBottomColor: COLORS.blue + '30',
---+  },
---+  explainerText: {
---+    fontSize: 12,
---+    color: COLORS.blue,
---+    fontWeight: '500',
---+    textAlign: 'center',
---+  },
---   headerAdd: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 },
---   headerAddText: { color: COLORS.white, fontSize: 24, fontWeight: '600' },
---   countContainer: { flexDirection: 'row', padding: 16, gap: 12, flexWrap: 'wrap' },
-diff --git a/test_result.md b/test_result.md
-index e486c23..11b5927 100644
---- a/test_result.md
-+++ b/test_result.md
-@@ -138,3 +138,59 @@
- 3. Section ELT: Rapport avec mention ELT
- 4. Historique: Liste et compteurs
- 5. Validation: Par champ et globale
-+
-+---
-+
-+## Session Date: July 2025 - Edit Aircraft Fields Fix
-+
-+### ✅ Corrections Effectuées
-+
-+| Champ | Status | Solution |
-+|-------|--------|----------|
-+| Purpose (Usage) | ✅ | Mappé depuis `purpose` ou `aircraft_type` du backend |
-+| City/Airport (Ville/Aéroport) | ✅ | Mappé depuis `base_of_operations` ou `city` du backend, fallback local |
-+
-+### Fichiers Modifiés
-+
-+1. `/app/services/aircraftService.ts`:
-+   - Interface `Aircraft` enrichie avec `purpose`, `base_of_operations`, `city`, `designator`, etc.
-+   - Interface `AircraftCreate` enrichie avec `purpose`, `base_of_operations`
-+
-+2. `/app/stores/aircraftLocalStore.ts`:
-+   - `mapApiToLocal()`: Mappe `commonName` depuis `purpose` ou `aircraft_type`
-+   - `mapApiToLocal()`: Mappe `baseOperations` depuis `base_of_operations` ou `city`
-+   - `extractLocalData()`: Inclut `designator`, `ownerName`, `ownerCity`, `ownerProvince`
-+   - `updateAircraft()`: Envoie `base_of_operations` au backend
-+   - Ajout de logs de debug pour traçabilité
-+
-+3. `/app/app/(tabs)/aircraft/edit.tsx`:
-+   - Ajout de log de debug pour vérifier le chargement des données
-+
-+### Flux de données
-+
-+```
-+┌─────────────────────────────────────────────────────────────┐
-+│  Backend → Frontend (Lecture)                               │
-+├─────────────────────────────────────────────────────────────┤
-+│  backend.purpose → commonName (Purpose)                     │
-+│  backend.aircraft_type → commonName (fallback)              │
-+│  backend.base_of_operations → baseOperations (City/Airport) │
-+│  backend.city → baseOperations (fallback)                   │
-+│  localData.baseOperations → baseOperations (fallback local) │
-+└─────────────────────────────────────────────────────────────┘
-+
-+┌─────────────────────────────────────────────────────────────┐
-+│  Frontend → Backend (Écriture)                              │
-+├─────────────────────────────────────────────────────────────┤
-+│  commonName → backend.aircraft_type                         │
-+│  baseOperations → backend.base_of_operations                │
-+│  baseOperations → localData.baseOperations (stockage local) │
-+└─────────────────────────────────────────────────────────────┘
-+```
-+
-+### À Tester
-+
-+1. Ouvrir la page Edit Aircraft
-+2. Vérifier que "Purpose" affiche "Privé"
-+3. Vérifier que "City / Airport" affiche "Joliette, CSG3"
-+4. Modifier et sauvegarder, puis vérifier la persistance
+-@@ -1,111 +0,0 @@
+--diff --git a/model.patch b/model.patch
+--index 9fdf3f3..e69de29 100644
+----- a/model.patch
+--+++ b/model.patch
+--@@ -1,42 +0,0 @@
+---diff --git a/app/(tabs)/aircraft/maintenance/adsb-tc.tsx b/app/(tabs)/aircraft/maintenance/adsb-tc.tsx
+---index 3945031..fd70fbe 100644
+------ a/app/(tabs)/aircraft/maintenance/adsb-tc.tsx
+---+++ b/app/(tabs)/aircraft/maintenance/adsb-tc.tsx
+---@@ -399,7 +399,7 @@ export default function AdSbTcScreen() {
+---       }
+--- 
+---       // Step 3: Convert ArrayBuffer to base64
+----      const base64Data = btoa(arrayBuffer);
+---+      const base64Data = encode(arrayBuffer);
+---       console.log(`[PDF] Base64 length: ${base64Data.length}`);
+--- 
+---       if (!base64Data || base64Data.length === 0) {
+---diff --git a/model.patch b/model.patch
+---index 257e58a..e69de29 100644
+------ a/model.patch
+---+++ b/model.patch
+---@@ -1,24 +0,0 @@
+----diff --git a/app/(tabs)/aircraft/maintenance/ad-sb.tsx b/app/(tabs)/aircraft/maintenance/ad-sb.tsx
+----index 20f5701..c8b707d 100644
+------- a/app/(tabs)/aircraft/maintenance/ad-sb.tsx
+----+++ b/app/(tabs)/aircraft/maintenance/ad-sb.tsx
+----@@ -319,6 +319,19 @@ const styles = StyleSheet.create({
+----     backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8 
+----   },
+----   headerTcText: { color: COLORS.white, fontSize: 12, fontWeight: '600' },
+----+  explainerBanner: {
+----+    backgroundColor: COLORS.blue + '15',
+----+    paddingVertical: 8,
+----+    paddingHorizontal: 16,
+----+    borderBottomWidth: 1,
+----+    borderBottomColor: COLORS.blue + '30',
+----+  },
+----+  explainerText: {
+----+    fontSize: 12,
+----+    color: COLORS.blue,
+----+    fontWeight: '500',
+----+    textAlign: 'center',
+----+  },
+----   headerAdd: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 },
+----   headerAddText: { color: COLORS.white, fontSize: 24, fontWeight: '600' },
+----   countContainer: { flexDirection: 'row', padding: 16, gap: 12, flexWrap: 'wrap' },
+--diff --git a/test_result.md b/test_result.md
+--index e486c23..11b5927 100644
+----- a/test_result.md
+--+++ b/test_result.md
+--@@ -138,3 +138,59 @@
+-- 3. Section ELT: Rapport avec mention ELT
+-- 4. Historique: Liste et compteurs
+-- 5. Validation: Par champ et globale
+--+
+--+---
+--+
+--+## Session Date: July 2025 - Edit Aircraft Fields Fix
+--+
+--+### ✅ Corrections Effectuées
+--+
+--+| Champ | Status | Solution |
+--+|-------|--------|----------|
+--+| Purpose (Usage) | ✅ | Mappé depuis `purpose` ou `aircraft_type` du backend |
+--+| City/Airport (Ville/Aéroport) | ✅ | Mappé depuis `base_of_operations` ou `city` du backend, fallback local |
+--+
+--+### Fichiers Modifiés
+--+
+--+1. `/app/services/aircraftService.ts`:
+--+   - Interface `Aircraft` enrichie avec `purpose`, `base_of_operations`, `city`, `designator`, etc.
+--+   - Interface `AircraftCreate` enrichie avec `purpose`, `base_of_operations`
+--+
+--+2. `/app/stores/aircraftLocalStore.ts`:
+--+   - `mapApiToLocal()`: Mappe `commonName` depuis `purpose` ou `aircraft_type`
+--+   - `mapApiToLocal()`: Mappe `baseOperations` depuis `base_of_operations` ou `city`
+--+   - `extractLocalData()`: Inclut `designator`, `ownerName`, `ownerCity`, `ownerProvince`
+--+   - `updateAircraft()`: Envoie `base_of_operations` au backend
+--+   - Ajout de logs de debug pour traçabilité
+--+
+--+3. `/app/app/(tabs)/aircraft/edit.tsx`:
+--+   - Ajout de log de debug pour vérifier le chargement des données
+--+
+--+### Flux de données
+--+
+--+```
+--+┌─────────────────────────────────────────────────────────────┐
+--+│  Backend → Frontend (Lecture)                               │
+--+├─────────────────────────────────────────────────────────────┤
+--+│  backend.purpose → commonName (Purpose)                     │
+--+│  backend.aircraft_type → commonName (fallback)              │
+--+│  backend.base_of_operations → baseOperations (City/Airport) │
+--+│  backend.city → baseOperations (fallback)                   │
+--+│  localData.baseOperations → baseOperations (fallback local) │
+--+└─────────────────────────────────────────────────────────────┘
+--+
+--+┌─────────────────────────────────────────────────────────────┐
+--+│  Frontend → Backend (Écriture)                              │
+--+├─────────────────────────────────────────────────────────────┤
+--+│  commonName → backend.aircraft_type                         │
+--+│  baseOperations → backend.base_of_operations                │
+--+│  baseOperations → localData.baseOperations (stockage local) │
+--+└─────────────────────────────────────────────────────────────┘
+--+```
+--+
+--+### À Tester
+--+
+--+1. Ouvrir la page Edit Aircraft
+--+2. Vérifier que "Purpose" affiche "Privé"
+--+3. Vérifier que "City / Airport" affiche "Joliette, CSG3"
+--+4. Modifier et sauvegarder, puis vérifier la persistance
+-diff --git a/test_result.md b/test_result.md
+-index 11b5927..f7b941f 100644
+---- a/test_result.md
+-+++ b/test_result.md
+-@@ -141,56 +141,54 @@
+- 
+- ---
+- 
+--## Session Date: July 2025 - Edit Aircraft Fields Fix
+-+## Session Date: July 2025 - Edit Aircraft Fields Fix (Update 2)
+- 
+- ### ✅ Corrections Effectuées
+- 
+--| Champ | Status | Solution |
+--|-------|--------|----------|
+--| Purpose (Usage) | ✅ | Mappé depuis `purpose` ou `aircraft_type` du backend |
+--| City/Airport (Ville/Aéroport) | ✅ | Mappé depuis `base_of_operations` ou `city` du backend, fallback local |
+-+| Champ | Status | Nom API Backend | Nom Frontend |
+-+|-------|--------|-----------------|--------------|
+-+| Purpose (Usage) | ✅ | `purpose` ou `aircraft_type` | `commonName` |
+-+| City/Airport (Ville/Aéroport) | ✅ | `city_airport` ou `base_of_operations` | `baseOperations` |
+-+
+-+### Mapping API → Frontend
+-+
+-+```json
+-+// Réponse API attendue:
+-+{
+-+  "purpose": "Privé",
+-+  "city_airport": "Joliette, CSG3"
+-+}
+-+
+-+// Mapping dans aircraftLocalStore.ts:
+-+commonName = purpose || aircraft_type || ''
+-+baseOperations = city_airport || base_of_operations || city || localData.baseOperations || ''
+-+```
+- 
+- ### Fichiers Modifiés
+- 
+- 1. `/app/services/aircraftService.ts`:
+--   - Interface `Aircraft` enrichie avec `purpose`, `base_of_operations`, `city`, `designator`, etc.
+--   - Interface `AircraftCreate` enrichie avec `purpose`, `base_of_operations`
+--
+-+   - Interface `Aircraft` enrichie avec `city_airport` (nouveau champ API)
+-+   
+- 2. `/app/stores/aircraftLocalStore.ts`:
+--   - `mapApiToLocal()`: Mappe `commonName` depuis `purpose` ou `aircraft_type`
+--   - `mapApiToLocal()`: Mappe `baseOperations` depuis `base_of_operations` ou `city`
+--   - `extractLocalData()`: Inclut `designator`, `ownerName`, `ownerCity`, `ownerProvince`
+--   - `updateAircraft()`: Envoie `base_of_operations` au backend
+--   - Ajout de logs de debug pour traçabilité
+--
+-+   - `mapApiToLocal()`: Priorité `city_airport` pour le champ baseOperations
+-+   - Logs de debug améliorés pour traçabilité
+-+   
+- 3. `/app/app/(tabs)/aircraft/edit.tsx`:
+--   - Ajout de log de debug pour vérifier le chargement des données
+-+   - Placeholder "Non spécifié" pour Purpose et City/Airport si vide
+-+   - Logs de debug pour vérifier le chargement des données
+- 
+--### Flux de données
+-+### Gestion des valeurs manquantes
+- 
+- ```
+--┌─────────────────────────────────────────────────────────────┐
+--│  Backend → Frontend (Lecture)                               │
+--├─────────────────────────────────────────────────────────────┤
+--│  backend.purpose → commonName (Purpose)                     │
+--│  backend.aircraft_type → commonName (fallback)              │
+--│  backend.base_of_operations → baseOperations (City/Airport) │
+--│  backend.city → baseOperations (fallback)                   │
+--│  localData.baseOperations → baseOperations (fallback local) │
+--└─────────────────────────────────────────────────────────────┘
+--
+--┌─────────────────────────────────────────────────────────────┐
+--│  Frontend → Backend (Écriture)                              │
+--├─────────────────────────────────────────────────────────────┤
+--│  commonName → backend.aircraft_type                         │
+--│  baseOperations → backend.base_of_operations                │
+--│  baseOperations → localData.baseOperations (stockage local) │
+--└─────────────────────────────────────────────────────────────┘
+-+Si API retourne null/undefined pour un champ:
+-+→ Le champ affiche "Non spécifié" en placeholder
+-+→ L'utilisateur peut saisir manuellement une valeur
+-+→ La valeur est sauvegardée localement + envoyée au backend
+- ```
+- 
+- ### À Tester
+- 
+--1. Ouvrir la page Edit Aircraft
+--2. Vérifier que "Purpose" affiche "Privé"
+--3. Vérifier que "City / Airport" affiche "Joliette, CSG3"
+--4. Modifier et sauvegarder, puis vérifier la persistance
+-+1. Ouvrir Edit Aircraft sur un avion existant
+-+2. Vérifier que "Purpose" affiche "Privé" (ou "Non spécifié" si vide)
+-+3. Vérifier que "City / Airport" affiche "Joliette, CSG3" (ou "Non spécifié" si vide)
+-+4. Regarder les logs console pour voir la réponse API brute

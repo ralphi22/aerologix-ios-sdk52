@@ -54,6 +54,17 @@ const TEXTS = {
     loading: 'Loading AD/SB...',
     errorLoading: 'Failed to load',
     retry: 'Retry',
+    tcAdSb: 'TC AD/SB',
+    tcAdSbHint: 'View official AD/SB from Transport Canada',
+    // New recurrence texts
+    recurring: 'Recurring',
+    dueSoon: 'Due soon',
+    overdue: 'Overdue',
+    nextDue: 'Next: {date}',
+    tcMatched: 'TC',
+    // Global counters
+    totalReferences: 'References',
+    totalRecurring: 'Recurring',
   },
   fr: {
     screenTitle: 'AD / SB',
@@ -75,6 +86,17 @@ const TEXTS = {
     loading: 'Chargement AD/SB...',
     errorLoading: 'Échec du chargement',
     retry: 'Réessayer',
+    tcAdSb: 'TC AD/SB',
+    tcAdSbHint: 'Voir les AD/SB officiels de Transport Canada',
+    // New recurrence texts
+    recurring: 'Récurrent',
+    dueSoon: 'Échéance proche',
+    overdue: 'Échu',
+    nextDue: 'Prochaine: {date}',
+    tcMatched: 'TC',
+    // Global counters
+    totalReferences: 'Références',
+    totalRecurring: 'Récurrents',
   },
 };
 
@@ -112,6 +134,13 @@ interface OcrAdSbItem {
   aircraft_id: string;
   // Array of individual record IDs if backend returns them
   record_ids?: string[];
+  // Recurrence fields
+  is_recurring?: boolean;
+  recurrence_display?: string; // "Annuel", "100h", etc.
+  days_until_due?: number | null;
+  next_due_date?: string | null;
+  // TC matching
+  tc_matched?: boolean;
 }
 
 interface OcrAdSbResponse {
@@ -121,6 +150,19 @@ interface OcrAdSbResponse {
     sb: number;
     total: number;
   };
+  // Global counters
+  total_unique_references?: number;
+  total_ad?: number;
+  total_sb?: number;
+  total_recurring?: number;
+}
+
+// Response state for global counters
+interface GlobalCounts {
+  totalReferences: number;
+  totalAd: number;
+  totalSb: number;
+  totalRecurring: number;
 }
 
 export default function AdSbScreen() {
@@ -135,6 +177,14 @@ export default function AdSbScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  
+  // Global counters state
+  const [globalCounts, setGlobalCounts] = useState<GlobalCounts>({
+    totalReferences: 0,
+    totalAd: 0,
+    totalSb: 0,
+    totalRecurring: 0,
+  });
   
   // Add modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -164,6 +214,14 @@ export default function AdSbScreen() {
       
       // Handle both response formats (items array or direct array)
       const itemsList = data.items || (Array.isArray(data) ? data : []);
+      
+      // Update global counters from response
+      setGlobalCounts({
+        totalReferences: data.total_unique_references || itemsList.length,
+        totalAd: data.total_ad || data.count?.ad || itemsList.filter(i => i.type === 'AD').length,
+        totalSb: data.total_sb || data.count?.sb || itemsList.filter(i => i.type === 'SB').length,
+        totalRecurring: data.total_recurring || itemsList.filter(i => i.is_recurring).length,
+      });
       
       // Sort: AD first, then by reference
       const sortedItems = itemsList.sort((a, b) => {
@@ -338,6 +396,19 @@ export default function AdSbScreen() {
     );
   };
 
+  // Get due status color and text
+  const getDueStatus = (daysUntilDue: number | null | undefined) => {
+    if (daysUntilDue === null || daysUntilDue === undefined) return null;
+    
+    if (daysUntilDue <= 0) {
+      return { color: COLORS.red, text: texts.overdue, bgColor: '#FFEBEE' };
+    } else if (daysUntilDue <= 30) {
+      return { color: '#E65100', text: texts.dueSoon, bgColor: '#FFF3E0' };
+    } else {
+      return { color: COLORS.green, text: null, bgColor: '#E8F5E9' };
+    }
+  };
+
   // Render single card
   const renderCard = (item: OcrAdSbItem) => {
     // Use reference as the unique key since items are aggregated by reference
@@ -348,30 +419,73 @@ export default function AdSbScreen() {
                        deletingId === item._id ||
                        deletingId === item.adsb_id;
     const showOccurrenceInfo = item.occurrence_count > 1;
+    const dueStatus = getDueStatus(item.days_until_due);
     
     return (
       <View key={uniqueKey} style={[styles.card, isDeleting && styles.cardDeleting]}>
+        {/* Card Header with badges */}
         <View style={styles.cardHeader}>
+          {/* Type Badge (AD red, SB blue) */}
           <View style={[styles.typeBadge, item.type === 'AD' ? styles.adBadge : styles.sbBadge]}>
             <Text style={[styles.typeBadgeText, item.type === 'AD' ? styles.adText : styles.sbText]}>
               {item.type}
             </Text>
           </View>
+          
           <View style={styles.cardInfo}>
             <View style={styles.cardNumberRow}>
               <Text style={styles.cardNumber}>{item.reference}</Text>
               {renderCountBadge(item.occurrence_count)}
+              
+              {/* TC Matched Badge */}
+              {item.tc_matched && (
+                <View style={styles.tcMatchedBadge}>
+                  <Text style={styles.tcMatchedText}>✓ {texts.tcMatched}</Text>
+                </View>
+              )}
             </View>
+            
             {/* Show first_seen date only if single occurrence */}
             {!showOccurrenceInfo && item.first_seen && (
               <Text style={styles.cardDate}>{item.first_seen}</Text>
             )}
           </View>
+          
           {isDeleting && (
             <ActivityIndicator size="small" color={COLORS.red} />
           )}
         </View>
         
+        {/* Recurring indicator */}
+        {item.is_recurring && (
+          <View style={styles.recurringContainer}>
+            <View style={styles.recurringBadge}>
+              <Text style={styles.recurringIcon}>📅</Text>
+              <Text style={styles.recurringText}>{texts.recurring}</Text>
+            </View>
+            {item.recurrence_display && (
+              <Text style={styles.recurrenceDisplay}>{item.recurrence_display}</Text>
+            )}
+            
+            {/* Due status with color coding */}
+            {dueStatus && (
+              <View style={[styles.dueStatusBadge, { backgroundColor: dueStatus.bgColor }]}>
+                {dueStatus.text && (
+                  <Text style={[styles.dueStatusText, { color: dueStatus.color }]}>
+                    {dueStatus.text}
+                  </Text>
+                )}
+                {item.next_due_date && (
+                  <Text style={[styles.nextDueText, { color: dueStatus.color }]}>
+                    {texts.nextDue.replace('{date}', item.next_due_date)}
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+        
+        {/* Description */}
         {item.description ? (
           <Text style={styles.cardDescription} numberOfLines={3}>{item.description}</Text>
         ) : null}
@@ -390,6 +504,7 @@ export default function AdSbScreen() {
           </View>
         )}
         
+        {/* Delete button */}
         <View style={styles.cardActions}>
           <TouchableOpacity 
             style={styles.deleteButton} 
@@ -433,21 +548,40 @@ export default function AdSbScreen() {
         <Text style={styles.explainerText}>📄 {texts.headerExplainer}</Text>
       </View>
 
-      {/* Count Badges */}
+      {/* Global Count Badges */}
       <View style={styles.countContainer}>
+        {/* Total References */}
+        <View style={[styles.countBadge, { backgroundColor: '#F5F5F5' }]}>
+          <Text style={[styles.countText, { color: COLORS.textDark }]}>
+            {texts.totalReferences}: {globalCounts.totalReferences}
+          </Text>
+        </View>
+        {/* AD Count */}
         <View style={[styles.countBadge, { backgroundColor: '#FFEBEE' }]}>
-          <Text style={[styles.countText, { color: COLORS.red }]}>AD: {adItems.length}</Text>
+          <Text style={[styles.countText, { color: COLORS.red }]}>AD: {globalCounts.totalAd}</Text>
         </View>
+        {/* SB Count */}
         <View style={[styles.countBadge, { backgroundColor: COLORS.orange }]}>
-          <Text style={[styles.countText, { color: '#E65100' }]}>SB: {sbItems.length}</Text>
+          <Text style={[styles.countText, { color: '#E65100' }]}>SB: {globalCounts.totalSb}</Text>
         </View>
-        <TouchableOpacity 
-          style={[styles.countBadge, styles.tcBadge]} 
-          onPress={handleNavigateToTC}
-        >
-          <Text style={styles.tcBadgeText}>TC AD/SB</Text>
-        </TouchableOpacity>
+        {/* Recurring Count */}
+        {globalCounts.totalRecurring > 0 && (
+          <View style={[styles.countBadge, { backgroundColor: '#E3F2FD' }]}>
+            <Text style={[styles.countText, { color: COLORS.primary }]}>
+              📅 {texts.totalRecurring}: {globalCounts.totalRecurring}
+            </Text>
+          </View>
+        )}
       </View>
+      
+      {/* TC AD/SB Navigation Button */}
+      <TouchableOpacity 
+        style={styles.tcNavigationButton} 
+        onPress={handleNavigateToTC}
+      >
+        <Text style={styles.tcNavigationText}>📋 {texts.tcAdSb}</Text>
+        <Text style={styles.tcNavigationHint}>{texts.tcAdSbHint}</Text>
+      </TouchableOpacity>
 
       <ScrollView 
         style={styles.scrollView} 
@@ -833,4 +967,92 @@ const styles = StyleSheet.create({
     alignItems: 'center' 
   },
   modalSaveText: { fontSize: 16, color: COLORS.white, fontWeight: '600' },
+  
+  // TC Navigation Button
+  tcNavigationButton: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: COLORS.blue,
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: COLORS.blueBorder,
+  },
+  tcNavigationText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  tcNavigationHint: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    flex: 1,
+    textAlign: 'right',
+    marginLeft: 8,
+  },
+  
+  // TC Matched Badge
+  tcMatchedBadge: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A5D6A7',
+  },
+  tcMatchedText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.green,
+  },
+  
+  // Recurring Container and Badges
+  recurringContainer: {
+    backgroundColor: '#F3E5F5',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#CE93D8',
+  },
+  recurringBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  recurringIcon: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  recurringText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#7B1FA2',
+  },
+  recurrenceDisplay: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#7B1FA2',
+    marginBottom: 6,
+  },
+  
+  // Due Status Badge
+  dueStatusBadge: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  dueStatusText: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  nextDueText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
 });

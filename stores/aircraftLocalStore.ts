@@ -101,7 +101,7 @@ const saveLocalData = async (data: LocalDataMap): Promise<void> => {
 const mapApiToLocal = (apiAircraft: ApiAircraft, localData: LocalAircraftData = {}): Aircraft => ({
   id: (apiAircraft as any).id?.toString() || apiAircraft._id,
   registration: apiAircraft.registration,
-  // Purpose: Try backend field 'purpose' or 'aircraft_type', fallback to local
+  // Purpose: Try backend field 'purpose' first, then 'aircraft_type', fallback to empty
   commonName: (apiAircraft as any).purpose || apiAircraft.aircraft_type || '',
   model: apiAircraft.model || '',
   serialNumber: apiAircraft.serial_number || '',
@@ -109,8 +109,8 @@ const mapApiToLocal = (apiAircraft: ApiAircraft, localData: LocalAircraftData = 
   category: localData.category || '',
   engineType: localData.engineType || '',
   maxWeight: localData.maxWeight || '',
-  // City/Airport: Try backend field 'base_of_operations' or 'city', fallback to local
-  baseOperations: (apiAircraft as any).base_of_operations || (apiAircraft as any).city || localData.baseOperations || '',
+  // City/Airport: Try backend field 'city_airport' first, then 'base_of_operations', then 'city', fallback to local
+  baseOperations: (apiAircraft as any).city_airport || (apiAircraft as any).base_of_operations || (apiAircraft as any).city || localData.baseOperations || '',
   countryManufacture: localData.countryManufacture || '',
   registrationType: localData.registrationType || '',
   ownerSince: localData.ownerSince || '',
@@ -209,6 +209,7 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
         registration: a.registration,
         aircraft_type: a.aircraft_type,
         purpose: (a as any).purpose,
+        city_airport: (a as any).city_airport,
         base_of_operations: (a as any).base_of_operations,
         city: (a as any).city,
       })));

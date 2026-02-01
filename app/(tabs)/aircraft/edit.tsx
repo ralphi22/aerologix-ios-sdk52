@@ -567,7 +567,7 @@ export default function EditAircraftScreen() {
             
             {renderTCStatus()}
             
-            <FormField label={t('common_name')} value={commonName} onChangeText={setCommonName} placeholder="—" />
+            <FormField label={t('common_name')} value={commonName} onChangeText={setCommonName} placeholder={lang === 'fr' ? 'Non spécifié' : 'Not specified'} />
             <FormField label={t('model_name')} value={model} onChangeText={setModel} placeholder="—" tcFilled={tcFilledFields.has('model')} />
             <FormField label={lang === 'fr' ? 'Désignateur' : 'Designator'} value={designator} onChangeText={setDesignator} placeholder="—" tcFilled={tcFilledFields.has('designator')} />
             <FormField label={t('serial_number')} value={serialNumber} onChangeText={setSerialNumber} placeholder="—" tcFilled={tcFilledFields.has('serialNumber')} />
@@ -584,7 +584,7 @@ export default function EditAircraftScreen() {
           <SectionHeader title={t('section_weight')} />
           <View style={styles.section}>
             <FormField label={t('max_weight')} value={maxWeight} onChangeText={setMaxWeight} placeholder="—" tcFilled={tcFilledFields.has('maxWeight')} />
-            <FormField label={t('base_operations')} value={baseOperations} onChangeText={setBaseOperations} placeholder="—" tcFilled={tcFilledFields.has('baseOperations')} />
+            <FormField label={t('base_operations')} value={baseOperations} onChangeText={setBaseOperations} placeholder={lang === 'fr' ? 'Non spécifié' : 'Not specified'} tcFilled={tcFilledFields.has('baseOperations')} />
           </View>
 
           {/* Construction */}
