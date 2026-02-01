@@ -96,6 +96,16 @@ const TEXTS = {
     importedOn: 'Imported on',
     file: 'File',
     adPrefix: 'AD',
+    // Seen/Not Seen badges
+    total: 'Total',
+    seen: 'Seen',
+    notSeen: 'Not seen',
+    seenBadge: 'SEEN',
+    notSeenBadge: 'NOT SEEN',
+    seenTimes: 'Seen {count} times',
+    seenOnce: 'Seen 1 time',
+    lastSeen: 'Last',
+    verifyManually: 'Verify manually in documents',
   },
   fr: {
     screenTitle: 'TC AD/SB',
@@ -129,6 +139,16 @@ const TEXTS = {
     importedOn: 'Importé le',
     file: 'Fichier',
     adPrefix: 'AD',
+    // Seen/Not Seen badges
+    total: 'Total',
+    seen: 'Vus',
+    notSeen: 'Non vus',
+    seenBadge: 'VU',
+    notSeenBadge: 'NON VU',
+    seenTimes: 'Vu {count} fois',
+    seenOnce: 'Vu 1 fois',
+    lastSeen: 'Dernier',
+    verifyManually: 'Vérifier manuellement dans les documents',
   },
 };
 
