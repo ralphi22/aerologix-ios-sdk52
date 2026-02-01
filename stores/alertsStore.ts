@@ -122,8 +122,17 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Mark single alert as read
+  // Mark single alert as read - sync with backend
   const markAsRead = useCallback(async (alertId: string) => {
+    try {
+      // Try to sync with backend first
+      await api.put(`/api/alerts/${alertId}/read`);
+      console.log('[Alerts] Marked as read on backend:', alertId);
+    } catch (err: any) {
+      console.log('[Alerts] Backend mark read failed, using local storage:', err?.message);
+    }
+    
+    // Always update local state
     const newReadIds = new Set(readAlertIds);
     newReadIds.add(alertId);
     setReadAlertIds(newReadIds);
@@ -137,8 +146,17 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     );
   }, [readAlertIds]);
 
-  // Mark all alerts as read
+  // Mark all alerts as read - sync with backend
   const markAllAsRead = useCallback(async () => {
+    try {
+      // Try to sync with backend first
+      await api.put('/api/alerts/read-all');
+      console.log('[Alerts] Marked all as read on backend');
+    } catch (err: any) {
+      console.log('[Alerts] Backend mark all read failed, using local storage:', err?.message);
+    }
+    
+    // Always update local state
     const newReadIds = new Set(readAlertIds);
     alerts.forEach(alert => newReadIds.add(alert.id));
     setReadAlertIds(newReadIds);
