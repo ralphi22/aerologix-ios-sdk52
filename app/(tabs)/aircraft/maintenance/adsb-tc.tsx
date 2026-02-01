@@ -194,10 +194,12 @@ export default function AdSbTcScreen() {
     try {
       // ✅ CORRECT ENDPOINT: User imported references ONLY
       const response = await api.get(`/api/adsb/tc/references/${aircraftId}`);
-      console.log('[TC AD/SB] User imported references:', response.data);
+      console.log('[TC AD/SB] Raw API response:', JSON.stringify(response.data));
       
       // Handle response format - backend returns { references: [...] }
       const items = response.data?.references || response.data?.items || response.data || [];
+      console.log('[TC AD/SB] Extracted items count:', Array.isArray(items) ? items.length : 'not array');
+      
       setReferences(Array.isArray(items) ? items : []);
     } catch (err: any) {
       console.warn('[TC AD/SB] Error:', err?.message);
