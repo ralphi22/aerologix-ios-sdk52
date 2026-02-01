@@ -459,12 +459,17 @@ export default function AdSbTcScreen() {
     const canOpenPdf = item.can_open_pdf !== false && tcPdfId;
     const canDelete = item.can_delete !== false;
     
+    // Seen in scans status
+    const isSeen = item.seen_in_scans === true;
+    const scanCount = item.scan_count || 0;
+    const lastScanDate = item.last_scan_date ? formatDate(item.last_scan_date) : null;
+    
     return (
       <View 
         key={`${item.type}-${tcRefId}-${index}`}
         style={[styles.card, { borderLeftColor: isAD ? COLORS.adRed : COLORS.sbBlue }]}
       >
-        {/* Header with Type Badge and Identifier */}
+        {/* Header with Type Badge, Identifier and Seen/Not Seen Badge */}
         <View style={styles.cardHeader}>
           <View style={[styles.typeBadge, { backgroundColor: isAD ? COLORS.adRedBg : COLORS.sbBlueBg }]}>
             <Text style={[styles.typeBadgeText, { color: isAD ? COLORS.adRed : COLORS.sbBlue }]}>
@@ -474,10 +479,47 @@ export default function AdSbTcScreen() {
           <View style={styles.identifierBadge}>
             <Text style={styles.identifierBadgeText}>{displayIdentifier}</Text>
           </View>
+          
+          {/* Spacer to push seen badge to right */}
+          <View style={{ flex: 1 }} />
+          
+          {/* Seen / Not Seen Badge */}
+          <View style={[
+            styles.seenBadge,
+            isSeen ? styles.seenBadgeGreen : styles.seenBadgeRed
+          ]}>
+            <Text style={[
+              styles.seenBadgeText,
+              isSeen ? styles.seenBadgeTextGreen : styles.seenBadgeTextRed
+            ]}>
+              {isSeen ? `${texts.seenBadge} ✓` : `${texts.notSeenBadge} ✗`}
+            </Text>
+          </View>
         </View>
 
         {/* Title/Description */}
         <Text style={styles.cardTitle} numberOfLines={3}>{displayTitle}</Text>
+
+        {/* Scan info or warning based on seen status */}
+        {isSeen ? (
+          <View style={styles.scanInfoContainer}>
+            <Text style={styles.scanInfoText}>
+              {scanCount === 1 
+                ? texts.seenOnce 
+                : texts.seenTimes.replace('{count}', String(scanCount))}
+            </Text>
+            {lastScanDate && (
+              <Text style={styles.scanInfoText}>
+                {` | ${texts.lastSeen}: ${lastScanDate}`}
+              </Text>
+            )}
+          </View>
+        ) : (
+          <View style={styles.warningContainer}>
+            <Ionicons name="warning-outline" size={16} color={COLORS.dangerRed} />
+            <Text style={styles.warningText}>{texts.verifyManually}</Text>
+          </View>
+        )}
 
         {/* Filename */}
         {item.filename && (
