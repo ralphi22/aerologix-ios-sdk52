@@ -676,6 +676,27 @@ export default function AdSbTcScreen() {
             )}
           </TouchableOpacity>
 
+          {/* Summary Stats Bar - Only show if has data */}
+          {hasData && (
+            <View style={styles.summaryBar}>
+              <View style={styles.summaryBadge}>
+                <Text style={styles.summaryBadgeText}>
+                  {texts.total}: {summaryStats.total}
+                </Text>
+              </View>
+              <View style={[styles.summaryBadge, styles.summaryBadgeSeen]}>
+                <Text style={[styles.summaryBadgeText, styles.summaryBadgeTextSeen]}>
+                  {texts.seen}: {summaryStats.seen}
+                </Text>
+              </View>
+              <View style={[styles.summaryBadge, styles.summaryBadgeNotSeen]}>
+                <Text style={[styles.summaryBadgeText, styles.summaryBadgeTextNotSeen]}>
+                  {texts.notSeen}: {summaryStats.notSeen}
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Empty State - CRITICAL: This is the default state */}
           {!hasData && (
             <View style={styles.emptyContainer}>
