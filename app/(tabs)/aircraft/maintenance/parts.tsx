@@ -1,13 +1,13 @@
 /**
  * Parts Screen - Critical Mentions & Service Parts
  * TC-SAFE: Information only, no regulatory decisions
- * Features:
- * - Two tabs: Critical Mentions (from OCR reports) and Service Parts
- * - Reference dates for critical items
- * - Backend integration for critical mentions
+ * 
+ * ENDPOINTS:
+ * - Critical Mentions: GET /api/limitations/{aircraft_id}/critical-mentions
+ * - Service Parts: GET /api/parts/{aircraft_id}
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,14 +20,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Dimensions,
+  RefreshControl,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
-import { useMaintenanceData } from '@/stores/maintenanceDataStore';
 import api from '@/services/api';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const COLORS = {
   primary: '#0033A0',
@@ -46,228 +43,372 @@ const COLORS = {
   orangeBg: '#FFF3E0',
   red: '#E53935',
   redBg: '#FFEBEE',
+  purple: '#7B1FA2',
+  purpleBg: '#F3E5F5',
 };
 
-// Critical mention type from backend
+// ============================================
+// TYPES
+// ============================================
+
+// Critical Mention from backend
 interface CriticalMention {
-  id: string;
-  name: string;
-  component_type: string; // engine, propeller, magneto, vacuum_pump, etc.
-  part_number?: string;
-  serial_number?: string;
-  reference_date?: string;
-  source_document?: string;
-  installed_at_hours?: number;
-  current_airframe_hours?: number;
-  time_since_install?: number;
-  tbo?: number;
-  remaining?: number;
+  id?: string;
+  _id?: string;
+  text: string;
+  keywords?: string[];
+  confidence: number;
+  report_date?: string;
+  category: 'elt' | 'avionics' | 'fire_extinguisher' | 'general_limitations';
 }
 
-// Tab type
+// Critical Mentions Response
+interface CriticalMentionsResponse {
+  aircraft_id: string;
+  registration: string;
+  critical_mentions: {
+    elt: CriticalMention[];
+    avionics: CriticalMention[];
+    fire_extinguisher: CriticalMention[];
+    general_limitations: CriticalMention[];
+  };
+  summary: {
+    elt_count: number;
+    avionics_count: number;
+    fire_extinguisher_count: number;
+    general_limitations_count: number;
+    total_count: number;
+  };
+}
+
+// Service Part from backend
+interface ServicePart {
+  _id: string;
+  id?: string;
+  part_number: string;
+  description?: string;
+  serial_number?: string;
+  source?: string;
+  created_at?: string;
+  aircraft_id?: string;
+}
+
 type TabType = 'critical' | 'service';
 
-// Component icon mapping
-const COMPONENT_ICONS: Record<string, string> = {
-  engine: '🔧',
-  propeller: '🌀',
-  magneto: '⚡',
-  vacuum_pump: '💨',
-  alternator: '🔋',
-  starter: '⚙️',
-  default: '🔩',
+// Category config
+const CATEGORY_CONFIG = {
+  elt: { icon: '📡', label_en: 'ELT', label_fr: 'ELT', color: COLORS.red, bgColor: COLORS.redBg },
+  avionics: { icon: '📻', label_en: 'Avionics', label_fr: 'Avioniques', color: COLORS.primary, bgColor: COLORS.blue },
+  fire_extinguisher: { icon: '🧯', label_en: 'Fire Extinguisher', label_fr: 'Extincteur', color: COLORS.orange, bgColor: COLORS.orangeBg },
+  general_limitations: { icon: '⚠️', label_en: 'General Limitations', label_fr: 'Limitations générales', color: COLORS.purple, bgColor: COLORS.purpleBg },
 };
 
+// ============================================
+// TEXTS
+// ============================================
+const TEXTS = {
+  en: {
+    screenTitle: 'Parts',
+    tabCritical: 'Critical Mentions',
+    tabService: 'Service Parts',
+    loading: 'Loading...',
+    error: 'Failed to load',
+    retry: 'Retry',
+    confidence: 'Confidence',
+    date: 'Date',
+    noMentions: 'No critical mentions detected',
+    noMentionsHint: 'Critical mentions are extracted from maintenance reports.',
+    noParts: 'No service parts recorded',
+    noPartsHint: 'Parts are extracted from OCR scans.',
+    delete: 'Delete',
+    cancel: 'Cancel',
+    deleteConfirm: 'Delete this item?',
+    addPart: 'Add Part',
+    partNumber: 'Part Number',
+    description: 'Description',
+    serialNumber: 'Serial Number',
+    source: 'Source',
+    created: 'Created',
+    disclaimer: 'Informational only — verify with logbooks and your AME.',
+  },
+  fr: {
+    screenTitle: 'Pièces',
+    tabCritical: 'Mentions critiques',
+    tabService: 'Pièces de service',
+    loading: 'Chargement...',
+    error: 'Échec du chargement',
+    retry: 'Réessayer',
+    confidence: 'Confiance',
+    date: 'Date',
+    noMentions: 'Aucune mention critique détectée',
+    noMentionsHint: 'Les mentions critiques sont extraites des rapports de maintenance.',
+    noParts: 'Aucune pièce enregistrée',
+    noPartsHint: 'Les pièces sont extraites des scans OCR.',
+    delete: 'Supprimer',
+    cancel: 'Annuler',
+    deleteConfirm: 'Supprimer cet élément ?',
+    addPart: 'Ajouter une pièce',
+    partNumber: 'Numéro de pièce',
+    description: 'Description',
+    serialNumber: 'Numéro de série',
+    source: 'Source',
+    created: 'Créé',
+    disclaimer: 'Informatif seulement — vérifiez avec les carnets et votre TEA.',
+  },
+};
+
+// ============================================
+// HELPER: Normalize part number for deduplication
+// ============================================
+const normalizePartNo = (pn: string): string => {
+  return pn.replace(/[\s\-]/g, '').toUpperCase();
+};
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
 export default function PartsScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
-  const lang = getLanguage();
-  const { parts, addPart, deletePart, getPartsByAircraft, syncWithBackend, isLoading: partsLoading } = useMaintenanceData();
+  const lang = getLanguage() as 'en' | 'fr';
+  const texts = TEXTS[lang];
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('critical');
   
   // Critical mentions state
-  const [criticalMentions, setCriticalMentions] = useState<CriticalMention[]>([]);
+  const [criticalData, setCriticalData] = useState<CriticalMentionsResponse | null>(null);
   const [criticalLoading, setCriticalLoading] = useState(true);
   const [criticalError, setCriticalError] = useState<string | null>(null);
+  const [criticalRefreshing, setCriticalRefreshing] = useState(false);
 
-  // Service parts modal state
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newPartName, setNewPartName] = useState('');
-  const [newPartNumber, setNewPartNumber] = useState('');
-  const [newPartQty, setNewPartQty] = useState('1');
-  const [newPartDate, setNewPartDate] = useState('');
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  
-  // Fetch critical mentions from backend
-  useEffect(() => {
-    const fetchCriticalMentions = async () => {
-      if (!aircraftId) return;
-      
+  // Service parts state
+  const [serviceParts, setServiceParts] = useState<ServicePart[]>([]);
+  const [partsLoading, setPartsLoading] = useState(true);
+  const [partsError, setPartsError] = useState<string | null>(null);
+  const [partsRefreshing, setPartsRefreshing] = useState(false);
+  const [deletingPartId, setDeletingPartId] = useState<string | null>(null);
+
+  // ============================================
+  // FETCH CRITICAL MENTIONS - CORRECT ENDPOINT
+  // ============================================
+  const fetchCriticalMentions = useCallback(async (showRefreshing = false) => {
+    if (!aircraftId) return;
+    
+    if (showRefreshing) {
+      setCriticalRefreshing(true);
+    } else {
       setCriticalLoading(true);
-      setCriticalError(null);
-      
-      try {
-        const response = await api.get(`/api/components/critical/${aircraftId}`);
-        setCriticalMentions(response.data.components || response.data || []);
-      } catch (err: any) {
-        console.error('Critical mentions fetch error:', err);
-        setCriticalError(err?.response?.data?.detail || err?.message || 'Failed to load');
-      } finally {
-        setCriticalLoading(false);
-      }
-    };
-
-    fetchCriticalMentions();
-  }, [aircraftId]);
-
-  // Sync service parts with backend on mount
-  useEffect(() => {
-    if (aircraftId) {
-      syncWithBackend(aircraftId);
     }
-  }, [aircraftId]);
+    setCriticalError(null);
+    
+    try {
+      // ✅ CORRECT ENDPOINT
+      const response = await api.get(`/api/limitations/${aircraftId}/critical-mentions`);
+      console.log('[Critical Mentions] Data:', response.data);
+      setCriticalData(response.data);
+    } catch (err: any) {
+      console.error('[Critical Mentions] Error:', err);
+      setCriticalError(err?.response?.data?.detail || err?.message || texts.error);
+    } finally {
+      setCriticalLoading(false);
+      setCriticalRefreshing(false);
+    }
+  }, [aircraftId, texts.error]);
 
-  const aircraftParts = getPartsByAircraft(aircraftId || '');
+  // ============================================
+  // FETCH SERVICE PARTS
+  // ============================================
+  const fetchServiceParts = useCallback(async (showRefreshing = false) => {
+    if (!aircraftId) return;
+    
+    if (showRefreshing) {
+      setPartsRefreshing(true);
+    } else {
+      setPartsLoading(true);
+    }
+    setPartsError(null);
+    
+    try {
+      const response = await api.get(`/api/parts/${aircraftId}`);
+      console.log('[Service Parts] Data:', response.data);
+      const parts = response.data?.parts || response.data || [];
+      setServiceParts(Array.isArray(parts) ? parts : []);
+    } catch (err: any) {
+      console.error('[Service Parts] Error:', err);
+      if (err?.response?.status === 404) {
+        setServiceParts([]);
+      } else {
+        setPartsError(err?.response?.data?.detail || err?.message || texts.error);
+      }
+    } finally {
+      setPartsLoading(false);
+      setPartsRefreshing(false);
+    }
+  }, [aircraftId, texts.error]);
 
-  // Handlers
-  const handleDelete = (id: string, name: string) => {
+  // Initial fetch
+  useEffect(() => {
+    fetchCriticalMentions();
+    fetchServiceParts();
+  }, [fetchCriticalMentions, fetchServiceParts]);
+
+  // ============================================
+  // DEDUPLICATED SERVICE PARTS
+  // ============================================
+  const uniqueParts = useMemo(() => {
+    const partsMap: Record<string, ServicePart> = {};
+    serviceParts.forEach(part => {
+      if (!part.part_number) return;
+      const key = normalizePartNo(part.part_number);
+      // Keep the most recent one
+      if (!partsMap[key] || new Date(part.created_at || 0) > new Date(partsMap[key].created_at || 0)) {
+        partsMap[key] = part;
+      }
+    });
+    return Object.values(partsMap);
+  }, [serviceParts]);
+
+  // ============================================
+  // DELETE SERVICE PART
+  // ============================================
+  const handleDeletePart = (part: ServicePart) => {
+    const partId = part._id || part.id;
+    if (!partId) return;
+
     Alert.alert(
-      lang === 'fr' ? 'Supprimer' : 'Delete',
-      lang === 'fr' ? `Supprimer "${name}" ?` : `Delete "${name}"?`,
+      texts.delete,
+      texts.deleteConfirm,
       [
-        { text: lang === 'fr' ? 'Annuler' : 'Cancel', style: 'cancel' },
-        { 
-          text: lang === 'fr' ? 'Supprimer' : 'Delete', 
-          style: 'destructive', 
+        { text: texts.cancel, style: 'cancel' },
+        {
+          text: texts.delete,
+          style: 'destructive',
           onPress: async () => {
-            setDeletingId(id);
-            const success = await deletePart(id);
-            setDeletingId(null);
-            if (!success) {
-              Alert.alert(
-                lang === 'fr' ? 'Erreur' : 'Error',
-                lang === 'fr' ? 'Échec de la suppression' : 'Failed to delete'
-              );
+            setDeletingPartId(partId);
+            try {
+              await api.delete(`/api/parts/${partId}`);
+              fetchServiceParts(true);
+            } catch (err: any) {
+              Alert.alert(texts.error, err?.message || 'Failed to delete');
+            } finally {
+              setDeletingPartId(null);
             }
-          }
+          },
         },
       ]
     );
   };
 
-  const handleAddPart = () => {
-    if (!newPartName.trim() || !newPartNumber.trim()) {
-      Alert.alert('Error', lang === 'fr' ? 'Veuillez remplir tous les champs' : 'Please fill all fields');
-      return;
-    }
-    addPart({
-      name: newPartName,
-      partNumber: newPartNumber.toUpperCase(),
-      quantity: parseInt(newPartQty) || 1,
-      installedDate: newPartDate || new Date().toISOString().split('T')[0],
-      aircraftId: aircraftId || '',
-    });
-    setShowAddModal(false);
-    setNewPartName('');
-    setNewPartNumber('');
-    setNewPartQty('1');
-    setNewPartDate('');
-  };
-
-  // Get component icon
-  const getComponentIcon = (type: string) => {
-    return COMPONENT_ICONS[type.toLowerCase()] || COMPONENT_ICONS.default;
-  };
-
-  // Render critical mention card (no compliance status)
-  const renderCriticalMention = (mention: CriticalMention) => {
+  // ============================================
+  // RENDER CRITICAL MENTION ITEM
+  // ============================================
+  const renderCriticalItem = (item: CriticalMention, index: number, category: keyof typeof CATEGORY_CONFIG) => {
+    const config = CATEGORY_CONFIG[category];
+    const confidencePercent = Math.round((item.confidence || 0) * 100);
+    
     return (
-      <View key={mention.id} style={styles.criticalCard}>
-        {/* Header */}
-        <View style={styles.criticalHeader}>
-          <View style={styles.criticalIconContainer}>
-            <Text style={styles.criticalIcon}>
-              {getComponentIcon(mention.component_type)}
+      <View key={`${category}-${index}`} style={styles.mentionItem}>
+        <Text style={styles.mentionText}>• {item.text}</Text>
+        <View style={styles.mentionMeta}>
+          <Text style={styles.mentionMetaText}>
+            {texts.confidence}: {confidencePercent}%
+          </Text>
+          {item.report_date && (
+            <Text style={styles.mentionMetaText}>
+              {texts.date}: {item.report_date}
             </Text>
-          </View>
-          <View style={styles.criticalInfo}>
-            <Text style={styles.criticalName}>{mention.name}</Text>
-            {mention.part_number && (
-              <Text style={styles.criticalPn}>P/N: {mention.part_number}</Text>
-            )}
-          </View>
+          )}
         </View>
+        {item.keywords && item.keywords.length > 0 && (
+          <View style={styles.keywordsRow}>
+            {item.keywords.slice(0, 3).map((kw, i) => (
+              <View key={i} style={[styles.keywordBadge, { backgroundColor: config.bgColor }]}>
+                <Text style={[styles.keywordText, { color: config.color }]}>{kw}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
 
-        {/* Reference info - dates only, no status */}
-        <View style={styles.statsGrid}>
-          {mention.reference_date && (
-            <View style={styles.statItem}>
-              <Text style={styles.statLabel}>
-                {lang === 'fr' ? 'Date de référence' : 'Reference Date'}
-              </Text>
-              <Text style={styles.statValue}>{mention.reference_date}</Text>
-            </View>
-          )}
-          {mention.installed_at_hours !== undefined && (
-            <View style={styles.statItem}>
-              <Text style={styles.statLabel}>
-                {lang === 'fr' ? 'Installé à' : 'Installed at'}
-              </Text>
-              <Text style={styles.statValue}>{mention.installed_at_hours.toFixed(1)}h</Text>
-            </View>
-          )}
-          {mention.tbo !== undefined && (
-            <View style={styles.statItem}>
-              <Text style={styles.statLabel}>TBO</Text>
-              <Text style={styles.statValue}>{mention.tbo}h</Text>
-            </View>
-          )}
-          {mention.source_document && (
-            <View style={[styles.statItem, styles.statItemFull]}>
-              <Text style={styles.statLabel}>
-                {lang === 'fr' ? 'Source' : 'Source'}
-              </Text>
-              <Text style={styles.statValue}>{mention.source_document}</Text>
-            </View>
-          )}
+  // ============================================
+  // RENDER CATEGORY SECTION
+  // ============================================
+  const renderCategorySection = (
+    category: keyof typeof CATEGORY_CONFIG,
+    items: CriticalMention[],
+    count: number
+  ) => {
+    if (count === 0) return null;
+    
+    const config = CATEGORY_CONFIG[category];
+    const label = lang === 'fr' ? config.label_fr : config.label_en;
+    
+    return (
+      <View style={styles.categorySection} key={category}>
+        <View style={[styles.categoryHeader, { backgroundColor: config.bgColor }]}>
+          <Text style={styles.categoryIcon}>{config.icon}</Text>
+          <Text style={[styles.categoryTitle, { color: config.color }]}>
+            {label} ({count})
+          </Text>
+        </View>
+        <View style={styles.categoryContent}>
+          {items.map((item, index) => renderCriticalItem(item, index, category))}
         </View>
       </View>
     );
   };
 
-  // Render service part card
-  const renderServicePart = (part: any) => (
-    <View key={part.id} style={styles.serviceCard}>
-      <View style={styles.serviceHeader}>
-        <View style={styles.serviceIcon}>
-          <Text style={styles.serviceIconText}>⚙️</Text>
+  // ============================================
+  // RENDER SERVICE PART CARD
+  // ============================================
+  const renderServicePart = (part: ServicePart) => {
+    const partId = part._id || part.id || '';
+    const isDeleting = deletingPartId === partId;
+    
+    return (
+      <View key={partId} style={[styles.partCard, isDeleting && styles.partCardDeleting]}>
+        <Text style={styles.partNumber}>{part.part_number}</Text>
+        
+        {part.description && (
+          <Text style={styles.partDescription}>{texts.description}: {part.description}</Text>
+        )}
+        
+        {part.serial_number && (
+          <Text style={styles.partSerial}>{texts.serialNumber}: {part.serial_number}</Text>
+        )}
+        
+        <View style={styles.partMeta}>
+          {part.source && (
+            <Text style={styles.partMetaText}>{texts.source}: {part.source}</Text>
+          )}
+          {part.created_at && (
+            <Text style={styles.partMetaText}>
+              {texts.created}: {new Date(part.created_at).toLocaleDateString()}
+            </Text>
+          )}
         </View>
-        <View style={styles.serviceInfo}>
-          <Text style={styles.serviceTitle}>{part.name}</Text>
-          <Text style={styles.serviceSubtitle}>P/N: {part.partNumber}</Text>
-        </View>
+        
+        <TouchableOpacity 
+          style={styles.deleteButton}
+          onPress={() => handleDeletePart(part)}
+          disabled={isDeleting}
+        >
+          {isDeleting ? (
+            <ActivityIndicator size="small" color={COLORS.red} />
+          ) : (
+            <Text style={styles.deleteButtonText}>🗑️ {texts.delete}</Text>
+          )}
+        </TouchableOpacity>
       </View>
-      <View style={styles.serviceDetails}>
-        <View style={styles.serviceDetail}>
-          <Text style={styles.detailLabel}>{lang === 'fr' ? 'Quantité' : 'Quantity'}</Text>
-          <Text style={styles.detailValue}>{part.quantity}</Text>
-        </View>
-        <View style={styles.serviceDetail}>
-          <Text style={styles.detailLabel}>{lang === 'fr' ? 'Installée le' : 'Installed'}</Text>
-          <Text style={styles.detailValue}>{part.installedDate}</Text>
-        </View>
-      </View>
-      <TouchableOpacity 
-        style={styles.deleteServiceButton} 
-        onPress={() => handleDelete(part.id, part.name)}
-      >
-        <Text style={styles.deleteServiceText}>{lang === 'fr' ? 'Supprimer' : 'Delete'}</Text>
-      </TouchableOpacity>
-    </View>
-  );
+    );
+  };
 
+  // ============================================
+  // RENDER
+  // ============================================
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -276,15 +417,10 @@ export default function PartsScreen() {
           <Text style={styles.headerBackText}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>{lang === 'fr' ? 'Pièces' : 'Parts'}</Text>
+          <Text style={styles.headerTitle}>{texts.screenTitle}</Text>
           <Text style={styles.headerSubtitle}>{registration || 'Aircraft'}</Text>
         </View>
-        {activeTab === 'service' && (
-          <TouchableOpacity onPress={() => setShowAddModal(true)} style={styles.headerAdd}>
-            <Text style={styles.headerAddText}>+</Text>
-          </TouchableOpacity>
-        )}
-        {activeTab === 'critical' && <View style={styles.headerPlaceholder} />}
+        <View style={styles.headerPlaceholder} />
       </View>
 
       {/* Tabs */}
@@ -294,285 +430,151 @@ export default function PartsScreen() {
           onPress={() => setActiveTab('critical')}
         >
           <Text style={[styles.tabText, activeTab === 'critical' && styles.tabTextActive]}>
-            {lang === 'fr' ? 'Mentions critiques' : 'Critical Mentions'}
+            {texts.tabCritical}
           </Text>
+          {criticalData?.summary?.total_count ? (
+            <View style={styles.tabBadge}>
+              <Text style={styles.tabBadgeText}>{criticalData.summary.total_count}</Text>
+            </View>
+          ) : null}
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, activeTab === 'service' && styles.tabActive]}
           onPress={() => setActiveTab('service')}
         >
           <Text style={[styles.tabText, activeTab === 'service' && styles.tabTextActive]}>
-            {lang === 'fr' ? 'Pièces de service' : 'Service Parts'}
+            {texts.tabService}
           </Text>
+          {uniqueParts.length > 0 && (
+            <View style={styles.tabBadge}>
+              <Text style={styles.tabBadgeText}>{uniqueParts.length}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
       {/* Content */}
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {activeTab === 'critical' ? (
-          <>
-            {/* Critical Components Tab */}
-            {criticalLoading ? (
-              <View style={styles.centerState}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-                <Text style={styles.centerText}>
-                  {lang === 'fr' ? 'Chargement...' : 'Loading...'}
-                </Text>
-              </View>
-            ) : criticalError ? (
-              <View style={styles.centerState}>
-                <Text style={styles.errorIcon}>⚠️</Text>
-                <Text style={styles.errorText}>{criticalError}</Text>
-                <TouchableOpacity 
-                  style={styles.retryButton}
-                  onPress={() => {
-                    setCriticalLoading(true);
-                    setCriticalError(null);
-                    api.get(`/api/components/critical/${aircraftId}`)
-                      .then(res => setCriticalMentions(res.data.components || res.data || []))
-                      .catch(err => setCriticalError(err?.message || 'Error'))
-                      .finally(() => setCriticalLoading(false));
-                  }}
-                >
-                  <Text style={styles.retryText}>
-                    {lang === 'fr' ? 'Réessayer' : 'Retry'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : criticalMentions.length === 0 ? (
-              <View style={styles.emptyStateContainer}>
-                <View style={styles.emptyStateCard}>
-                  <Text style={styles.emptyStateIcon}>📋</Text>
-                  <Text style={styles.emptyStateTitle}>
-                    {lang === 'fr' 
-                      ? 'Aucune mention critique détectée' 
-                      : 'No critical mentions detected'}
-                  </Text>
-                  <Text style={styles.emptyStateText}>
-                    {lang === 'fr' 
-                      ? 'Les mentions critiques sont extraites des rapports de maintenance appliqués.'
-                      : 'Critical mentions are detected from applied maintenance reports.'}
-                  </Text>
-                  
-                  {/* Flow explanation */}
-                  <View style={styles.flowBox}>
-                    <Text style={styles.flowBoxTitle}>
-                      {lang === 'fr' ? 'Comment ça marche:' : 'How it works:'}
-                    </Text>
-                    <Text style={styles.flowBoxStep}>
-                      1. {lang === 'fr' ? 'Scannez un rapport de maintenance' : 'Scan a maintenance report'}
-                    </Text>
-                    <Text style={styles.flowBoxStep}>
-                      2. {lang === 'fr' ? 'Appliquez les données à l\'aéronef' : 'Apply data to aircraft'}
-                    </Text>
-                    <Text style={styles.flowBoxStep}>
-                      3. {lang === 'fr' ? 'Les mentions critiques apparaissent ici' : 'Critical mentions appear here'}
-                    </Text>
-                  </View>
-                  
-                  {/* Go to OCR History button */}
-                  <TouchableOpacity 
-                    style={styles.goToOcrButton}
-                    onPress={() => router.push({
-                      pathname: '/(tabs)/aircraft/ocr-history',
-                      params: { aircraftId, registration },
-                    })}
-                  >
-                    <Text style={styles.goToOcrButtonText}>
-                      📷 {lang === 'fr' ? 'Voir les scans' : 'Go to OCR History'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                
-                {/* TC-Safe disclaimer for empty state */}
-                <View style={styles.emptyDisclaimer}>
-                  <Text style={styles.emptyDisclaimerIcon}>ℹ️</Text>
-                  <Text style={styles.emptyDisclaimerText}>
-                    {lang === 'fr'
-                      ? 'Les mentions critiques (moteur, hélice, magnétos, etc.) sont extraites automatiquement lors de l\'application d\'un rapport de maintenance. Ce module affiche les dates de référence sans statut de conformité.'
-                      : 'Critical mentions (engine, propeller, magnetos, etc.) are automatically extracted when applying a maintenance report. This module displays reference dates without compliance status.'}
-                  </Text>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.cardsContainer}>
-                {/* Info banner */}
-                <View style={styles.infoBanner}>
-                  <Text style={styles.infoIcon}>ℹ️</Text>
-                  <Text style={styles.infoText}>
-                    {lang === 'fr'
-                      ? 'Ces mentions sont extraites des rapports de maintenance. Dates de référence uniquement, sans décision de conformité.'
-                      : 'These mentions are extracted from maintenance reports. Reference dates only, no compliance decision.'}
-                  </Text>
-                </View>
-                
-                {criticalMentions.map(renderCriticalMention)}
-              </View>
-            )}
-          </>
-        ) : (
-          <>
-            {/* Service Parts Tab */}
-            {partsLoading ? (
-              <View style={styles.centerState}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-                <Text style={styles.centerText}>
-                  {lang === 'fr' ? 'Chargement...' : 'Loading...'}
-                </Text>
-              </View>
-            ) : aircraftParts.length === 0 ? (
-              <View style={styles.centerState}>
-                <Text style={styles.emptyIcon}>⚙️</Text>
-                <Text style={styles.emptyText}>
-                  {lang === 'fr' ? 'Aucune pièce enregistrée' : 'No parts recorded'}
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.cardsContainer}>
-                {aircraftParts.map(renderServicePart)}
-              </View>
-            )}
-          </>
-        )}
-
-        {/* TC-Safe Disclaimer */}
-        <View style={styles.disclaimer}>
-          <Text style={styles.disclaimerIcon}>⚠️</Text>
-          <Text style={styles.disclaimerText}>
-            {lang === 'fr'
-              ? "Informatif seulement — vérifiez avec les carnets et votre TEA. Ne détermine pas la conformité."
-              : 'Informational only — verify with logbooks and your AME. Does not determine compliance.'}
-          </Text>
-        </View>
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
-
-      {/* Add Service Part Modal */}
-      <Modal visible={showAddModal} animationType="slide" transparent>
-        <KeyboardAvoidingView 
-          style={styles.modalOverlay} 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={0}
+      {activeTab === 'critical' ? (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={criticalRefreshing}
+              onRefresh={() => fetchCriticalMentions(true)}
+              colors={[COLORS.primary]}
+            />
+          }
         >
-          <TouchableOpacity 
-            style={styles.modalBackdrop} 
-            activeOpacity={1} 
-            onPress={() => setShowAddModal(false)} 
-          />
-          <View style={styles.modalContent}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>
-              {lang === 'fr' ? 'Ajouter une pièce' : 'Add Part'}
-            </Text>
-            <ScrollView 
-              style={styles.modalScroll} 
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              <TextInput
-                style={styles.modalInput}
-                placeholder={lang === 'fr' ? 'Nom de la pièce' : 'Part name'}
-                placeholderTextColor={COLORS.textMuted}
-                value={newPartName}
-                onChangeText={setNewPartName}
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="P/N (Part Number)"
-                placeholderTextColor={COLORS.textMuted}
-                value={newPartNumber}
-                onChangeText={setNewPartNumber}
-                autoCapitalize="characters"
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder={lang === 'fr' ? 'Quantité' : 'Quantity'}
-                placeholderTextColor={COLORS.textMuted}
-                value={newPartQty}
-                onChangeText={setNewPartQty}
-                keyboardType="numeric"
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Date (YYYY-MM-DD)"
-                placeholderTextColor={COLORS.textMuted}
-                value={newPartDate}
-                onChangeText={setNewPartDate}
-              />
-            </ScrollView>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowAddModal(false)}>
-                <Text style={styles.modalCancelText}>{lang === 'fr' ? 'Annuler' : 'Cancel'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalSave} onPress={handleAddPart}>
-                <Text style={styles.modalSaveText}>{lang === 'fr' ? 'Ajouter' : 'Add'}</Text>
+          {criticalLoading ? (
+            <View style={styles.centerState}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+              <Text style={styles.centerText}>{texts.loading}</Text>
+            </View>
+          ) : criticalError ? (
+            <View style={styles.centerState}>
+              <Text style={styles.errorIcon}>⚠️</Text>
+              <Text style={styles.errorText}>{criticalError}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={() => fetchCriticalMentions()}>
+                <Text style={styles.retryText}>{texts.retry}</Text>
               </TouchableOpacity>
             </View>
+          ) : !criticalData || criticalData.summary.total_count === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>📋</Text>
+              <Text style={styles.emptyTitle}>{texts.noMentions}</Text>
+              <Text style={styles.emptyHint}>{texts.noMentionsHint}</Text>
+            </View>
+          ) : (
+            <View style={styles.contentContainer}>
+              {renderCategorySection('elt', criticalData.critical_mentions.elt, criticalData.summary.elt_count)}
+              {renderCategorySection('avionics', criticalData.critical_mentions.avionics, criticalData.summary.avionics_count)}
+              {renderCategorySection('fire_extinguisher', criticalData.critical_mentions.fire_extinguisher, criticalData.summary.fire_extinguisher_count)}
+              {renderCategorySection('general_limitations', criticalData.critical_mentions.general_limitations, criticalData.summary.general_limitations_count)}
+            </View>
+          )}
+          
+          {/* Disclaimer */}
+          <View style={styles.disclaimer}>
+            <Text style={styles.disclaimerIcon}>⚠️</Text>
+            <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+          
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={partsRefreshing}
+              onRefresh={() => fetchServiceParts(true)}
+              colors={[COLORS.primary]}
+            />
+          }
+        >
+          {partsLoading ? (
+            <View style={styles.centerState}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+              <Text style={styles.centerText}>{texts.loading}</Text>
+            </View>
+          ) : partsError ? (
+            <View style={styles.centerState}>
+              <Text style={styles.errorIcon}>⚠️</Text>
+              <Text style={styles.errorText}>{partsError}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={() => fetchServiceParts()}>
+                <Text style={styles.retryText}>{texts.retry}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : uniqueParts.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>⚙️</Text>
+              <Text style={styles.emptyTitle}>{texts.noParts}</Text>
+              <Text style={styles.emptyHint}>{texts.noPartsHint}</Text>
+            </View>
+          ) : (
+            <View style={styles.contentContainer}>
+              {uniqueParts.map(renderServicePart)}
+            </View>
+          )}
+          
+          {/* Disclaimer */}
+          <View style={styles.disclaimer}>
+            <Text style={styles.disclaimerIcon}>⚠️</Text>
+            <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
+          </View>
+          
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      )}
     </View>
   );
 }
 
+// ============================================
+// STYLES
+// ============================================
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: COLORS.background 
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  
   // Header
   header: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.primary, 
-    paddingTop: 50, 
-    paddingBottom: 16, 
+    backgroundColor: COLORS.primary,
+    paddingTop: 50,
+    paddingBottom: 16,
     paddingHorizontal: 16,
   },
-  headerBack: { 
-    width: 40, 
-    height: 40, 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  headerBackText: { 
-    color: COLORS.white, 
-    fontSize: 24, 
-    fontWeight: '600' 
-  },
-  headerCenter: { 
-    alignItems: 'center',
-    flex: 1,
-  },
-  headerTitle: { 
-    color: COLORS.white, 
-    fontSize: 18, 
-    fontWeight: '600' 
-  },
-  headerSubtitle: { 
-    color: COLORS.white, 
-    fontSize: 14, 
-    opacity: 0.8, 
-    marginTop: 2 
-  },
-  headerAdd: { 
-    width: 40, 
-    height: 40, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    backgroundColor: 'rgba(255,255,255,0.2)', 
-    borderRadius: 20 
-  },
-  headerAddText: { 
-    color: COLORS.white, 
-    fontSize: 24, 
-    fontWeight: '600' 
-  },
-  headerPlaceholder: {
-    width: 40,
-  },
+  headerBack: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  headerBackText: { color: COLORS.white, fontSize: 24, fontWeight: '600' },
+  headerCenter: { alignItems: 'center', flex: 1 },
+  headerTitle: { color: COLORS.white, fontSize: 18, fontWeight: '600' },
+  headerSubtitle: { color: COLORS.white, fontSize: 14, opacity: 0.8, marginTop: 2 },
+  headerPlaceholder: { width: 40 },
+  
   // Tabs
   tabContainer: {
     flexDirection: 'row',
@@ -583,443 +585,126 @@ const styles = StyleSheet.create({
   tab: {
     flex: 1,
     paddingVertical: 14,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
+    gap: 8,
   },
-  tabActive: {
-    borderBottomColor: COLORS.primary,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textMuted,
-  },
-  tabTextActive: {
-    color: COLORS.primary,
-  },
-  // Scroll
-  scrollView: { 
-    flex: 1 
-  },
-  cardsContainer: { 
-    padding: 16 
-  },
-  // Center states
-  centerState: { 
-    alignItems: 'center', 
-    paddingVertical: 60 
-  },
-  centerText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: COLORS.textMuted,
-  },
-  emptyIcon: { 
-    fontSize: 48, 
-    marginBottom: 16 
-  },
-  emptyText: { 
-    fontSize: 16, 
-    color: COLORS.textMuted 
-  },
-  emptyHint: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    marginTop: 8,
-    opacity: 0.7,
-  },
-  // Empty state - Critical Components enhanced
-  emptyStateContainer: {
-    padding: 16,
-  },
-  emptyStateCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-  },
-  emptyStateIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.textDark,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  flowBox: {
-    backgroundColor: COLORS.background,
-    borderRadius: 12,
-    padding: 16,
-    width: '100%',
-    marginBottom: 20,
-  },
-  flowBoxTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textDark,
-    marginBottom: 10,
-  },
-  flowBoxStep: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    marginBottom: 6,
-    paddingLeft: 8,
-  },
-  goToOcrButton: {
+  tabActive: { borderBottomColor: COLORS.primary },
+  tabText: { fontSize: 14, fontWeight: '600', color: COLORS.textMuted },
+  tabTextActive: { color: COLORS.primary },
+  tabBadge: {
     backgroundColor: COLORS.primary,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-  },
-  goToOcrButtonText: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  emptyDisclaimer: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.blue,
-    borderRadius: 12,
-    padding: 14,
-    marginTop: 16,
-  },
-  emptyDisclaimerIcon: {
-    fontSize: 14,
-    marginRight: 10,
-  },
-  emptyDisclaimerText: {
-    flex: 1,
-    fontSize: 12,
-    color: COLORS.primary,
-    lineHeight: 18,
-  },
-  errorIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  errorText: {
-    fontSize: 16,
-    color: COLORS.red,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryText: {
-    color: COLORS.white,
-    fontWeight: '600',
-  },
-  // Info banner
-  infoBanner: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.blue,
-    padding: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 10,
-    marginBottom: 16,
-    alignItems: 'center',
   },
-  infoIcon: {
-    fontSize: 16,
-    marginRight: 10,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    color: COLORS.primary,
-    lineHeight: 18,
-  },
-  // Critical component card
-  criticalCard: {
+  tabBadgeText: { color: COLORS.white, fontSize: 12, fontWeight: '700' },
+  
+  // Scroll
+  scrollView: { flex: 1 },
+  scrollContent: { paddingVertical: 16 },
+  contentContainer: { paddingHorizontal: 16 },
+  
+  // Center states
+  centerState: { alignItems: 'center', paddingVertical: 60 },
+  centerText: { marginTop: 16, fontSize: 16, color: COLORS.textMuted },
+  
+  // Empty state
+  emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 24 },
+  emptyIcon: { fontSize: 64, marginBottom: 16 },
+  emptyTitle: { fontSize: 18, fontWeight: '600', color: COLORS.textDark, textAlign: 'center' },
+  emptyHint: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', marginTop: 8 },
+  
+  // Error
+  errorIcon: { fontSize: 48, marginBottom: 16 },
+  errorText: { fontSize: 16, color: COLORS.red, textAlign: 'center', marginBottom: 16 },
+  retryButton: { backgroundColor: COLORS.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
+  retryText: { color: COLORS.white, fontWeight: '600' },
+  
+  // Category section
+  categorySection: {
+    marginBottom: 20,
     backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  criticalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  criticalIconContainer: {
-    width: 48,
-    height: 48,
     borderRadius: 12,
-    backgroundColor: COLORS.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+    overflow: 'hidden',
   },
-  criticalIcon: {
-    fontSize: 24,
-  },
-  criticalInfo: {
-    flex: 1,
-  },
-  criticalName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textDark,
-  },
-  criticalPn: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  // Progress section
-  progressSection: {
-    marginBottom: 16,
-  },
-  progressLabel: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    marginBottom: 8,
-  },
-  progressContainer: {
+  categoryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: 14,
+    gap: 10,
   },
-  progressBackground: {
-    flex: 1,
-    height: 10,
-    backgroundColor: COLORS.border,
-    borderRadius: 5,
-    overflow: 'hidden',
-    marginRight: 12,
+  categoryIcon: { fontSize: 20 },
+  categoryTitle: { fontSize: 16, fontWeight: '700' },
+  categoryContent: { padding: 16, paddingTop: 0 },
+  
+  // Mention item
+  mentionItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
-  progressFill: {
-    height: '100%',
-    borderRadius: 5,
+  mentionText: { fontSize: 14, color: COLORS.textDark, lineHeight: 20 },
+  mentionMeta: {
+    flexDirection: 'row',
+    marginTop: 8,
+    gap: 16,
   },
-  progressText: {
-    fontSize: 14,
-    fontWeight: '700',
-    width: 45,
-    textAlign: 'right',
-  },
-  // Stats grid
-  statsGrid: {
+  mentionMetaText: { fontSize: 12, color: COLORS.textMuted },
+  keywordsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    backgroundColor: COLORS.background,
-    borderRadius: 12,
-    padding: 12,
-  },
-  statItem: {
-    width: '50%',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  statItemFull: {
-    width: '100%',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
     marginTop: 8,
-    paddingTop: 12,
+    gap: 6,
   },
-  statLabel: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  keywordBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  statValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.textDark,
-    marginTop: 4,
-  },
-  statHighlight: {
-    color: COLORS.primary,
-  },
-  statLarge: {
-    fontSize: 22,
-    fontWeight: '700',
-  },
+  keywordText: { fontSize: 11, fontWeight: '600' },
+  
   // Service part card
-  serviceCard: { 
-    backgroundColor: COLORS.white, 
-    borderRadius: 12, 
-    padding: 16, 
-    marginBottom: 12 
+  partCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
   },
-  serviceHeader: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    marginBottom: 12 
+  partCardDeleting: { opacity: 0.5 },
+  partNumber: { fontSize: 18, fontWeight: '700', color: COLORS.textDark, marginBottom: 8 },
+  partDescription: { fontSize: 14, color: COLORS.textDark, marginBottom: 4 },
+  partSerial: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8 },
+  partMeta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 12,
   },
-  serviceIcon: { 
-    width: 44, 
-    height: 44, 
-    borderRadius: 12, 
-    backgroundColor: COLORS.background, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    marginRight: 12 
+  partMetaText: { fontSize: 12, color: COLORS.textMuted },
+  deleteButton: {
+    backgroundColor: COLORS.redBg,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.red,
   },
-  serviceIconText: { 
-    fontSize: 22 
-  },
-  serviceInfo: { 
-    flex: 1 
-  },
-  serviceTitle: { 
-    fontSize: 16, 
-    fontWeight: '600', 
-    color: COLORS.textDark 
-  },
-  serviceSubtitle: { 
-    fontSize: 14, 
-    color: COLORS.textMuted, 
-    marginTop: 2 
-  },
-  serviceDetails: { 
-    flexDirection: 'row', 
-    marginBottom: 12 
-  },
-  serviceDetail: { 
-    flex: 1 
-  },
-  detailLabel: { 
-    fontSize: 12, 
-    color: COLORS.textMuted 
-  },
-  detailValue: { 
-    fontSize: 14, 
-    fontWeight: '600', 
-    color: COLORS.textDark, 
-    marginTop: 2 
-  },
-  deleteServiceButton: { 
-    backgroundColor: COLORS.redBg, 
-    paddingVertical: 10, 
-    borderRadius: 8, 
-    alignItems: 'center' 
-  },
-  deleteServiceText: { 
-    color: COLORS.red, 
-    fontWeight: '600', 
-    fontSize: 14 
-  },
+  deleteButtonText: { color: COLORS.red, fontWeight: '600', fontSize: 14 },
+  
   // Disclaimer
-  disclaimer: { 
-    flexDirection: 'row', 
-    margin: 16, 
-    padding: 16, 
-    backgroundColor: COLORS.yellow, 
-    borderRadius: 12, 
-    borderWidth: 1, 
-    borderColor: COLORS.yellowBorder 
+  disclaimer: {
+    flexDirection: 'row',
+    margin: 16,
+    padding: 16,
+    backgroundColor: COLORS.yellow,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.yellowBorder,
   },
-  disclaimerIcon: { 
-    fontSize: 16, 
-    marginRight: 8 
-  },
-  disclaimerText: { 
-    flex: 1, 
-    fontSize: 12, 
-    color: '#5D4037', 
-    lineHeight: 18 
-  },
-  // Modal
-  modalOverlay: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.5)', 
-    justifyContent: 'flex-end' 
-  },
-  modalBackdrop: { 
-    flex: 1 
-  },
-  modalContent: { 
-    backgroundColor: COLORS.white, 
-    borderTopLeftRadius: 24, 
-    borderTopRightRadius: 24, 
-    padding: 24, 
-    paddingBottom: 40, 
-    maxHeight: '80%' 
-  },
-  modalHandle: { 
-    width: 40, 
-    height: 4, 
-    backgroundColor: COLORS.border, 
-    borderRadius: 2, 
-    alignSelf: 'center', 
-    marginBottom: 16 
-  },
-  modalTitle: { 
-    fontSize: 20, 
-    fontWeight: 'bold', 
-    color: COLORS.textDark, 
-    marginBottom: 16, 
-    textAlign: 'center' 
-  },
-  modalScroll: { 
-    maxHeight: 280 
-  },
-  modalInput: { 
-    backgroundColor: COLORS.background, 
-    borderRadius: 12, 
-    padding: 16, 
-    fontSize: 16, 
-    color: COLORS.textDark, 
-    marginBottom: 12 
-  },
-  modalButtons: { 
-    flexDirection: 'row', 
-    gap: 12, 
-    marginTop: 16 
-  },
-  modalCancel: { 
-    flex: 1, 
-    paddingVertical: 16, 
-    borderRadius: 12, 
-    borderWidth: 1, 
-    borderColor: COLORS.border, 
-    alignItems: 'center' 
-  },
-  modalCancelText: { 
-    fontSize: 16, 
-    color: COLORS.textMuted, 
-    fontWeight: '600' 
-  },
-  modalSave: { 
-    flex: 1, 
-    paddingVertical: 16, 
-    borderRadius: 12, 
-    backgroundColor: COLORS.primary, 
-    alignItems: 'center' 
-  },
-  modalSaveText: { 
-    fontSize: 16, 
-    color: COLORS.white, 
-    fontWeight: '600' 
-  },
+  disclaimerIcon: { fontSize: 16, marginRight: 8 },
+  disclaimerText: { flex: 1, fontSize: 12, color: '#5D4037', lineHeight: 18 },
 });
