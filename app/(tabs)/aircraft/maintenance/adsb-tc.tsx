@@ -889,4 +889,103 @@ const styles = StyleSheet.create({
   removeButtonText: { fontSize: 13, fontWeight: '600', color: COLORS.dangerRed },
   buttonDisabled: { opacity: 0.6 },
   bottomSpacer: { height: 40 },
+  
+  // Summary Bar Styles
+  summaryBar: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20,
+    paddingVertical: 12,
+    backgroundColor: COLORS.background,
+    borderRadius: 10,
+  },
+  summaryBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  summaryBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textDark,
+  },
+  summaryBadgeSeen: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#81C784',
+  },
+  summaryBadgeTextSeen: {
+    color: '#2E7D32',
+  },
+  summaryBadgeNotSeen: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#E57373',
+  },
+  summaryBadgeTextNotSeen: {
+    color: COLORS.dangerRed,
+  },
+  
+  // Seen Badge Styles
+  seenBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  seenBadgeGreen: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#81C784',
+  },
+  seenBadgeRed: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#E57373',
+  },
+  seenBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  seenBadgeTextGreen: {
+    color: '#2E7D32',
+  },
+  seenBadgeTextRed: {
+    color: COLORS.dangerRed,
+  },
+  
+  // Scan Info Container
+  scanInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    marginBottom: 10,
+  },
+  scanInfoText: {
+    fontSize: 12,
+    color: '#2E7D32',
+    fontWeight: '500',
+  },
+  
+  // Warning Container (Not Seen)
+  warningContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFEBEE',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    marginBottom: 10,
+    gap: 8,
+  },
+  warningText: {
+    fontSize: 12,
+    color: COLORS.dangerRed,
+    fontWeight: '500',
+    flex: 1,
+  },
 });
