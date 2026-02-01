@@ -559,6 +559,15 @@ export default function PartsScreen() {
             </View>
           ) : (
             <View style={styles.contentContainer}>
+              {/* Deduplication info header */}
+              {criticalData.summary.duplicates_removed && criticalData.summary.duplicates_removed > 0 && (
+                <View style={styles.deduplicationBanner}>
+                  <Text style={styles.deduplicationText}>
+                    ✓ {criticalData.summary.duplicates_removed} {texts.duplicatesRemoved}
+                  </Text>
+                </View>
+              )}
+              
               {renderCategorySection('elt', criticalData.critical_mentions.elt, criticalData.summary.elt_count)}
               {renderCategorySection('avionics', criticalData.critical_mentions.avionics, criticalData.summary.avionics_count)}
               {renderCategorySection('fire_extinguisher', criticalData.critical_mentions.fire_extinguisher, criticalData.summary.fire_extinguisher_count)}
