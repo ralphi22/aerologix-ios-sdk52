@@ -24,13 +24,18 @@ export interface TcAlert {
   id: string;
   type: AlertType;
   aircraft_id?: string;
+  aircraft_type_key?: string;  // e.g., "CESSNA::172M"
+  manufacturer?: string;
+  model?: string;
   aircraft_model?: string;
   aircraft_registration?: string;
-  reference?: string;      // AD/SB reference number
+  reference?: string;          // AD/SB reference number
+  reference_type?: string;     // "AD" or "SB"
   title?: string;
   message?: string;
+  status?: 'UNREAD' | 'READ' | 'DISMISSED';  // Backend status
   created_at: string;
-  is_read?: boolean;       // Computed locally
+  is_read?: boolean;           // Computed locally or from status
 }
 
 interface AlertsContextType {
