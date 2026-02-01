@@ -200,6 +200,9 @@ export default function PartsScreen() {
   const [partsError, setPartsError] = useState<string | null>(null);
   const [partsRefreshing, setPartsRefreshing] = useState(false);
   const [deletingPartId, setDeletingPartId] = useState<string | null>(null);
+  
+  // Deleting mention state
+  const [deletingMentionId, setDeletingMentionId] = useState<string | null>(null);
 
   // ============================================
   // FETCH CRITICAL MENTIONS - CORRECT ENDPOINT
