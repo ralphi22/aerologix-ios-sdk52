@@ -170,6 +170,9 @@ export default function EditAircraftScreen() {
   const [ownerName, setOwnerName] = useState('');
   const [ownerCity, setOwnerCity] = useState('');
   const [ownerProvince, setOwnerProvince] = useState('');
+  // NEW: Purpose and Base City fields
+  const [purpose, setPurpose] = useState('');
+  const [baseCity, setBaseCity] = useState('');
 
   /**
    * CRITICAL: Load saved aircraft data on mount
