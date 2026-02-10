@@ -571,7 +571,7 @@ export default function EditAircraftScreen() {
             
             {renderTCStatus()}
             
-            <FormField label={t('common_name')} value={commonName} onChangeText={setCommonName} placeholder={lang === 'fr' ? 'Non spécifié' : 'Not specified'} />
+            <FormField label={t('common_name')} value={commonName} onChangeText={setCommonName} placeholder={lang === 'fr' ? 'Non spécifié' : 'Not specified'} tcFilled={tcFilledFields.has('commonName')} />
             <FormField label={t('model_name')} value={model} onChangeText={setModel} placeholder="—" tcFilled={tcFilledFields.has('model')} />
             <FormField label={lang === 'fr' ? 'Désignateur' : 'Designator'} value={designator} onChangeText={setDesignator} placeholder="—" tcFilled={tcFilledFields.has('designator')} />
             <FormField label={t('serial_number')} value={serialNumber} onChangeText={setSerialNumber} placeholder="—" tcFilled={tcFilledFields.has('serialNumber')} />
