@@ -39,8 +39,9 @@ export interface AircraftCreate {
   propeller_hours: number;
   photo_url?: string;
   description?: string;
-  // Additional fields that may be supported by backend
+  // API fields for purpose and city/airport
   purpose?: string;
+  city_airport?: string;
   base_of_operations?: string;
 }
 
