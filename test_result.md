@@ -141,6 +141,25 @@
 
 ---
 
+## Session Date: July 2025 - Report Settings API Integration
+
+### Tâche en cours
+La page "Report Settings" a été refactorisée pour utiliser l'API backend au lieu du store local.
+
+### Test à effectuer
+1. Se connecter avec `lima@123.com` / `lima123`
+2. Sélectionner un avion
+3. Naviguer vers "Maintenance" → "Component Settings" (ou "Paramètres Composants")
+4. Vérifier que la page charge correctement et affiche les données de l'API
+5. Si les données sont nulles (nouveau compte), vérifier l'affichage du placeholder/état vide
+6. Tester le flux "Modifier" → "Enregistrer"
+
+### Endpoint utilisé
+- GET `/api/components/aircraft/{aircraft_id}` - Récupération des paramètres
+- POST `/api/components/aircraft/{aircraft_id}` - Sauvegarde des paramètres
+
+---
+
 ## Session Date: July 2025 - Edit Aircraft Fields Fix (Update 2)
 
 ### ✅ Corrections Effectuées
