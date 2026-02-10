@@ -90,8 +90,8 @@ export default function ReportSettingsScreen() {
     updateSettings({
       motorTbo: parseFloat(motorTbo) || 2000,
       avioniqueDate,
-      magnetosHours: parseFloat(magnetosHours) || 0,
-      pompeVideHours: parseFloat(pompeVideHours) || 0,
+      magnetosHoursUsed: parseFloat(magnetosHours) || 0,
+      pompeVideHoursUsed: parseFloat(pompeVideHours) || 0,
     });
 
     Alert.alert(
