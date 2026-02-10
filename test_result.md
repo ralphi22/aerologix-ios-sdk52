@@ -160,6 +160,39 @@ La page "Report Settings" a été refactorisée pour utiliser l'API backend au l
 
 ---
 
+## Session Date: December 2025 - Report Settings Testing Results
+
+### ❌ TESTING BLOCKED - Authentication Issue
+
+**Issue Identified:**
+- Frontend login form loads correctly at `http://localhost:3000`
+- Credentials `lima@123.com` / `lima123` are filled successfully
+- **CRITICAL**: Login button is not responsive/clickable
+- Backend API authentication fails with "Incorrect email or password"
+
+**Technical Analysis:**
+- Frontend configured to use: `https://aerologix-backend.onrender.com`
+- Local backend at `localhost:8001` only has basic health endpoint
+- Remote backend expects form-data format: `username=email&password=password`
+- Test credentials are invalid for the remote backend
+
+**Frontend Implementation Status:**
+✅ Report Settings page exists at `/app/app/(tabs)/aircraft/maintenance/report-settings.tsx`
+✅ Page has proper structure with Engine, Propeller, Maintenance Limits, ELT sections
+✅ Form fields with placeholders implemented correctly
+✅ API integration code present for GET/POST `/api/components/aircraft/{aircraft_id}`
+✅ Bilingual support (EN/FR) implemented
+✅ Save functionality with success alerts implemented
+
+**Unable to Test:**
+❌ Page navigation (blocked by login)
+❌ Data display from API (blocked by authentication)
+❌ Form functionality (blocked by access)
+❌ Save operation (blocked by authentication)
+❌ Data persistence (blocked by authentication)
+
+---
+
 ## Session Date: July 2025 - Edit Aircraft Fields Fix (Update 2)
 
 ### ✅ Corrections Effectuées
