@@ -1,9 +1,17 @@
 /**
- * Report Settings Screen
- * Component settings and maintenance limits
+ * Report Settings Screen - Component Settings & Maintenance Limits
  * TC-SAFE: Informational only - rules can change
  * 
- * ENDPOINT: GET/POST /api/components/aircraft/{aircraft_id}
+ * ENDPOINTS:
+ * - GET /api/components/aircraft/{aircraft_id}
+ * - POST /api/components/aircraft/{aircraft_id}
+ * 
+ * DEFAULT VALUES (Industry Standards):
+ * - engine_tbo_hours: 2000.0
+ * - propeller_type: "fixed"
+ * - avionics_certification_interval_months: 24 (Canada)
+ * - magnetos_interval_hours: 500.0
+ * - vacuum_pump_interval_hours: 400.0
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -21,7 +29,6 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
-import { useReportSettings, DEFAULT_LIMITS } from '@/stores/reportSettingsStore';
 import api from '@/services/api';
 
 const COLORS = {
@@ -39,41 +46,43 @@ const COLORS = {
   green: '#4CAF50',
   greenLight: '#E8F5E9',
   orange: '#FF9800',
+  orangeLight: '#FFF3E0',
 };
 
-// Placeholders informatifs
-const PLACEHOLDERS = {
-  engine_tbo_hours: { en: "Ex: 2000 (Typical for O-320)", fr: "Ex: 2000 (Typique pour O-320)" },
-  propeller_type: { en: "Fixed / Variable", fr: "Fixe / Variable" },
-  propeller_model: { en: "Ex: McCauley 1A103", fr: "Ex: McCauley 1A103" },
-  avionics_certification_interval_months: { en: "Ex: 24 (Canada requirement)", fr: "Ex: 24 (Exigence Canada)" },
-  magnetos_interval_hours: { en: "Ex: 500", fr: "Ex: 500" },
-  vacuum_pump_interval_hours: { en: "Ex: 400", fr: "Ex: 400" },
-  engine_model: { en: "Ex: O-320-E2D", fr: "Ex: O-320-E2D" },
+// ============================================
+// DEFAULT VALUES - Industry Standards
+// ============================================
+const DEFAULT_VALUES = {
+  engine_tbo_hours: 2000.0,
+  propeller_type: 'fixed',
+  avionics_certification_interval_months: 24,
+  magnetos_interval_hours: 500.0,
+  vacuum_pump_interval_hours: 400.0,
 };
 
 // Texts bilingues
 const TEXTS = {
   en: {
     title: 'Component Settings',
-    subtitle: 'Aircraft Components',
+    subtitle: 'Maintenance Limits',
     loading: 'Loading...',
     error: 'Failed to load settings',
     retry: 'Retry',
     save: 'Save',
+    edit: 'Edit',
+    cancel: 'Cancel',
     saved: 'Saved',
     savedMessage: 'Settings have been updated',
     saveError: 'Failed to save settings',
+    resetDefaults: '🔄 Reset to Industry Defaults',
+    resetConfirm: 'Reset all values to industry defaults?',
+    defaultBadge: 'Default',
     notSet: 'Not set',
-    reset: 'Reset to defaults',
-    resetConfirm: 'Reset all values to defaults?',
-    cancel: 'Cancel',
     // Sections
     engineSection: 'Engine',
     propellerSection: 'Propeller',
     avionicsSection: 'Avionics',
     limitsSection: 'Maintenance Limits',
-    eltSection: 'ELT',
     // Fields
     engineModel: 'Engine Model',
     engineTbo: 'Engine TBO',
@@ -82,41 +91,49 @@ const TEXTS = {
     propellerType: 'Propeller Type',
     propellerModel: 'Propeller Model',
     propellerInterval: 'Manufacturer Interval',
-    avionicsInterval: 'Avionics Certification',
-    magnetosInterval: 'Magnetos Limit',
-    vacuumPumpInterval: 'Vacuum Pump Limit',
-    eltTestInterval: 'ELT Test Interval',
-    eltBatteryInterval: 'ELT Battery Interval',
+    propellerLastInspectionHours: 'Last Inspection Hours',
+    propellerLastInspectionDate: 'Last Inspection Date',
+    avionicsLastCertDate: 'Last Certification Date',
+    avionicsInterval: 'Certification Interval',
+    magnetosModel: 'Magnetos Model',
+    magnetosInterval: 'Magnetos Interval',
+    magnetosLastHours: 'Last Inspection Hours',
+    magnetosLastDate: 'Last Inspection Date',
+    vacuumPumpModel: 'Vacuum Pump Model',
+    vacuumPumpInterval: 'Vacuum Pump Interval',
+    vacuumPumpLastHours: 'Last Replacement Hours',
+    vacuumPumpLastDate: 'Last Replacement Date',
+    airframeLastAnnualDate: 'Last Annual Date',
+    airframeLastAnnualHours: 'Last Annual Hours',
     // Units
     hours: 'h',
     months: 'months',
     years: 'years',
-    // Empty state
-    emptyTitle: 'Settings Not Configured',
-    emptyText: 'Configure your aircraft components for maintenance tracking. These values help track TBO, inspections and certifications.',
-    configureNow: 'Configure Now',
+    // Placeholders
+    placeholderDefault: 'Default:',
     disclaimer: 'Informational only. Does not replace an AME nor an official record. Airworthiness decisions remain with the owner and maintenance organization.',
   },
   fr: {
     title: 'Paramètres Composants',
-    subtitle: 'Composants Aéronef',
+    subtitle: 'Limites de Maintenance',
     loading: 'Chargement...',
     error: 'Échec du chargement',
     retry: 'Réessayer',
     save: 'Enregistrer',
+    edit: 'Modifier',
+    cancel: 'Annuler',
     saved: 'Enregistré',
     savedMessage: 'Les paramètres ont été mis à jour',
     saveError: 'Échec de la sauvegarde',
+    resetDefaults: '🔄 Réinitialiser aux valeurs standards',
+    resetConfirm: 'Réinitialiser toutes les valeurs aux standards de l\'industrie?',
+    defaultBadge: 'Défaut',
     notSet: 'Non défini',
-    reset: 'Réinitialiser',
-    resetConfirm: 'Réinitialiser toutes les valeurs par défaut ?',
-    cancel: 'Annuler',
     // Sections
     engineSection: 'Moteur',
     propellerSection: 'Hélice',
     avionicsSection: 'Avionique',
     limitsSection: 'Limites de Maintenance',
-    eltSection: 'ELT',
     // Fields
     engineModel: 'Modèle Moteur',
     engineTbo: 'TBO Moteur',
@@ -125,33 +142,119 @@ const TEXTS = {
     propellerType: 'Type Hélice',
     propellerModel: 'Modèle Hélice',
     propellerInterval: 'Intervalle Fabricant',
-    avionicsInterval: 'Certification Avionique',
-    magnetosInterval: 'Limite Magnétos',
-    vacuumPumpInterval: 'Limite Pompe à Vide',
-    eltTestInterval: 'Intervalle Test ELT',
-    eltBatteryInterval: 'Intervalle Batterie ELT',
+    propellerLastInspectionHours: 'Heures Dernière Inspection',
+    propellerLastInspectionDate: 'Date Dernière Inspection',
+    avionicsLastCertDate: 'Date Dernière Certification',
+    avionicsInterval: 'Intervalle Certification',
+    magnetosModel: 'Modèle Magnétos',
+    magnetosInterval: 'Intervalle Magnétos',
+    magnetosLastHours: 'Heures Dernière Inspection',
+    magnetosLastDate: 'Date Dernière Inspection',
+    vacuumPumpModel: 'Modèle Pompe à Vide',
+    vacuumPumpInterval: 'Intervalle Pompe à Vide',
+    vacuumPumpLastHours: 'Heures Dernier Remplacement',
+    vacuumPumpLastDate: 'Date Dernier Remplacement',
+    airframeLastAnnualDate: 'Date Dernière Annuelle',
+    airframeLastAnnualHours: 'Heures Dernière Annuelle',
     // Units
     hours: 'h',
     months: 'mois',
     years: 'ans',
-    // Empty state
-    emptyTitle: 'Paramètres Non Configurés',
-    emptyText: 'Configurez les composants de votre aéronef pour le suivi de maintenance. Ces valeurs permettent de suivre le TBO, les inspections et certifications.',
-    configureNow: 'Configurer',
+    // Placeholders
+    placeholderDefault: 'Défaut:',
     disclaimer: 'Informatif seulement. Ne remplace pas un TEA ni un document officiel. Les décisions de navigabilité appartiennent au propriétaire et à l\'organisme de maintenance.',
   },
 };
 
-// Helper: Display value or placeholder
-const displayValue = (value: any, placeholder: string = '--') => {
-  if (value === null || value === undefined || value === '') {
-    return placeholder;
-  }
-  return String(value);
+// ============================================
+// API Response Interface
+// ============================================
+interface ComponentSettings {
+  aircraft_id: string;
+  engine_model: string | null;
+  engine_tbo_hours: number;
+  engine_last_overhaul_hours: number | null;
+  engine_last_overhaul_date: string | null;
+  propeller_type: string;
+  propeller_model: string | null;
+  propeller_manufacturer_interval_years: number | null;
+  propeller_last_inspection_hours: number | null;
+  propeller_last_inspection_date: string | null;
+  avionics_last_certification_date: string | null;
+  avionics_certification_interval_months: number;
+  magnetos_model: string | null;
+  magnetos_interval_hours: number;
+  magnetos_last_inspection_hours: number | null;
+  magnetos_last_inspection_date: string | null;
+  vacuum_pump_model: string | null;
+  vacuum_pump_interval_hours: number;
+  vacuum_pump_last_replacement_hours: number | null;
+  vacuum_pump_last_replacement_date: string | null;
+  airframe_last_annual_date: string | null;
+  airframe_last_annual_hours: number | null;
+}
+
+// ============================================
+// Helper: Check if value is default
+// ============================================
+const isDefaultValue = (field: string, value: any): boolean => {
+  const defaults: { [key: string]: any } = DEFAULT_VALUES;
+  return defaults[field] === value;
 };
 
-// Setting Field Component
-interface SettingFieldProps {
+// ============================================
+// Section Header Component
+// ============================================
+function SectionHeader({ title, icon }: { title: string; icon?: string }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionHeaderRow}>
+        {icon && <Text style={styles.sectionIcon}>{icon}</Text>}
+        <Text style={styles.sectionTitle}>{title}</Text>
+      </View>
+    </View>
+  );
+}
+
+// ============================================
+// Display Field Component (Read-only)
+// ============================================
+interface DisplayFieldProps {
+  label: string;
+  value: any;
+  unit?: string;
+  fieldKey?: string;
+  isNull?: boolean;
+  texts: typeof TEXTS.en;
+}
+
+function DisplayField({ label, value, unit, fieldKey, isNull, texts }: DisplayFieldProps) {
+  const showDefault = fieldKey && isDefaultValue(fieldKey, value);
+  const displayValue = isNull || value === null || value === undefined 
+    ? texts.notSet 
+    : `${value}${unit ? ` ${unit}` : ''}`;
+  
+  return (
+    <View style={styles.fieldRow}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.valueContainer}>
+        <Text style={[styles.fieldValue, isNull && styles.fieldValueNull]}>
+          {displayValue}
+        </Text>
+        {showDefault && !isNull && (
+          <View style={styles.defaultBadge}>
+            <Text style={styles.defaultBadgeText}>{texts.defaultBadge}</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ============================================
+// Edit Field Component
+// ============================================
+interface EditFieldProps {
   label: string;
   value: string;
   onChangeText: (text: string) => void;
@@ -160,13 +263,13 @@ interface SettingFieldProps {
   unit?: string;
 }
 
-function SettingField({ label, value, onChangeText, placeholder, keyboardType = 'default', unit }: SettingFieldProps) {
+function EditField({ label, value, onChangeText, placeholder, keyboardType = 'default', unit }: EditFieldProps) {
   return (
-    <View style={styles.fieldContainer}>
+    <View style={styles.editFieldContainer}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.fieldInputRow}>
+      <View style={styles.editInputRow}>
         <TextInput
-          style={styles.fieldInput}
+          style={styles.editInput}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -179,49 +282,76 @@ function SettingField({ label, value, onChangeText, placeholder, keyboardType = 
   );
 }
 
-// Section Header Component
-function SectionHeader({ title, icon }: { title: string; icon?: string }) {
+// ============================================
+// Propeller Type Picker
+// ============================================
+function PropellerTypePicker({ value, onChange, lang }: { value: string; onChange: (v: string) => void; lang: 'en' | 'fr' }) {
+  const options = [
+    { value: 'fixed', label: lang === 'fr' ? 'Fixe' : 'Fixed' },
+    { value: 'variable', label: 'Variable' },
+  ];
+  
   return (
-    <View style={styles.sectionHeader}>
-      <View style={styles.sectionHeaderRow}>
-        {icon && <Text style={styles.sectionIcon}>{icon}</Text>}
-        <Text style={styles.sectionTitle}>{title}</Text>
-      </View>
+    <View style={styles.pickerContainer}>
+      {options.map((option) => (
+        <TouchableOpacity
+          key={option.value}
+          style={[styles.pickerOption, value === option.value && styles.pickerOptionSelected]}
+          onPress={() => onChange(option.value)}
+        >
+          <Text style={[styles.pickerOptionText, value === option.value && styles.pickerOptionTextSelected]}>
+            {option.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }
 
+// ============================================
+// Main Component
+// ============================================
 export default function ReportSettingsScreen() {
   const router = useRouter();
   const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage() as 'en' | 'fr';
   const texts = TEXTS[lang];
-  const placeholders = PLACEHOLDERS;
   
-  // Local store for fallback
-  const { settings: localSettings, limits, updateSettings: updateLocalSettings, updateLimits, resetLimitsToDefault } = useReportSettings();
-
   // State
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [data, setData] = useState<ComponentSettings | null>(null);
+  
+  // Edit form state
+  const [formData, setFormData] = useState({
+    engine_model: '',
+    engine_tbo_hours: '',
+    engine_last_overhaul_hours: '',
+    engine_last_overhaul_date: '',
+    propeller_type: 'fixed',
+    propeller_model: '',
+    propeller_manufacturer_interval_years: '',
+    propeller_last_inspection_hours: '',
+    propeller_last_inspection_date: '',
+    avionics_last_certification_date: '',
+    avionics_certification_interval_months: '',
+    magnetos_model: '',
+    magnetos_interval_hours: '',
+    magnetos_last_inspection_hours: '',
+    magnetos_last_inspection_date: '',
+    vacuum_pump_model: '',
+    vacuum_pump_interval_hours: '',
+    vacuum_pump_last_replacement_hours: '',
+    vacuum_pump_last_replacement_date: '',
+    airframe_last_annual_date: '',
+    airframe_last_annual_hours: '',
+  });
 
-  // Form state - Component settings from backend
-  const [engineModel, setEngineModel] = useState('');
-  const [engineTboHours, setEngineTboHours] = useState('');
-  const [engineLastOverhaulHours, setEngineLastOverhaulHours] = useState('');
-  const [engineLastOverhaulDate, setEngineLastOverhaulDate] = useState('');
-  const [propellerType, setPropellerType] = useState('');
-  const [propellerModel, setPropellerModel] = useState('');
-  const [propellerManufacturerIntervalYears, setPropellerManufacturerIntervalYears] = useState('');
-  const [avionicsCertificationIntervalMonths, setAvionicsCertificationIntervalMonths] = useState('');
-  const [magnetosIntervalHours, setMagnetosIntervalHours] = useState('');
-  const [vacuumPumpIntervalHours, setVacuumPumpIntervalHours] = useState('');
-  const [eltTestIntervalMonths, setEltTestIntervalMonths] = useState('');
-  const [eltBatteryIntervalMonths, setEltBatteryIntervalMonths] = useState('');
-
+  // ============================================
   // Fetch settings from backend
+  // ============================================
   const fetchSettings = useCallback(async () => {
     if (!aircraftId) return;
     
@@ -230,31 +360,39 @@ export default function ReportSettingsScreen() {
     
     try {
       const response = await api.get(`/api/components/aircraft/${aircraftId}`);
-      const data = response.data;
-      console.log('[Report Settings] Fetched:', data);
+      const apiData = response.data as ComponentSettings;
+      console.log('[Report Settings] Fetched:', apiData);
       
-      // Populate form with backend values (handling nulls)
-      setEngineModel(data.engine_model || '');
-      setEngineTboHours(data.engine_tbo_hours != null ? String(data.engine_tbo_hours) : '');
-      setEngineLastOverhaulHours(data.engine_last_overhaul_hours != null ? String(data.engine_last_overhaul_hours) : '');
-      setEngineLastOverhaulDate(data.engine_last_overhaul_date || '');
-      setPropellerType(data.propeller_type || '');
-      setPropellerModel(data.propeller_model || '');
-      setPropellerManufacturerIntervalYears(data.propeller_manufacturer_interval_years != null ? String(data.propeller_manufacturer_interval_years) : '');
-      setAvionicsCertificationIntervalMonths(data.avionics_certification_interval_months != null ? String(data.avionics_certification_interval_months) : '');
-      setMagnetosIntervalHours(data.magnetos_interval_hours != null ? String(data.magnetos_interval_hours) : '');
-      setVacuumPumpIntervalHours(data.vacuum_pump_interval_hours != null ? String(data.vacuum_pump_interval_hours) : '');
-      setEltTestIntervalMonths(data.elt_test_interval_months != null ? String(data.elt_test_interval_months) : '');
-      setEltBatteryIntervalMonths(data.elt_battery_interval_months != null ? String(data.elt_battery_interval_months) : '');
+      setData(apiData);
+      
+      // Populate form with API values
+      setFormData({
+        engine_model: apiData.engine_model || '',
+        engine_tbo_hours: apiData.engine_tbo_hours?.toString() || '',
+        engine_last_overhaul_hours: apiData.engine_last_overhaul_hours?.toString() || '',
+        engine_last_overhaul_date: apiData.engine_last_overhaul_date || '',
+        propeller_type: apiData.propeller_type || 'fixed',
+        propeller_model: apiData.propeller_model || '',
+        propeller_manufacturer_interval_years: apiData.propeller_manufacturer_interval_years?.toString() || '',
+        propeller_last_inspection_hours: apiData.propeller_last_inspection_hours?.toString() || '',
+        propeller_last_inspection_date: apiData.propeller_last_inspection_date || '',
+        avionics_last_certification_date: apiData.avionics_last_certification_date || '',
+        avionics_certification_interval_months: apiData.avionics_certification_interval_months?.toString() || '',
+        magnetos_model: apiData.magnetos_model || '',
+        magnetos_interval_hours: apiData.magnetos_interval_hours?.toString() || '',
+        magnetos_last_inspection_hours: apiData.magnetos_last_inspection_hours?.toString() || '',
+        magnetos_last_inspection_date: apiData.magnetos_last_inspection_date || '',
+        vacuum_pump_model: apiData.vacuum_pump_model || '',
+        vacuum_pump_interval_hours: apiData.vacuum_pump_interval_hours?.toString() || '',
+        vacuum_pump_last_replacement_hours: apiData.vacuum_pump_last_replacement_hours?.toString() || '',
+        vacuum_pump_last_replacement_date: apiData.vacuum_pump_last_replacement_date || '',
+        airframe_last_annual_date: apiData.airframe_last_annual_date || '',
+        airframe_last_annual_hours: apiData.airframe_last_annual_hours?.toString() || '',
+      });
       
     } catch (err: any) {
       console.error('[Report Settings] Fetch error:', err);
-      if (err?.response?.status === 404) {
-        // New account - no settings yet
-        setError(null);
-      } else {
-        setError(err?.message || texts.error);
-      }
+      setError(err?.message || texts.error);
     } finally {
       setIsLoading(false);
     }
@@ -265,11 +403,35 @@ export default function ReportSettingsScreen() {
     fetchSettings();
   }, [fetchSettings]);
 
-  // Check if all settings are empty
-  const isSettingsEmpty = !engineModel && !engineTboHours && !propellerType && !propellerModel && 
-    !avionicsCertificationIntervalMonths && !magnetosIntervalHours && !vacuumPumpIntervalHours;
+  // ============================================
+  // Reset to Industry Defaults
+  // ============================================
+  const handleResetDefaults = () => {
+    Alert.alert(
+      texts.resetDefaults,
+      texts.resetConfirm,
+      [
+        { text: texts.cancel, style: 'cancel' },
+        {
+          text: 'OK',
+          onPress: () => {
+            setFormData(prev => ({
+              ...prev,
+              engine_tbo_hours: DEFAULT_VALUES.engine_tbo_hours.toString(),
+              propeller_type: DEFAULT_VALUES.propeller_type,
+              avionics_certification_interval_months: DEFAULT_VALUES.avionics_certification_interval_months.toString(),
+              magnetos_interval_hours: DEFAULT_VALUES.magnetos_interval_hours.toString(),
+              vacuum_pump_interval_hours: DEFAULT_VALUES.vacuum_pump_interval_hours.toString(),
+            }));
+          },
+        },
+      ]
+    );
+  };
 
+  // ============================================
   // Save settings to backend
+  // ============================================
   const handleSave = async () => {
     if (!aircraftId) return;
     
@@ -277,18 +439,27 @@ export default function ReportSettingsScreen() {
     
     try {
       const payload = {
-        engine_model: engineModel || null,
-        engine_tbo_hours: engineTboHours ? parseFloat(engineTboHours) : null,
-        engine_last_overhaul_hours: engineLastOverhaulHours ? parseFloat(engineLastOverhaulHours) : null,
-        engine_last_overhaul_date: engineLastOverhaulDate || null,
-        propeller_type: propellerType || null,
-        propeller_model: propellerModel || null,
-        propeller_manufacturer_interval_years: propellerManufacturerIntervalYears ? parseInt(propellerManufacturerIntervalYears) : null,
-        avionics_certification_interval_months: avionicsCertificationIntervalMonths ? parseInt(avionicsCertificationIntervalMonths) : null,
-        magnetos_interval_hours: magnetosIntervalHours ? parseInt(magnetosIntervalHours) : null,
-        vacuum_pump_interval_hours: vacuumPumpIntervalHours ? parseInt(vacuumPumpIntervalHours) : null,
-        elt_test_interval_months: eltTestIntervalMonths ? parseInt(eltTestIntervalMonths) : null,
-        elt_battery_interval_months: eltBatteryIntervalMonths ? parseInt(eltBatteryIntervalMonths) : null,
+        engine_model: formData.engine_model || null,
+        engine_tbo_hours: formData.engine_tbo_hours ? parseFloat(formData.engine_tbo_hours) : DEFAULT_VALUES.engine_tbo_hours,
+        engine_last_overhaul_hours: formData.engine_last_overhaul_hours ? parseFloat(formData.engine_last_overhaul_hours) : null,
+        engine_last_overhaul_date: formData.engine_last_overhaul_date || null,
+        propeller_type: formData.propeller_type || DEFAULT_VALUES.propeller_type,
+        propeller_model: formData.propeller_model || null,
+        propeller_manufacturer_interval_years: formData.propeller_manufacturer_interval_years ? parseInt(formData.propeller_manufacturer_interval_years) : null,
+        propeller_last_inspection_hours: formData.propeller_last_inspection_hours ? parseFloat(formData.propeller_last_inspection_hours) : null,
+        propeller_last_inspection_date: formData.propeller_last_inspection_date || null,
+        avionics_last_certification_date: formData.avionics_last_certification_date || null,
+        avionics_certification_interval_months: formData.avionics_certification_interval_months ? parseInt(formData.avionics_certification_interval_months) : DEFAULT_VALUES.avionics_certification_interval_months,
+        magnetos_model: formData.magnetos_model || null,
+        magnetos_interval_hours: formData.magnetos_interval_hours ? parseFloat(formData.magnetos_interval_hours) : DEFAULT_VALUES.magnetos_interval_hours,
+        magnetos_last_inspection_hours: formData.magnetos_last_inspection_hours ? parseFloat(formData.magnetos_last_inspection_hours) : null,
+        magnetos_last_inspection_date: formData.magnetos_last_inspection_date || null,
+        vacuum_pump_model: formData.vacuum_pump_model || null,
+        vacuum_pump_interval_hours: formData.vacuum_pump_interval_hours ? parseFloat(formData.vacuum_pump_interval_hours) : DEFAULT_VALUES.vacuum_pump_interval_hours,
+        vacuum_pump_last_replacement_hours: formData.vacuum_pump_last_replacement_hours ? parseFloat(formData.vacuum_pump_last_replacement_hours) : null,
+        vacuum_pump_last_replacement_date: formData.vacuum_pump_last_replacement_date || null,
+        airframe_last_annual_date: formData.airframe_last_annual_date || null,
+        airframe_last_annual_hours: formData.airframe_last_annual_hours ? parseFloat(formData.airframe_last_annual_hours) : null,
       };
       
       console.log('[Report Settings] Saving:', payload);
@@ -296,6 +467,7 @@ export default function ReportSettingsScreen() {
       
       setIsEditing(false);
       Alert.alert(texts.saved, texts.savedMessage);
+      fetchSettings(); // Refresh data
       
     } catch (err: any) {
       console.error('[Report Settings] Save error:', err);
@@ -305,7 +477,9 @@ export default function ReportSettingsScreen() {
     }
   };
 
-  // Loading state
+  // ============================================
+  // Loading State
+  // ============================================
   if (isLoading) {
     return (
       <View style={styles.container}>
@@ -327,6 +501,111 @@ export default function ReportSettingsScreen() {
     );
   }
 
+  // ============================================
+  // Error State
+  // ============================================
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
+            <Text style={styles.headerBackText}>←</Text>
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>{texts.title}</Text>
+          </View>
+          <View style={styles.headerRight} />
+        </View>
+        <View style={styles.centerState}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchSettings}>
+            <Text style={styles.retryButtonText}>{texts.retry}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // ============================================
+  // Main Render - Display Mode
+  // ============================================
+  if (!isEditing && data) {
+    return (
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
+            <Text style={styles.headerBackText}>←</Text>
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>{texts.title}</Text>
+            <Text style={styles.headerSubtitle}>{registration || texts.subtitle}</Text>
+          </View>
+          <TouchableOpacity onPress={() => setIsEditing(true)} style={styles.headerEditButton}>
+            <Text style={styles.headerEditText}>{texts.edit}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* Engine Section */}
+          <SectionHeader title={texts.engineSection} icon="🔧" />
+          <View style={styles.section}>
+            <DisplayField label={texts.engineModel} value={data.engine_model} isNull={!data.engine_model} texts={texts} />
+            <DisplayField label={texts.engineTbo} value={data.engine_tbo_hours} unit={texts.hours} fieldKey="engine_tbo_hours" texts={texts} />
+            <DisplayField label={texts.engineLastOverhaulHours} value={data.engine_last_overhaul_hours} unit={texts.hours} isNull={data.engine_last_overhaul_hours === null} texts={texts} />
+            <DisplayField label={texts.engineLastOverhaulDate} value={data.engine_last_overhaul_date} isNull={!data.engine_last_overhaul_date} texts={texts} />
+          </View>
+
+          {/* Propeller Section */}
+          <SectionHeader title={texts.propellerSection} icon="🌀" />
+          <View style={styles.section}>
+            <DisplayField label={texts.propellerType} value={data.propeller_type === 'fixed' ? (lang === 'fr' ? 'Fixe' : 'Fixed') : 'Variable'} fieldKey="propeller_type" texts={texts} />
+            <DisplayField label={texts.propellerModel} value={data.propeller_model} isNull={!data.propeller_model} texts={texts} />
+            <DisplayField label={texts.propellerInterval} value={data.propeller_manufacturer_interval_years} unit={texts.years} isNull={data.propeller_manufacturer_interval_years === null} texts={texts} />
+            <DisplayField label={texts.propellerLastInspectionHours} value={data.propeller_last_inspection_hours} unit={texts.hours} isNull={data.propeller_last_inspection_hours === null} texts={texts} />
+            <DisplayField label={texts.propellerLastInspectionDate} value={data.propeller_last_inspection_date} isNull={!data.propeller_last_inspection_date} texts={texts} />
+          </View>
+
+          {/* Avionics Section */}
+          <SectionHeader title={texts.avionicsSection} icon="📡" />
+          <View style={styles.section}>
+            <DisplayField label={texts.avionicsLastCertDate} value={data.avionics_last_certification_date} isNull={!data.avionics_last_certification_date} texts={texts} />
+            <DisplayField label={texts.avionicsInterval} value={data.avionics_certification_interval_months} unit={texts.months} fieldKey="avionics_certification_interval_months" texts={texts} />
+          </View>
+
+          {/* Maintenance Limits Section */}
+          <SectionHeader title={texts.limitsSection} icon="⏱️" />
+          <View style={styles.section}>
+            <DisplayField label={texts.magnetosModel} value={data.magnetos_model} isNull={!data.magnetos_model} texts={texts} />
+            <DisplayField label={texts.magnetosInterval} value={data.magnetos_interval_hours} unit={texts.hours} fieldKey="magnetos_interval_hours" texts={texts} />
+            <DisplayField label={texts.magnetosLastHours} value={data.magnetos_last_inspection_hours} unit={texts.hours} isNull={data.magnetos_last_inspection_hours === null} texts={texts} />
+            <DisplayField label={texts.magnetosLastDate} value={data.magnetos_last_inspection_date} isNull={!data.magnetos_last_inspection_date} texts={texts} />
+            <View style={styles.separator} />
+            <DisplayField label={texts.vacuumPumpModel} value={data.vacuum_pump_model} isNull={!data.vacuum_pump_model} texts={texts} />
+            <DisplayField label={texts.vacuumPumpInterval} value={data.vacuum_pump_interval_hours} unit={texts.hours} fieldKey="vacuum_pump_interval_hours" texts={texts} />
+            <DisplayField label={texts.vacuumPumpLastHours} value={data.vacuum_pump_last_replacement_hours} unit={texts.hours} isNull={data.vacuum_pump_last_replacement_hours === null} texts={texts} />
+            <DisplayField label={texts.vacuumPumpLastDate} value={data.vacuum_pump_last_replacement_date} isNull={!data.vacuum_pump_last_replacement_date} texts={texts} />
+            <View style={styles.separator} />
+            <DisplayField label={texts.airframeLastAnnualDate} value={data.airframe_last_annual_date} isNull={!data.airframe_last_annual_date} texts={texts} />
+            <DisplayField label={texts.airframeLastAnnualHours} value={data.airframe_last_annual_hours} unit={texts.hours} isNull={data.airframe_last_annual_hours === null} texts={texts} />
+          </View>
+
+          {/* TC-Safe Disclaimer */}
+          <View style={styles.disclaimer}>
+            <Text style={styles.disclaimerIcon}>⚠️</Text>
+            <Text style={styles.disclaimerText}>{texts.disclaimer}</Text>
+          </View>
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ============================================
+  // Edit Mode
+  // ============================================
   return (
     <KeyboardAvoidingView 
       style={styles.container}
@@ -334,7 +613,7 @@ export default function ReportSettingsScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
+        <TouchableOpacity onPress={() => setIsEditing(false)} style={styles.headerBack}>
           <Text style={styles.headerBackText}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
@@ -349,124 +628,55 @@ export default function ReportSettingsScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Empty State Card */}
-        {isSettingsEmpty && !isEditing && (
-          <View style={styles.emptyStateCard}>
-            <Text style={styles.emptyIcon}>⚙️</Text>
-            <Text style={styles.emptyTitle}>{texts.emptyTitle}</Text>
-            <Text style={styles.emptyText}>{texts.emptyText}</Text>
-            <TouchableOpacity style={styles.configureButton} onPress={() => setIsEditing(true)}>
-              <Text style={styles.configureButtonText}>{texts.configureNow}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* Reset Defaults Button */}
+        <TouchableOpacity style={styles.resetButton} onPress={handleResetDefaults}>
+          <Text style={styles.resetButtonText}>{texts.resetDefaults}</Text>
+        </TouchableOpacity>
 
-        {/* === ENGINE SECTION === */}
+        {/* Engine Section */}
         <SectionHeader title={texts.engineSection} icon="🔧" />
         <View style={styles.section}>
-          <SettingField
-            label={texts.engineModel}
-            value={engineModel}
-            onChangeText={setEngineModel}
-            placeholder={placeholders.engine_model[lang]}
-          />
-          <SettingField
-            label={texts.engineTbo}
-            value={engineTboHours}
-            onChangeText={setEngineTboHours}
-            placeholder={placeholders.engine_tbo_hours[lang]}
-            keyboardType="numeric"
-            unit={texts.hours}
-          />
-          <SettingField
-            label={texts.engineLastOverhaulHours}
-            value={engineLastOverhaulHours}
-            onChangeText={setEngineLastOverhaulHours}
-            placeholder="0"
-            keyboardType="numeric"
-            unit={texts.hours}
-          />
-          <SettingField
-            label={texts.engineLastOverhaulDate}
-            value={engineLastOverhaulDate}
-            onChangeText={setEngineLastOverhaulDate}
-            placeholder="YYYY-MM-DD"
-          />
+          <EditField label={texts.engineModel} value={formData.engine_model} onChangeText={(v) => setFormData(p => ({...p, engine_model: v}))} placeholder="Ex: O-320-E2D" />
+          <EditField label={texts.engineTbo} value={formData.engine_tbo_hours} onChangeText={(v) => setFormData(p => ({...p, engine_tbo_hours: v}))} placeholder={`${texts.placeholderDefault} 2000`} keyboardType="numeric" unit={texts.hours} />
+          <EditField label={texts.engineLastOverhaulHours} value={formData.engine_last_overhaul_hours} onChangeText={(v) => setFormData(p => ({...p, engine_last_overhaul_hours: v}))} placeholder="0" keyboardType="numeric" unit={texts.hours} />
+          <EditField label={texts.engineLastOverhaulDate} value={formData.engine_last_overhaul_date} onChangeText={(v) => setFormData(p => ({...p, engine_last_overhaul_date: v}))} placeholder="YYYY-MM-DD" />
         </View>
 
-        {/* === PROPELLER SECTION === */}
+        {/* Propeller Section */}
         <SectionHeader title={texts.propellerSection} icon="🌀" />
         <View style={styles.section}>
-          <SettingField
-            label={texts.propellerType}
-            value={propellerType}
-            onChangeText={setPropellerType}
-            placeholder={placeholders.propeller_type[lang]}
-          />
-          <SettingField
-            label={texts.propellerModel}
-            value={propellerModel}
-            onChangeText={setPropellerModel}
-            placeholder={placeholders.propeller_model[lang]}
-          />
-          <SettingField
-            label={texts.propellerInterval}
-            value={propellerManufacturerIntervalYears}
-            onChangeText={setPropellerManufacturerIntervalYears}
-            placeholder="5"
-            keyboardType="numeric"
-            unit={texts.years}
-          />
+          <View style={styles.editFieldContainer}>
+            <Text style={styles.fieldLabel}>{texts.propellerType}</Text>
+            <PropellerTypePicker value={formData.propeller_type} onChange={(v) => setFormData(p => ({...p, propeller_type: v}))} lang={lang} />
+          </View>
+          <EditField label={texts.propellerModel} value={formData.propeller_model} onChangeText={(v) => setFormData(p => ({...p, propeller_model: v}))} placeholder="Ex: McCauley 1A103" />
+          <EditField label={texts.propellerInterval} value={formData.propeller_manufacturer_interval_years} onChangeText={(v) => setFormData(p => ({...p, propeller_manufacturer_interval_years: v}))} placeholder="5" keyboardType="numeric" unit={texts.years} />
+          <EditField label={texts.propellerLastInspectionHours} value={formData.propeller_last_inspection_hours} onChangeText={(v) => setFormData(p => ({...p, propeller_last_inspection_hours: v}))} placeholder="0" keyboardType="numeric" unit={texts.hours} />
+          <EditField label={texts.propellerLastInspectionDate} value={formData.propeller_last_inspection_date} onChangeText={(v) => setFormData(p => ({...p, propeller_last_inspection_date: v}))} placeholder="YYYY-MM-DD" />
         </View>
 
-        {/* === LIMITS SECTION === */}
+        {/* Avionics Section */}
+        <SectionHeader title={texts.avionicsSection} icon="📡" />
+        <View style={styles.section}>
+          <EditField label={texts.avionicsLastCertDate} value={formData.avionics_last_certification_date} onChangeText={(v) => setFormData(p => ({...p, avionics_last_certification_date: v}))} placeholder="YYYY-MM-DD" />
+          <EditField label={texts.avionicsInterval} value={formData.avionics_certification_interval_months} onChangeText={(v) => setFormData(p => ({...p, avionics_certification_interval_months: v}))} placeholder={`${texts.placeholderDefault} 24 (Canada)`} keyboardType="numeric" unit={texts.months} />
+        </View>
+
+        {/* Maintenance Limits Section */}
         <SectionHeader title={texts.limitsSection} icon="⏱️" />
         <View style={styles.section}>
-          <SettingField
-            label={texts.avionicsInterval}
-            value={avionicsCertificationIntervalMonths}
-            onChangeText={setAvionicsCertificationIntervalMonths}
-            placeholder={placeholders.avionics_certification_interval_months[lang]}
-            keyboardType="numeric"
-            unit={texts.months}
-          />
-          <SettingField
-            label={texts.magnetosInterval}
-            value={magnetosIntervalHours}
-            onChangeText={setMagnetosIntervalHours}
-            placeholder={placeholders.magnetos_interval_hours[lang]}
-            keyboardType="numeric"
-            unit={texts.hours}
-          />
-          <SettingField
-            label={texts.vacuumPumpInterval}
-            value={vacuumPumpIntervalHours}
-            onChangeText={setVacuumPumpIntervalHours}
-            placeholder={placeholders.vacuum_pump_interval_hours[lang]}
-            keyboardType="numeric"
-            unit={texts.hours}
-          />
-        </View>
-
-        {/* === ELT SECTION === */}
-        <SectionHeader title={texts.eltSection} icon="📡" />
-        <View style={styles.section}>
-          <SettingField
-            label={texts.eltTestInterval}
-            value={eltTestIntervalMonths}
-            onChangeText={setEltTestIntervalMonths}
-            placeholder="12"
-            keyboardType="numeric"
-            unit={texts.months}
-          />
-          <SettingField
-            label={texts.eltBatteryInterval}
-            value={eltBatteryIntervalMonths}
-            onChangeText={setEltBatteryIntervalMonths}
-            placeholder="24"
-            keyboardType="numeric"
-            unit={texts.months}
-          />
+          <EditField label={texts.magnetosModel} value={formData.magnetos_model} onChangeText={(v) => setFormData(p => ({...p, magnetos_model: v}))} placeholder="Ex: Bendix S4RN-21" />
+          <EditField label={texts.magnetosInterval} value={formData.magnetos_interval_hours} onChangeText={(v) => setFormData(p => ({...p, magnetos_interval_hours: v}))} placeholder={`${texts.placeholderDefault} 500`} keyboardType="numeric" unit={texts.hours} />
+          <EditField label={texts.magnetosLastHours} value={formData.magnetos_last_inspection_hours} onChangeText={(v) => setFormData(p => ({...p, magnetos_last_inspection_hours: v}))} placeholder="0" keyboardType="numeric" unit={texts.hours} />
+          <EditField label={texts.magnetosLastDate} value={formData.magnetos_last_inspection_date} onChangeText={(v) => setFormData(p => ({...p, magnetos_last_inspection_date: v}))} placeholder="YYYY-MM-DD" />
+          <View style={styles.separator} />
+          <EditField label={texts.vacuumPumpModel} value={formData.vacuum_pump_model} onChangeText={(v) => setFormData(p => ({...p, vacuum_pump_model: v}))} placeholder="Ex: Rapco RA215CC" />
+          <EditField label={texts.vacuumPumpInterval} value={formData.vacuum_pump_interval_hours} onChangeText={(v) => setFormData(p => ({...p, vacuum_pump_interval_hours: v}))} placeholder={`${texts.placeholderDefault} 400`} keyboardType="numeric" unit={texts.hours} />
+          <EditField label={texts.vacuumPumpLastHours} value={formData.vacuum_pump_last_replacement_hours} onChangeText={(v) => setFormData(p => ({...p, vacuum_pump_last_replacement_hours: v}))} placeholder="0" keyboardType="numeric" unit={texts.hours} />
+          <EditField label={texts.vacuumPumpLastDate} value={formData.vacuum_pump_last_replacement_date} onChangeText={(v) => setFormData(p => ({...p, vacuum_pump_last_replacement_date: v}))} placeholder="YYYY-MM-DD" />
+          <View style={styles.separator} />
+          <EditField label={texts.airframeLastAnnualDate} value={formData.airframe_last_annual_date} onChangeText={(v) => setFormData(p => ({...p, airframe_last_annual_date: v}))} placeholder="YYYY-MM-DD" />
+          <EditField label={texts.airframeLastAnnualHours} value={formData.airframe_last_annual_hours} onChangeText={(v) => setFormData(p => ({...p, airframe_last_annual_hours: v}))} placeholder="0" keyboardType="numeric" unit={texts.hours} />
         </View>
 
         {/* TC-Safe Disclaimer */}
@@ -488,12 +698,20 @@ export default function ReportSettingsScreen() {
           )}
         </TouchableOpacity>
 
+        {/* Cancel Button */}
+        <TouchableOpacity style={styles.cancelButton} onPress={() => setIsEditing(false)}>
+          <Text style={styles.cancelButtonText}>{texts.cancel}</Text>
+        </TouchableOpacity>
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
+// ============================================
+// Styles
+// ============================================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   
@@ -508,36 +726,18 @@ const styles = StyleSheet.create({
   headerTitle: { color: COLORS.white, fontSize: 18, fontWeight: '600' },
   headerSubtitle: { color: COLORS.white, fontSize: 14, opacity: 0.8, marginTop: 2 },
   headerRight: { width: 40 },
+  headerEditButton: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  headerEditText: { color: COLORS.white, fontSize: 14, fontWeight: '600' },
   
   scrollView: { flex: 1 },
   
   // Center state
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 },
   centerText: { marginTop: 16, fontSize: 16, color: COLORS.textMuted },
-  
-  // Empty state card
-  emptyStateCard: {
-    margin: 16,
-    padding: 24,
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  emptyIcon: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: COLORS.textDark, textAlign: 'center', marginBottom: 8 },
-  emptyText: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 20 },
-  configureButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  configureButtonText: { color: COLORS.white, fontSize: 16, fontWeight: '600' },
+  errorIcon: { fontSize: 48, marginBottom: 16 },
+  errorText: { fontSize: 16, color: COLORS.textMuted, marginBottom: 16 },
+  retryButton: { backgroundColor: COLORS.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
+  retryButtonText: { color: COLORS.white, fontSize: 16, fontWeight: '600' },
   
   // Section
   sectionHeader: { paddingHorizontal: 16, paddingTop: 24, paddingBottom: 8 },
@@ -548,16 +748,46 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white, paddingHorizontal: 16, paddingVertical: 8,
     borderTopWidth: 1, borderBottomWidth: 1, borderColor: COLORS.border,
   },
+  separator: { height: 1, backgroundColor: COLORS.border, marginVertical: 12 },
   
-  // Setting Field
-  fieldContainer: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  fieldLabel: { fontSize: 14, color: COLORS.textMuted, marginBottom: 6 },
-  fieldInputRow: { flexDirection: 'row', alignItems: 'center' },
-  fieldInput: {
+  // Display Field
+  fieldRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+  },
+  fieldLabel: { fontSize: 14, color: COLORS.textMuted, flex: 1 },
+  valueContainer: { flexDirection: 'row', alignItems: 'center' },
+  fieldValue: { fontSize: 16, color: COLORS.textDark, fontWeight: '500' },
+  fieldValueNull: { color: COLORS.textLight, fontStyle: 'italic' },
+  defaultBadge: { backgroundColor: COLORS.blue, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginLeft: 8 },
+  defaultBadgeText: { fontSize: 10, color: COLORS.primary, fontWeight: '600' },
+  
+  // Edit Field
+  editFieldContainer: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  editInputRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
+  editInput: {
     flex: 1, fontSize: 16, color: COLORS.textDark, paddingVertical: 10, paddingHorizontal: 12,
     backgroundColor: COLORS.background, borderRadius: 8,
   },
   fieldUnit: { fontSize: 14, color: COLORS.textMuted, marginLeft: 8, minWidth: 50 },
+  
+  // Picker
+  pickerContainer: { flexDirection: 'row', marginTop: 8, gap: 12 },
+  pickerOption: { 
+    flex: 1, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8,
+    backgroundColor: COLORS.background, alignItems: 'center',
+  },
+  pickerOptionSelected: { backgroundColor: COLORS.primary },
+  pickerOptionText: { fontSize: 14, color: COLORS.textMuted, fontWeight: '500' },
+  pickerOptionTextSelected: { color: COLORS.white },
+  
+  // Reset Button
+  resetButton: {
+    margin: 16, marginBottom: 8, paddingVertical: 14, paddingHorizontal: 20,
+    backgroundColor: COLORS.orangeLight, borderRadius: 12, alignItems: 'center',
+    borderWidth: 1, borderColor: COLORS.orange,
+  },
+  resetButtonText: { fontSize: 14, color: '#E65100', fontWeight: '600' },
   
   // Disclaimer
   disclaimer: {
@@ -574,4 +804,12 @@ const styles = StyleSheet.create({
   },
   saveButtonDisabled: { opacity: 0.6 },
   saveButtonText: { color: COLORS.white, fontSize: 18, fontWeight: '600' },
+  
+  // Cancel button
+  cancelButton: {
+    marginHorizontal: 16, marginTop: 12, paddingVertical: 14,
+    borderRadius: 12, alignItems: 'center', backgroundColor: COLORS.white,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  cancelButtonText: { color: COLORS.textMuted, fontSize: 16, fontWeight: '500' },
 });
