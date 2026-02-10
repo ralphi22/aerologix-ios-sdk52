@@ -71,7 +71,8 @@ interface TCLookupData {
   category?: string;
   engine_type?: string;
   max_weight_kg?: string;
-  base_of_operations?: string;
+  city_airport?: string;      // ← RENAMED from base_of_operations
+  purpose?: string;           // ← Purpose field (maps to commonName)
   owner_name?: string;
   owner_city?: string;
   owner_province?: string;
@@ -282,7 +283,10 @@ export default function EditAircraftScreen() {
         if (data.category) { setCategory(data.category); filled.add('category'); }
         if (data.engine_type) { setEngineType(data.engine_type); filled.add('engineType'); }
         if (data.max_weight_kg) { setMaxWeight(data.max_weight_kg); filled.add('maxWeight'); }
-        if (data.base_of_operations) { setBaseOperations(data.base_of_operations); filled.add('baseOperations'); }
+        // city_airport → baseOperations (renamed field)
+        if (data.city_airport) { setBaseOperations(data.city_airport); filled.add('baseOperations'); }
+        // purpose → commonName
+        if (data.purpose) { setCommonName(data.purpose); filled.add('commonName'); }
         if (data.designator) { setDesignator(data.designator); filled.add('designator'); }
         if (data.owner_name) { setOwnerName(data.owner_name); filled.add('ownerName'); }
         if (data.owner_city) { setOwnerCity(data.owner_city); filled.add('ownerCity'); }
