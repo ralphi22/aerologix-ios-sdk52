@@ -160,6 +160,43 @@ La page "Report Settings" a été refactorisée pour utiliser l'API backend au l
 
 ---
 
+## Session Date: February 2025 - Edit Aircraft Page Update
+
+### ✅ Ajout des champs Purpose et Base City
+
+| Champ | Nom API | Nom Frontend | Status |
+|-------|---------|--------------|--------|
+| Purpose (But) | `purpose` | `purpose` | ✅ Ajouté |
+| Base City/Airport | `base_city` | `baseCity` | ✅ Ajouté |
+
+### Fichiers Modifiés
+
+1. `/app/stores/aircraftLocalStore.ts`:
+   - Interface `Aircraft` enrichie avec `purpose` et `baseCity`
+   - `mapApiToLocal()`: Mappe `purpose` et `base_city` depuis l'API
+   - `updateAircraft()`: Envoie `purpose` et `base_city` au backend via PUT
+
+2. `/app/app/(tabs)/aircraft/edit.tsx`:
+   - Nouveaux états: `purpose`, `baseCity`
+   - Chargement des valeurs depuis `aircraft.purpose` et `aircraft.baseCity`
+   - Nouveaux champs UI dans la section Identity:
+     - "But / Purpose" avec placeholder "Ex: Privé, Commercial, Formation"
+     - "Ville / Aéroport de base" avec placeholder "Ex: Montréal, CYUL"
+   - `handleSave()`: Inclut `purpose` et `baseCity` dans la mise à jour
+
+### Endpoints utilisés
+- GET `/api/aircraft/{aircraft_id}` - Récupération avec `purpose` et `base_city`
+- PUT `/api/aircraft/{aircraft_id}` - Mise à jour avec `purpose` et `base_city`
+
+### À Tester
+1. Ouvrir Edit Aircraft sur un avion
+2. Vérifier que "But / Purpose" affiche la valeur de l'API (ex: "Privé")
+3. Vérifier que "Ville / Aéroport de base" affiche la valeur de l'API (ex: "Goose Bay")
+4. Modifier les valeurs et sauvegarder
+5. Recharger et vérifier la persistance
+
+---
+
 ## Session Date: December 2025 - Report Settings Testing Results
 
 ### ❌ TESTING BLOCKED - Authentication Issue
