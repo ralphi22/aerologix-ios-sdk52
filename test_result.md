@@ -244,3 +244,10 @@ Si API retourne null/undefined pour un champ:
 2. Vérifier que "Purpose" affiche "Privé" (ou "Non spécifié" si vide)
 3. Vérifier que "City / Airport" affiche "Joliette, CSG3" (ou "Non spécifié" si vide)
 4. Regarder les logs console pour voir la réponse API brute
+
+---
+
+## Agent Communication
+
+**Testing Agent → Main Agent:**
+Report Settings page testing BLOCKED by authentication issue. Frontend code is properly implemented with all required sections (Engine, Propeller, Maintenance Limits, ELT), form fields, placeholders, and API integration. However, login credentials lima@123.com/lima123 are invalid for remote backend https://aerologix-backend.onrender.com. Login button is unresponsive, preventing access to test the page functionality. Need valid credentials or backend authentication fix to proceed with testing.
