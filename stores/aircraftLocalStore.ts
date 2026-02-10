@@ -112,8 +112,8 @@ const mapApiToLocal = (apiAircraft: ApiAircraft, localData: LocalAircraftData = 
   category: localData.category || '',
   engineType: localData.engineType || '',
   maxWeight: localData.maxWeight || '',
-  // City/Airport: Try backend field 'city_airport' first, then 'base_of_operations', then 'city', fallback to local
-  baseOperations: (apiAircraft as any).city_airport || (apiAircraft as any).base_of_operations || (apiAircraft as any).city || localData.baseOperations || '',
+  // City/Airport: Try backend field 'base_city' first, then 'city_airport', then 'base_of_operations', then 'city', fallback to local
+  baseOperations: (apiAircraft as any).base_city || (apiAircraft as any).city_airport || (apiAircraft as any).base_of_operations || (apiAircraft as any).city || localData.baseOperations || '',
   countryManufacture: localData.countryManufacture || '',
   registrationType: localData.registrationType || '',
   ownerSince: localData.ownerSince || '',
@@ -129,6 +129,9 @@ const mapApiToLocal = (apiAircraft: ApiAircraft, localData: LocalAircraftData = 
   engineHours: apiAircraft.engine_hours || 0,
   propellerHours: apiAircraft.propeller_hours || 0,
   createdAt: apiAircraft.created_at,
+  // NEW: Direct purpose and base_city fields from API
+  purpose: (apiAircraft as any).purpose || '',
+  baseCity: (apiAircraft as any).base_city || '',
 });
 
 // Extract local-only fields from aircraft data
