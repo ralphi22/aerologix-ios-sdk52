@@ -457,6 +457,9 @@ export default function EditAircraftScreen() {
       engineHours: parseFloat(engineHours) || 0,
       propellerHours: parseFloat(propellerHours) || 0,
       photoUri, ownerName, ownerCity, ownerProvince,
+      // NEW: Include purpose and baseCity
+      purpose: purpose || null,
+      baseCity: baseCity || null,
     } as any);
 
     router.back();
