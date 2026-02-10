@@ -214,6 +214,9 @@ export default function EditAircraftScreen() {
       setOwnerName((aircraft as any).ownerName || '');
       setOwnerCity((aircraft as any).ownerCity || '');
       setOwnerProvince((aircraft as any).ownerProvince || '');
+      // NEW: Load purpose and baseCity from aircraft data
+      setPurpose((aircraft as any).purpose || '');
+      setBaseCity((aircraft as any).baseCity || '');
       
       // IMPORTANT: Do NOT trigger TC lookup automatically
       setTcLookupStatus('idle');
