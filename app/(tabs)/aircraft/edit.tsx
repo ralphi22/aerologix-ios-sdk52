@@ -577,6 +577,22 @@ export default function EditAircraftScreen() {
             <FormField label={t('model_name')} value={model} onChangeText={setModel} placeholder="—" tcFilled={tcFilledFields.has('model')} />
             <FormField label={lang === 'fr' ? 'Désignateur' : 'Designator'} value={designator} onChangeText={setDesignator} placeholder="—" tcFilled={tcFilledFields.has('designator')} />
             <FormField label={t('serial_number')} value={serialNumber} onChangeText={setSerialNumber} placeholder="—" tcFilled={tcFilledFields.has('serialNumber')} />
+            {/* NEW: Purpose field */}
+            <FormField 
+              label={lang === 'fr' ? 'But / Purpose' : 'Purpose'} 
+              value={purpose} 
+              onChangeText={setPurpose} 
+              placeholder={lang === 'fr' ? 'Ex: Privé, Commercial, Formation' : 'Ex: Private, Commercial, Training'}
+              hint={lang === 'fr' ? 'But d\'enregistrement (Transport Canada)' : 'Registration purpose (from Transport Canada)'}
+            />
+            {/* NEW: Base City field */}
+            <FormField 
+              label={lang === 'fr' ? 'Ville / Aéroport de base' : 'Base City / Airport'} 
+              value={baseCity} 
+              onChangeText={setBaseCity} 
+              placeholder={lang === 'fr' ? 'Ex: Montréal, CYUL' : 'Ex: Montreal, CYUL'}
+              hint={lang === 'fr' ? 'Lieu d\'attache de l\'aéronef' : 'Home base location'}
+            />
           </View>
 
           {/* Category */}
