@@ -556,6 +556,7 @@ export default function AddAircraftScreen() {
               value={commonName}
               onChangeText={setCommonName}
               placeholder="—"
+              tcFilled={tcFilledFields.has('commonName')}
             />
             <FormField
               label={t('model_name')}
