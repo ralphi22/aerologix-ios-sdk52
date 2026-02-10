@@ -313,6 +313,9 @@ export function AircraftProvider({ children }: { children: ReactNode }) {
       if (aircraftData.propellerHours !== undefined) apiData.propeller_hours = aircraftData.propellerHours;
       // Send base_of_operations to backend if supported
       if (aircraftData.baseOperations !== undefined) apiData.base_of_operations = aircraftData.baseOperations;
+      // NEW: Send purpose and base_city to backend
+      if ((aircraftData as any).purpose !== undefined) (apiData as any).purpose = (aircraftData as any).purpose;
+      if ((aircraftData as any).baseCity !== undefined) (apiData as any).base_city = (aircraftData as any).baseCity;
       // Note: photo_url not sent to backend, stored locally only
       
       const updated = await aircraftService.update(id, apiData);
