@@ -83,8 +83,8 @@ export default function ReportSettingsScreen() {
   // Local state for editing
   const [motorTbo, setMotorTbo] = useState(settings.motorTbo.toString());
   const [avioniqueDate, setAvioniqueDate] = useState(settings.avioniqueDate);
-  const [magnetosHours, setMagnetosHours] = useState(settings.magnetosHours.toString());
-  const [pompeVideHours, setPompeVideHours] = useState(settings.pompeVideHours.toString());
+  const [magnetosHours, setMagnetosHours] = useState(settings.magnetosHoursUsed.toString());
+  const [pompeVideHours, setPompeVideHours] = useState(settings.pompeVideHoursUsed.toString());
 
   const handleSave = () => {
     updateSettings({
