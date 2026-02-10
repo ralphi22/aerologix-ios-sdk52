@@ -37,6 +37,9 @@ export interface Aircraft {
   photoUri?: string; // Local photo URI for aircraft image
   // AD/SB alert flag - indicates new TC items available
   adsb_has_new_tc_items?: boolean;
+  // NEW: Purpose and Base City from backend API
+  purpose?: string;    // "Privé", "Commercial", etc.
+  baseCity?: string;   // "Goose Bay", "Montreal, CYUL", etc.
 }
 
 interface AircraftContextType {
