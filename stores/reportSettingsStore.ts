@@ -47,8 +47,18 @@ export interface ReportSettings {
   
   // Dates
   avioniqueDate: string;      // Last avionics certification date
-  magnetosHoursUsed: number;  // Hours SINCE magnetos inspection
-  pompeVideHoursUsed: number; // Hours SINCE vacuum pump replacement
+
+  // ⚠️ LEGACY (deprecated) — kept for backward-compat with existing App Store users
+  // Static "hours used since work" — does NOT auto-track airframe
+  magnetosHoursUsed: number;  // Hours SINCE magnetos inspection (legacy)
+  pompeVideHoursUsed: number; // Hours SINCE vacuum pump replacement (legacy)
+
+  // ✅ NEW — Master/slave model
+  // Stores the AIRFRAME hours value AT THE MOMENT of the last work.
+  // Hours-used is then computed live: airframeHours - lastAtAirframe
+  magnetosLastInspectionAtAirframe: number | null;
+  pompeVideLastReplacementAtAirframe: number | null;
+
   heliceDate: string;         // Last propeller inspection date
   celluleDate: string;        // Last annual inspection date
   
@@ -70,6 +80,8 @@ const defaultSettings: ReportSettings = {
   avioniqueDate: '2024-01-15',
   magnetosHoursUsed: 281.8,
   pompeVideHoursUsed: 281.8,
+  magnetosLastInspectionAtAirframe: null,
+  pompeVideLastReplacementAtAirframe: null,
   heliceDate: '2025-11-09',
   celluleDate: '2025-06-15',
   eltTestDate: '2025-11-10',

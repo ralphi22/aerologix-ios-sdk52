@@ -19,6 +19,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getLanguage } from '@/i18n';
 import { useReportSettings, DEFAULT_LIMITS } from '@/stores/reportSettingsStore';
+import { useAircraftLocalStore } from '@/stores/aircraftLocalStore';
 
 const COLORS = {
   primary: '#0033A0',
@@ -118,15 +119,31 @@ function SectionHeader({ title, subtitle, icon }: { title: string; subtitle?: st
 
 export default function ReportSettingsScreen() {
   const router = useRouter();
-  const { registration } = useLocalSearchParams<{ registration: string }>();
+  const { aircraftId, registration } = useLocalSearchParams<{ aircraftId: string; registration: string }>();
   const lang = getLanguage();
   const { settings, limits, updateSettings, updateLimits, resetLimitsToDefault } = useReportSettings();
+  const { getAircraftById } = useAircraftLocalStore();
+
+  // Master counter (airframe) - used for slave hour fields
+  const aircraft = getAircraftById(aircraftId || '');
+  const airframeHours = aircraft?.airframeHours || 0;
 
   // Local state for settings - initialized with store values (which have defaults)
   const [motorTbo, setMotorTbo] = useState(settings.motorTbo?.toString() || '2000');
   const [avioniqueDate, setAvioniqueDate] = useState(settings.avioniqueDate || '');
-  const [magnetosHoursUsed, setMagnetosHoursUsed] = useState(settings.magnetosHoursUsed?.toString() || '0');
-  const [pompeVideHoursUsed, setPompeVideHoursUsed] = useState(settings.pompeVideHoursUsed?.toString() || '0');
+
+  // ✅ NEW master/slave fields: airframe hours AT the moment of last work
+  const [magnetosLastAtAirframe, setMagnetosLastAtAirframe] = useState(
+    settings.magnetosLastInspectionAtAirframe != null
+      ? settings.magnetosLastInspectionAtAirframe.toString()
+      : ''
+  );
+  const [pompeVideLastAtAirframe, setPompeVideLastAtAirframe] = useState(
+    settings.pompeVideLastReplacementAtAirframe != null
+      ? settings.pompeVideLastReplacementAtAirframe.toString()
+      : ''
+  );
+
   const [heliceDate, setHeliceDate] = useState(settings.heliceDate || '');
   const [celluleDate, setCelluleDate] = useState(settings.celluleDate || '');
   const [eltTestDate, setEltTestDate] = useState(settings.eltTestDate || '');
@@ -146,8 +163,16 @@ export default function ReportSettingsScreen() {
     if (settings) {
       setMotorTbo(settings.motorTbo?.toString() || '2000');
       setAvioniqueDate(settings.avioniqueDate || '');
-      setMagnetosHoursUsed(settings.magnetosHoursUsed?.toString() || '0');
-      setPompeVideHoursUsed(settings.pompeVideHoursUsed?.toString() || '0');
+      setMagnetosLastAtAirframe(
+        settings.magnetosLastInspectionAtAirframe != null
+          ? settings.magnetosLastInspectionAtAirframe.toString()
+          : ''
+      );
+      setPompeVideLastAtAirframe(
+        settings.pompeVideLastReplacementAtAirframe != null
+          ? settings.pompeVideLastReplacementAtAirframe.toString()
+          : ''
+      );
       setHeliceDate(settings.heliceDate || '');
       setCelluleDate(settings.celluleDate || '');
       setEltTestDate(settings.eltTestDate || '');
@@ -169,12 +194,22 @@ export default function ReportSettingsScreen() {
   }, [limits]);
 
   const handleSave = () => {
-    // Update settings
+    // Parse new master/slave fields
+    const magnetosParsed = magnetosLastAtAirframe.trim() === ''
+      ? null
+      : parseFloat(magnetosLastAtAirframe);
+    const pompeParsed = pompeVideLastAtAirframe.trim() === ''
+      ? null
+      : parseFloat(pompeVideLastAtAirframe);
+
+    // Update settings (new fields take precedence; legacy fields preserved untouched)
     updateSettings({
       motorTbo: parseFloat(motorTbo) || 2000,
       avioniqueDate,
-      magnetosHoursUsed: parseFloat(magnetosHoursUsed) || 0,
-      pompeVideHoursUsed: parseFloat(pompeVideHoursUsed) || 0,
+      magnetosLastInspectionAtAirframe:
+        magnetosParsed != null && !isNaN(magnetosParsed) ? magnetosParsed : null,
+      pompeVideLastReplacementAtAirframe:
+        pompeParsed != null && !isNaN(pompeParsed) ? pompeParsed : null,
       heliceDate,
       celluleDate,
       eltTestDate,
@@ -354,22 +389,78 @@ export default function ReportSettingsScreen() {
             onChangeText={setAvioniqueDate}
             placeholder="YYYY-MM-DD"
           />
-          <SettingField
-            label={lang === 'fr' ? 'Magnétos - Heures depuis inspection' : 'Magnetos - Hours since inspection'}
-            value={magnetosHoursUsed}
-            onChangeText={setMagnetosHoursUsed}
-            placeholder="0"
-            keyboardType="numeric"
-            unit="h"
-          />
-          <SettingField
-            label={lang === 'fr' ? 'Pompe à vide - Heures depuis remplacement' : 'Vacuum Pump - Hours since replacement'}
-            value={pompeVideHoursUsed}
-            onChangeText={setPompeVideHoursUsed}
-            placeholder="0"
-            keyboardType="numeric"
-            unit="h"
-          />
+
+          {/* === MAGNÉTOS — esclave de l'airframe === */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>
+              {lang === 'fr'
+                ? 'Magnétos - Heures cellule au moment de l\'inspection'
+                : 'Magnetos - Airframe hours at time of inspection'}
+            </Text>
+            <Text style={styles.helperText}>
+              {lang === 'fr'
+                ? `Heures cellule actuelles : ${airframeHours.toFixed(1)} h`
+                : `Current airframe hours: ${airframeHours.toFixed(1)} h`}
+            </Text>
+            <View style={styles.fieldInputRow}>
+              <TextInput
+                style={styles.fieldInput}
+                value={magnetosLastAtAirframe}
+                onChangeText={setMagnetosLastAtAirframe}
+                placeholder={lang === 'fr' ? 'Non renseigné' : 'Not set'}
+                placeholderTextColor={COLORS.textMuted}
+                keyboardType="numeric"
+              />
+              <Text style={styles.fieldUnit}>h</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.useCurrentButton}
+              onPress={() => setMagnetosLastAtAirframe(airframeHours.toFixed(1))}
+              disabled={airframeHours === 0}
+            >
+              <Text style={[styles.useCurrentText, airframeHours === 0 && { opacity: 0.4 }]}>
+                {lang === 'fr'
+                  ? `📍 Utiliser airframe actuel (${airframeHours.toFixed(1)} h)`
+                  : `📍 Use current airframe (${airframeHours.toFixed(1)} h)`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* === POMPE À VIDE — esclave de l'airframe === */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>
+              {lang === 'fr'
+                ? 'Pompe à vide - Heures cellule au moment du remplacement'
+                : 'Vacuum Pump - Airframe hours at time of replacement'}
+            </Text>
+            <Text style={styles.helperText}>
+              {lang === 'fr'
+                ? `Heures cellule actuelles : ${airframeHours.toFixed(1)} h`
+                : `Current airframe hours: ${airframeHours.toFixed(1)} h`}
+            </Text>
+            <View style={styles.fieldInputRow}>
+              <TextInput
+                style={styles.fieldInput}
+                value={pompeVideLastAtAirframe}
+                onChangeText={setPompeVideLastAtAirframe}
+                placeholder={lang === 'fr' ? 'Non renseigné' : 'Not set'}
+                placeholderTextColor={COLORS.textMuted}
+                keyboardType="numeric"
+              />
+              <Text style={styles.fieldUnit}>h</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.useCurrentButton}
+              onPress={() => setPompeVideLastAtAirframe(airframeHours.toFixed(1))}
+              disabled={airframeHours === 0}
+            >
+              <Text style={[styles.useCurrentText, airframeHours === 0 && { opacity: 0.4 }]}>
+                {lang === 'fr'
+                  ? `📍 Utiliser airframe actuel (${airframeHours.toFixed(1)} h)`
+                  : `📍 Use current airframe (${airframeHours.toFixed(1)} h)`}
+              </Text>
+            </TouchableOpacity>
+          </View>
           <SettingField
             label={lang === 'fr' ? 'ELT - Date de test' : 'ELT - Test date'}
             value={eltTestDate}
@@ -439,6 +530,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background, borderRadius: 8,
   },
   fieldUnit: { fontSize: 14, color: COLORS.textMuted, marginLeft: 8, minWidth: 40 },
+  helperText: { fontSize: 11, color: COLORS.primary, fontStyle: 'italic', marginBottom: 6 },
+  useCurrentButton: { marginTop: 8, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: COLORS.greenLight, borderRadius: 8, alignSelf: 'flex-start' },
+  useCurrentText: { fontSize: 12, color: COLORS.primary, fontWeight: '500' },
   // Limit Field
   limitContainer: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   limitHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },

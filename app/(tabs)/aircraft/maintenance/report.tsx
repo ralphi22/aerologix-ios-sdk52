@@ -210,6 +210,8 @@ export default function ReportScreen() {
     avioniqueDate: '',
     magnetosHoursUsed: 0,
     pompeVideHoursUsed: 0,
+    magnetosLastInspectionAtAirframe: null,
+    pompeVideLastReplacementAtAirframe: null,
   };
   const limits = reportContext?.limits || {
     heliceYears: 5,
@@ -224,13 +226,27 @@ export default function ReportScreen() {
   const propellerHours = aircraft?.propellerHours || 0;
   const airframeHours = aircraft?.airframeHours || 0;
 
+  // ============================================
+  // ✅ MASTER/SLAVE: hours-used computed live from airframe
+  // If new field set → compute dynamically; else fall back to legacy static value
+  // ============================================
+  const magnetosHoursUsedComputed =
+    settings.magnetosLastInspectionAtAirframe != null
+      ? Math.max(0, airframeHours - settings.magnetosLastInspectionAtAirframe)
+      : (settings.magnetosHoursUsed ?? 0);
+
+  const pompeHoursUsedComputed =
+    settings.pompeVideLastReplacementAtAirframe != null
+      ? Math.max(0, airframeHours - settings.pompeVideLastReplacementAtAirframe)
+      : (settings.pompeVideHoursUsed ?? 0);
+
   // Calculate all statuses using editable limits
   const motorProgress = calculateHoursProgress(engineHours, settings.motorTbo);
   const heliceProgress = calculateDateProgress(settings.heliceDate || '', limits.heliceYears * 12);
   const celluleProgress = calculateDateProgress(settings.celluleDate || '', limits.celluleYears * 12);
   const avioniqueProgress = calculateDateProgress(settings.avioniqueDate || '', limits.avioniqueMonths);
-  const magnetosProgress = calculateHoursProgress(settings.magnetosHoursUsed, limits.magnetosHours);
-  const pompeProgress = calculateHoursProgress(settings.pompeVideHoursUsed, limits.pompeVideHours);
+  const magnetosProgress = calculateHoursProgress(magnetosHoursUsedComputed, limits.magnetosHours);
+  const pompeProgress = calculateHoursProgress(pompeHoursUsedComputed, limits.pompeVideHours);
   
   // ELT progress from ELT store (with fallback)
   // TC-SAFE: Check if ANY ELT date is present before showing 'ok' status
@@ -406,7 +422,7 @@ export default function ReportScreen() {
             iconBg={COLORS.greenLight}
             title={lang === 'fr' ? 'Magnétos' : 'Magnetos'}
             subtitle={lang === 'fr' ? 'Heures' : 'Hours'}
-            currentValue={`${settings.magnetosHoursUsed.toFixed(1)} h ${lang === 'fr' ? 'depuis inspe...' : 'since insp...'}`}
+            currentValue={`${magnetosHoursUsedComputed.toFixed(1)} h ${lang === 'fr' ? 'depuis inspe...' : 'since insp...'}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
             limitValue={`${limits.magnetosHours} h`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
@@ -421,7 +437,7 @@ export default function ReportScreen() {
             iconBg={COLORS.greenLight}
             title={lang === 'fr' ? 'Pompe à vide' : 'Vacuum Pump'}
             subtitle={lang === 'fr' ? 'Heures' : 'Hours'}
-            currentValue={`${settings.pompeVideHoursUsed.toFixed(1)} h ${lang === 'fr' ? 'depuis rempl...' : 'since repl...'}`}
+            currentValue={`${pompeHoursUsedComputed.toFixed(1)} h ${lang === 'fr' ? 'depuis rempl...' : 'since repl...'}`}
             currentLabel={lang === 'fr' ? 'État' : 'Status'}
             limitValue={`${limits.pompeVideHours} h`}
             limitLabel={lang === 'fr' ? 'Limite' : 'Limit'}
