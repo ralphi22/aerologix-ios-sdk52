@@ -2,9 +2,9 @@
   "expo": {
     "name": "AeroLogix AI",
     "slug": "frontend-sdk52-clean",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/AX.png",
     "scheme": "frontendsdk52clean",
     "userInterfaceStyle": "automatic",
     "extra": {
@@ -53,7 +53,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "owner": "ralphi"
   }
